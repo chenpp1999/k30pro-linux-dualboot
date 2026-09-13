@@ -1,0 +1,40 @@
+[    0.000000] Kernel command line: cgroup_disable=pressure ramoops_memreserve=4M rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off androidboot.hardware=qcom androidboot.console=ttyMSM0 androidboot.memcg=1 lpm_levels.sleep_disabled=1 msm_rtb.filter=0x237 service_locator.enable=1 androidboot.usbcontroller=a600000.dwc3 swiotlb=2048 loop.max_part=7 cgroup.memory=nokmem,nosocket reboot=panic_warm androidboot.fstab_suffix=qcom androidboot.init_fatal_reboot_target=recovery console=tty0 loglevel=7 androidboot.verifiedbootstate=orange androidboot.keymaster=1  androidboot.bootdevice=1d84000.ufshc androidboot.fstab_suffix=default androidboot.boot_devices=soc/1d84000.ufshc androidboot.serialno=REDACTED androidboot.secureboot=1 androidboot.hwversion=3.9.0 androidboot.cpuid=REDACTED androidboot.camera.config=1 androidboot.network.mode=2 androidboot.hwc=CN androidboot.hwlevel=MP androidboot.product.hardware.sku=std androidboot.baseband=mdm msm_drm.dsi_display0=qcom,mdss_dsi_j11_38_08_0a_fhd_cmd: android
+[    0.529016] mdss_pll_probe: MDSS pll label = MDSS DSI 0 PLL
+[    0.529029] mdss_pll_probe: mdss_pll_probe: label=MDSS DSI 0 PLL PLL SSC enabled
+[    0.530870] dsi_pll_clock_register_7nm: Registered DSI PLL ndx=0, clocks successfully
+[    0.530901] mdss_pll_probe: MDSS pll label = MDSS DSI 1 PLL
+[    0.530904] mdss_pll_probe: mdss_pll_probe: label=MDSS DSI 1 PLL PLL SSC enabled
+[    0.542256] dsi_pll_clock_register_7nm: Registered DSI PLL ndx=1, clocks successfully
+[   16.903337] dsi_phy ae94400.qcom,mdss_dsi_phy0: ae94400.qcom,mdss_dsi_phy0 supply gdsc not found, using dummy regulator
+[   16.903345] dsi_phy ae94400.qcom,mdss_dsi_phy0: Linked as a consumer to regulator.0
+[   16.903353] dsi_phy ae94400.qcom,mdss_dsi_phy0: Linked as a consumer to regulator.13
+[   16.903366] [drm:dsi_phy_driver_probe] [msm-dsi-info]: DSI_0: Probe successful
+[   16.903387] dsi_phy ae96400.qcom,mdss_dsi_phy1: ae96400.qcom,mdss_dsi_phy1 supply gdsc not found, using dummy regulator
+[   16.903392] dsi_phy ae96400.qcom,mdss_dsi_phy1: Linked as a consumer to regulator.0
+[   16.903397] dsi_phy ae96400.qcom,mdss_dsi_phy1: Linked as a consumer to regulator.13
+[   16.903401] [drm:dsi_phy_driver_probe] [msm-dsi-info]: DSI_1: Probe successful
+[   16.903647] drm_dsi_ctrl ae94000.qcom,mdss_dsi_ctrl0: Linked as a consumer to regulator.62
+[   16.903654] drm_dsi_ctrl ae94000.qcom,mdss_dsi_ctrl0: Linked as a consumer to regulator.18
+[   16.903668] [drm:dsi_ctrl_dev_probe] [msm-dsi-info]: dsi-ctrl-0: Probe successful
+[   16.903697] drm_dsi_ctrl ae96000.qcom,mdss_dsi_ctrl1: Linked as a consumer to regulator.62
+[   16.903702] drm_dsi_ctrl ae96000.qcom,mdss_dsi_ctrl1: Linked as a consumer to regulator.18
+[   16.903711] [drm:dsi_ctrl_dev_probe] [msm-dsi-info]: dsi-ctrl-1: Probe successful
+[   16.904087] [drm] [msm-dsi-warn]: panel_node  not found
+[   16.904206] OF: graph: no port node found in /soc/qcom,dsi-display-primary
+[   16.904233] [drm:dsi_panel_get] [msm-dsi-info]: [xiaomi j11 38 08 0a fhd panel] clk_strength default value = 0
+[   16.904317] mi-dsi-panel:[dsi_panel_parse_mi_config:374] mi,panel-id is 0x4a323200380801
+[   16.904321] mi-dsi-panel:[dsi_panel_parse_mi_config:380] mi feature enabled
+[   16.904329] mi-dsi-panel:[dsi_panel_parse_mi_config:418] mi,mdss-dsi-panel-fod-off-b5-index not defined
+[   16.904332] mi-dsi-panel:[dsi_panel_parse_mi_config:424] fod dimlayer enabled.
+[   16.904336] mi-dsi-panel:[dsi_panel_parse_mi_config:433] fod hbm on need prepare.
+[   16.904339] mi-dsi-panel:[dsi_panel_parse_mi_config:441] delay before fod hbm on.
+[   16.904343] mi-dsi-panel:[dsi_panel_parse_mi_config:453] delay before fod hbm off.
+[   16.904346] mi-dsi-panel:[dsi_panel_parse_mi_config:459] delay after fod hbm off.
+[   16.904349] mi-dsi-panel:[dsi_panel_parse_mi_config:465] j1 fod skip nolp
+[   16.904352] mi-dsi-panel:[dsi_panel_parse_mi_config:482] length: 42
+[   16.904358] mi-dsi-panel:[dsi_panel_parse_mi_config:593] panel disp_rate gpio not specified
+[   16.904361] mi-dsi-panel:[dsi_panel_parse_mi_config:602] panel on dimming delay 120 ms
+[   16.904364] mi-dsi-panel:[dsi_panel_parse_mi_config:617] fod_off_dimming_delay 85
+[   16.904368] mi-dsi-panel:[dsi_panel_parse_mi_config:629] mi,mdss-dsi-panel-gamma-update-flag feature not defined
+[   16.904371] mi-dsi-panel:[dsi_panel_parse_mi_config:635] mi,mdss-dsi-greenish-update-gamma-flag feature is defined
+[   16.904379] mi-dsi-panel:[dsi_panel_parse_mi_config:655] mi,mdss-dsi-panel-dc-update-flag feature not defined

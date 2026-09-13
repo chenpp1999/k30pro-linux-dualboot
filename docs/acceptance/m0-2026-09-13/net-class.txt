@@ -1,0 +1,10 @@
+total 0
+lrwxrwxrwx    1 root     root             0 Feb  4 09:05 bond0 -> ../../devices/virtual/net/bond0
+-rw-r--r--    1 root     root          4096 Feb  4 09:05 bonding_masters
+lrwxrwxrwx    1 root     root             0 Feb  4 09:05 dummy0 -> ../../devices/virtual/net/dummy0
+lrwxrwxrwx    1 root     root             0 Feb  4 09:05 ip6_vti0 -> ../../devices/virtual/net/ip6_vti0
+lrwxrwxrwx    1 root     root             0 Feb  4 09:05 ip6tnl0 -> ../../devices/virtual/net/ip6tnl0
+lrwxrwxrwx    1 root     root             0 Feb  4 09:05 ip_vti0 -> ../../devices/virtual/net/ip_vti0
+lrwxrwxrwx    1 root     root             0 Feb  4 09:05 lo -> ../../devices/virtual/net/lo
+lrwxrwxrwx    1 root     root             0 Feb  4 09:05 sit0 -> ../../devices/virtual/net/sit0
+lrwxrwxrwx    1 root     root             0 Feb  4 09:04 usb0 -> ../../devices/platform/soc/a600000.ssusb/a600000.dwc3/gadget/net/usb0

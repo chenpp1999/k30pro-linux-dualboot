@@ -1,0 +1,1 @@
+Linux version 4.19.325-cip128-st12-perf (pmos@DESKTOP-JID71RJ) (Alpine clang version 22.1.8, LLD 22.1.8) #10-postmarketOS SMP PREEMPT Fri Jul 10 18:13:02 UTC 2026

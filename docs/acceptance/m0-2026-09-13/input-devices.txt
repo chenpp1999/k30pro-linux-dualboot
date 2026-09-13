@@ -1,0 +1,51 @@
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="xiaomi-touch"
+P: Phys=xiaomi-touch/input0
+S: Sysfs=/devices/virtual/input/input0
+U: Uniq=
+H: Handlers=event0 cpufreq 
+B: PROP=0
+B: EV=3
+B: KEY=80000 1 0 0 0 0
+
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="qpnp_pon"
+P: Phys=qpnp_pon/input0
+S: Sysfs=/devices/platform/soc/c440000.qcom,spmi/spmi-0/spmi0-00/c440000.qcom,spmi:qcom,pm8150@0:qcom,power-on@800/input/input1
+U: Uniq=
+H: Handlers=kbd event1 cpufreq 
+B: PROP=0
+B: EV=3
+B: KEY=14000000000000 0
+
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="uinput-goodix"
+P: Phys=
+S: Sysfs=/devices/virtual/input/input2
+U: Uniq=
+H: Handlers=kbd event2 cpufreq 
+B: PROP=0
+B: EV=3
+B: KEY=3100000 40000800 1c16c000000000 0
+
+I: Bus=0018 Vendor=0000 Product=0000 Version=0000
+N: Name="fts_ts"
+P: Phys=
+S: Sysfs=/devices/platform/soc/a94000.i2c/i2c-4/4-0038/input/input4
+U: Uniq=
+H: Handlers=event3 kgsl cpufreq 
+B: PROP=2
+B: EV=b
+B: KEY=400040400 0 0 8000 10168000000000 4d04081060000
+B: ABS=26c800000000000
+
+I: Bus=0019 Vendor=0001 Product=0001 Version=0100
+N: Name="gpio-keys"
+P: Phys=gpio-keys/input0
+S: Sysfs=/devices/platform/soc/soc:gpio_keys/input/input5
+U: Uniq=
+H: Handlers=kbd event4 cpufreq 
+B: PROP=0
+B: EV=3
+B: KEY=8000000000000 0
+

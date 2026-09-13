@@ -1,0 +1,1 @@
+Linux (none) 4.19.325-cip128-st12-perf #10-postmarketOS SMP PREEMPT Fri Jul 10 18:13:02 UTC 2026 aarch64 GNU/Linux

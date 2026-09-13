@@ -1,0 +1,20 @@
+1: lo: <LOOPBACK> mtu 65536 qdisc noop qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: bond0: <BROADCAST,MULTICAST400> mtu 1500 qdisc noop qlen 1000
+    link/ether ba:62:29:02:1f:c6 brd ff:ff:ff:ff:ff:ff
+3: dummy0: <BROADCAST,NOARP> mtu 1500 qdisc noop qlen 1000
+    link/ether 6a:fe:46:c9:a8:f2 brd ff:ff:ff:ff:ff:ff
+4: ip_vti0@NONE: <NOARP> mtu 1480 qdisc noop qlen 1000
+    link/ipip 0.0.0.0 brd 0.0.0.0
+5: ip6_vti0@NONE: <NOARP> mtu 1364 qdisc noop qlen 1000
+    link/tunnel6 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00 brd 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
+6: sit0@NONE: <NOARP> mtu 1480 qdisc noop qlen 1000
+    link/sit 0.0.0.0 brd 0.0.0.0
+7: ip6tnl0@NONE: <NOARP> mtu 1452 qdisc noop qlen 1000
+    link/tunnel6 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00 brd 00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00
+8: usb0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast qlen 1000
+    link/ether 02:37:5a:95:79:8b brd ff:ff:ff:ff:ff:ff
+    inet 172.16.42.1/24 scope global usb0
+       valid_lft forever preferred_lft forever
+    inet6 fe80::37:5aff:fe95:798b/64 scope link 
+       valid_lft forever preferred_lft forever
