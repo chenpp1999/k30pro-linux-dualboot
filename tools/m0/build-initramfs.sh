@@ -26,6 +26,11 @@ copy_with_libs() {
     mkdir -p "$ROOTFS$(dirname "$lib")"
     cp -L "$lib" "$ROOTFS$lib"
   done
+  # the dynamic loader line has no "=>" and may start with whitespace
+  ldd "$src" 2>/dev/null | awk '/ld-linux/ { if ($2 == "=>") { print $3 } else { print $1 } }' | while read -r lib; do
+    mkdir -p "$ROOTFS$(dirname "$lib")"
+    cp -L "$lib" "$ROOTFS$lib"
+  done
   # glibc NSS modules are dlopen()ed; include if present
   for nss in /lib/aarch64-linux-gnu/libnss_files.so.2 \
              /usr/lib/aarch64-linux-gnu/libnss_files.so.2 \

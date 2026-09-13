@@ -14,6 +14,13 @@
   方式 B：recovery-swap 无宿主部署）。
 - `tools/m1/recovery-swap.sh`：recovery 分区切换部署工具（备份/写入/回滚）。
 
+### Fixed
+- initramfs 补全动态链接器 `ld-linux-aarch64.so.1`（此前 dropbear 无法执行）。
+- ramboot init 挂载 `/dev/pts`（SSH/telnet 需要 PTY）。
+- ramboot init 关键步骤改用 `/bin/busybox` 绝对路径，并增加 misc 分区兜底
+  路径，保证 BCB 一定被清除。
+- recovery-swap 写入后校验 `ANDROID!` 头，防止不完整写入。
+
 ## [0.0.1] - 2026-09-13
 
 ### Added

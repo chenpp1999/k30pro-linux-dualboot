@@ -54,6 +54,9 @@ cmd_to_linux() {
   echo "writing $IMG -> recovery"
   dd if="$IMG" of="$RECOVERY" bs=1M 2>/dev/null || die "dd write failed"
   sync
+  MAGIC=$(dd if="$RECOVERY" bs=1 count=8 2>/dev/null | tr -d '\000')
+  [ "$MAGIC" = "ANDROID!" ] || die "post-write verify failed (magic='$MAGIC')"
+  echo "post-write verify OK (ANDROID! header present)"
   echo "done. rebooting into recovery (Linux)..."
   reboot recovery
 }
