@@ -21,17 +21,31 @@
   DSI 模式 + 色条 + 背光，常驻持有 DRM master；issue #4）；init 后台拉起。
 - `docs/acceptance/m0-2026-09-13.md`：M0 方式 A 真机验收记录与证据
   （A1–A5 全过；完整 UI 推迟 M1）。
+- M1a：全量 Alpine + Weston RAM 引导（issue #5）——
+  `tools/m1/m1-init.sh`、`tools/m1/m1-weston.sh`（RAM 引导 init 与
+  Weston/OSK 接管：splash 释放 + pixman + DSI-1 + 手机键盘布局）、
+  `tools/m1/utouch.c`（uinput 触摸注入，无头 UI 验证）、
+  `tools/m1/patch-libweston.sh`（msm 重复 IN_FORMATS 断言修补）、
+  `docs/m1a-ramboot.md` 复现手册、
+  `docs/acceptance/m1a-2026-09-14.md` 验收记录（含屏幕截图证据）。
 
 ### Changed
 - `recovery-swap.sh to-linux` 默认启用部署预检：SHA-256 清单 + attestation +
   `ANDROID!` 头 + 分区大小，任一缺失/不符即拒绝写入（issue #1）。
 - M0 门禁收紧：方式 B 写入前，同一镜像必须已通过方式 A 实机启动并生成
   attestation（charter §6、runbook §2 A8）。
-- README：M0 状态更新为方式 A 实机验收 A1–A5 全过（2026-09-13）。
+- README：M0 状态更新为方式 A 实机验收 A1–A5 全过（2026-09-13）；
+  M1 更新为 M1a 完成（RAM 全量 Alpine+Weston，触摸+虚拟键盘可用，2026-09-14），
+  M1b 持久化待做。
 - runbook §1 产物哈希更新（2026-09-13 终轮：NCM + LF + display 接管）；§2/§3
   注明退出方式 A 用 `reboot -f`（普通 `reboot` 对 PID1=busybox sh 无效）。
 
 ### Fixed
+- M1a 实测根因（issue #5）：weston 在 lmi 启动即 abort（msm 驱动 IN_FORMATS
+  重复格式触发 libweston `weston_drm_format_array_add_format` 断言）→
+  二进制补丁 `bl __assert_fail` → NOP；libinput 报 `no input devices found`
+  （Alpine 基座无 udevd）→ 安装并启动 eudev；`weston-screenshooter` 需
+  `weston --debug` 才被授权（headless 验证依赖）。
 - M0 黑屏根因：内核无 fbdev（`CONFIG_FB=n`）且无用户态 KMS 接管，且
   `bl_power=4` 且 msm 在最后 DRM 客户端退出时熄屏；以 `m0-display` 解决
   （issue #4）。触摸验证设备修正为 `fts_ts` → `/dev/input/event3`。
