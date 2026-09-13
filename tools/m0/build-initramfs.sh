@@ -2,7 +2,7 @@
 # Build the M0 initramfs: static busybox + dropbear + eventdump + init.
 set -eu
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 WORKDIR="${WORKDIR:-$HERE/out}"
 ROOTFS="$WORKDIR/initramfs-root"
 

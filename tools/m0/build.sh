@@ -2,7 +2,7 @@
 # One-shot M0 build: fetch inputs -> initramfs -> boot.img
 set -eu
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 WORKDIR="${WORKDIR:-$HERE/out}"
 export WORKDIR
 mkdir -p "$WORKDIR"

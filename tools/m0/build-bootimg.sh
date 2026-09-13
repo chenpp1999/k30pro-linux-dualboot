@@ -3,7 +3,7 @@
 # Layout matches deviceinfo-xiaomi-lmi offsets; RAM boot only, never flashed.
 set -eu
 
-HERE=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 WORKDIR="${WORKDIR:-$HERE/out}"
 OUT="${OUT:-$WORKDIR/boot-m0.img}"
 CMDLINE=$(cat "$HERE/kernel-cmdline.txt")
