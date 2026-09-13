@@ -1,0 +1,6 @@
+# Keep build inputs and shell scripts LF even on Windows checkouts.
+# tools/m0/init and tools/m0/kernel-cmdline.txt are consumed directly by the
+# Debian build via adb push; CRLF breaks the busybox shebang (see issue #3).
+* text=auto
+*.sh text eol=lf
+tools/m0/* text eol=lf
