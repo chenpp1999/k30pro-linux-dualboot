@@ -66,6 +66,12 @@ A1-A3 为 M0 门禁；A4/A5 允许记为部分通过（显示接管推迟到 M1 
 
 回滚：无需（未写任何分区）。
 
+> **Windows 宿主准备（真机救援实测）**：`fastboot.exe` 通过 `AdbWinApi` 访问设备，
+> 要求设备接口带 GUID `{F72FE0D4-CBCB-407D-8814-9ED673D0DD6B}`（Google USB Driver
+> 自带；若改用 Zadig/libwdi 的 WinUSB 驱动，需给设备补上该 GUID）。
+> 典型症状：`fastboot devices` 能列出设备但命令报 `AdbWriteEndpointSync failed`
+> （错误 31/121）——完整重进一次 fastboot（长按电源关机 → 音量下+电源）即可恢复。
+
 ## 4. 方式 B：recovery-swap（无需宿主，需 Android root）
 
 > 原理：ADR-0001。Linux 引导镜像写入 `recovery` 分区，`reboot recovery`

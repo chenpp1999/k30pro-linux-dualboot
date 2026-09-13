@@ -23,6 +23,8 @@
   attestation（charter §6、runbook §2 A8）。
 
 ### Fixed
+- runbook §3 补充 Windows 宿主 fastboot 驱动/接口 GUID 注意事项与
+  `AdbWriteEndpointSync failed` 恢复方法（2026-09-13 真机救援实测）。
 - runbook §5 重写为 BCB 救援流程（`fastboot erase misc` + 二级救援）；
   `misc` 列为唯一 erase 例外；删除"方式 B 后无法进 Android 理论不可能"的错误假设。
 - architecture 失败模式表补充"内核未启动 → BCB 残留 → fastboot 循环"；
