@@ -1,0 +1,85 @@
+#!/bin/busybox sh
+# M0 ramboot init — k30pro-linux-dualboot
+# Runs entirely in RAM. Never writes to any partition.
+
+BB=/bin/busybox
+$BB --install -s /bin 2>/dev/null
+
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t devtmpfs none /dev 2>/dev/null
+mkdir -p /run /root /etc/dropbear
+
+mkdir -p /sys/kernel/config
+mount -t configfs none /sys/kernel/config 2>/dev/null
+
+# --- One-shot boot flag (BCB) cleanup ---
+# Architecture ADR-0001: Linux is entered via a one-shot "boot-recovery" BCB
+# command. Clear it as early as possible so every later reboot returns to
+# Android (boot partition is never modified). BCB lives at offset 0 of misc.
+for b in /sys/class/block/sda*; do
+  if grep -q "^PARTNAME=misc$" "$b/uevent" 2>/dev/null; then
+    MISC="/dev/$(basename "$b")"
+    break
+  fi
+done
+if [ -n "${MISC:-}" ] && [ -b "$MISC" ]; then
+  dd if=/dev/zero of="$MISC" bs=32 count=1 conv=notrunc 2>/dev/null
+  echo "BCB cleared on $MISC"
+fi
+
+# --- RNDIS USB network (ids match deviceinfo) ---
+G=/sys/kernel/config/usb_gadget/g1
+if [ -d /sys/kernel/config/usb_gadget ] && [ ! -d "$G" ]; then
+  mkdir -p "$G"
+  echo 0x0525 > "$G/idVendor"
+  echo 0xa4a2 > "$G/idProduct"
+  mkdir -p "$G/strings/0x409"
+  echo "lmi-dualboot-0001" > "$G/strings/0x409/serialnumber"
+  echo "k30pro-linux-dualboot" > "$G/strings/0x409/manufacturer"
+  echo "M0 ramboot" > "$G/strings/0x409/product"
+  mkdir -p "$G/configs/c.1/strings/0x409"
+  echo "rndis" > "$G/configs/c.1/strings/0x409/configuration"
+  mkdir -p "$G/functions/rndis.usb0"
+  ln -s "$G/functions/rndis.usb0" "$G/configs/c.1/" 2>/dev/null
+  UDC=$(ls /sys/class/udc 2>/dev/null | head -n1)
+  if [ -n "$UDC" ]; then echo "$UDC" > "$G/UDC"; fi
+fi
+
+i=0
+while [ $i -lt 15 ]; do
+  [ -e /sys/class/net/usb0 ] && break
+  i=$((i + 1))
+  sleep 1
+done
+ip link set usb0 up 2>/dev/null
+ip addr add 172.16.42.1/24 dev usb0 2>/dev/null
+
+# --- SSH (dropbear, key generated at runtime into RAM) ---
+dropbear -R -p 22 2>/dev/null
+
+# --- telnet fallback ---
+telnetd -l /bin/sh -p 23 2>/dev/null
+
+echo ""
+echo "==================================================="
+echo " lmi M0 ramboot (k30pro-linux-dualboot)"
+echo " USB net : 172.16.42.1/24   (host: 172.16.42.2/24)"
+echo " ssh     : root@172.16.42.1  (password in runbook)"
+echo " telnet  : 172.16.42.1"
+echo " touch   : run /usr/bin/eventdump /dev/input/event*"
+echo " NOTE    : nothing has been written to any partition"
+echo "==================================================="
+
+echo ""
+echo "--- M0 self-report ---"
+echo "[input devices]"
+grep -E '^N:|^H:' /proc/bus/input/devices 2>/dev/null || ls /dev/input/ 2>/dev/null
+echo "[network interfaces]"
+cat /proc/net/dev
+echo "[usb gadget state]"
+cat /sys/class/udc/*/state 2>/dev/null
+echo "[dmesg tail]"
+dmesg | tail -n 25
+
+while true; do sleep 3600; done
