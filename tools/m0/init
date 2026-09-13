@@ -32,8 +32,10 @@ fi
 # convenience: applet symlinks for the interactive shell
 $BB --install -s /bin 2>/dev/null
 
-# --- RNDIS USB network (ids match deviceinfo) ---
+# --- USB network gadget: NCM preferred (Windows 11 24H2+ removed RNDIS),
+#     fall back to RNDIS when NCM is unavailable in the kernel ---
 G=/sys/kernel/config/usb_gadget/g1
+NETFUNC=""
 if [ -d /sys/kernel/config/usb_gadget ] && [ ! -d "$G" ]; then
   $BB mkdir -p "$G"
   echo 0x0525 > "$G/idVendor"
@@ -43,9 +45,14 @@ if [ -d /sys/kernel/config/usb_gadget ] && [ ! -d "$G" ]; then
   echo "k30pro-linux-dualboot" > "$G/strings/0x409/manufacturer"
   echo "M0 ramboot" > "$G/strings/0x409/product"
   $BB mkdir -p "$G/configs/c.1/strings/0x409"
-  echo "rndis" > "$G/configs/c.1/strings/0x409/configuration"
-  $BB mkdir -p "$G/functions/rndis.usb0"
-  $BB ln -s "$G/functions/rndis.usb0" "$G/configs/c.1/" 2>/dev/null
+  if $BB mkdir -p "$G/functions/ncm.usb0" 2>/dev/null; then
+    NETFUNC=ncm.usb0
+  else
+    $BB mkdir -p "$G/functions/rndis.usb0"
+    NETFUNC=rndis.usb0
+  fi
+  echo "$NETFUNC" > "$G/configs/c.1/strings/0x409/configuration"
+  $BB ln -s "$G/functions/$NETFUNC" "$G/configs/c.1/" 2>/dev/null
   UDC=$($BB ls /sys/class/udc 2>/dev/null | $BB head -n1)
   if [ -n "$UDC" ]; then echo "$UDC" > "$G/UDC"; fi
 fi
@@ -68,7 +75,7 @@ $BB telnetd -l /bin/sh -p 23 2>/dev/null
 echo ""
 echo "==================================================="
 echo " lmi M0 ramboot (k30pro-linux-dualboot)"
-echo " USB net : 172.16.42.1/24   (host: 172.16.42.2/24)"
+echo " USB net : ${NETFUNC:-none} 172.16.42.1/24   (host: 172.16.42.2/24)"
 echo " ssh     : root@172.16.42.1  (password in runbook)"
 echo " telnet  : 172.16.42.1"
 echo " touch   : run /bin/eventdump /dev/input/event*"
