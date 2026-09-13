@@ -10,7 +10,7 @@ $BB mount -t sysfs none /sys
 $BB mount -t devtmpfs none /dev 2>/dev/null
 $BB mkdir -p /dev/pts
 $BB mount -t devpts none /dev/pts 2>/dev/null
-$BB mkdir -p /run /root /etc/dropbear /sys/kernel/config
+$BB mkdir -p /tmp /run /root /etc/dropbear /sys/kernel/config
 $BB mount -t configfs none /sys/kernel/config 2>/dev/null
 
 # --- One-shot boot flag (BCB) cleanup: do this as early as possible ---
@@ -71,6 +71,15 @@ $BB ip addr add 172.16.42.1/24 dev usb0 2>/dev/null
 
 # --- telnet fallback ---
 $BB telnetd -l /bin/sh -p 23 2>/dev/null
+
+# --- Display bring-up: the kernel has no fbdev (CONFIG_FB=n), nothing modesets
+#     the panel in userspace; m0-display sets the DSI mode and backlight. ---
+# m0-display stays resident to hold DRM master (msm blanks the panel when the
+# last DRM client closes).
+if [ -x /bin/display ]; then
+  /bin/display >/dev/console 2>&1 &
+  echo "display: m0-display started (color bars expected on the panel)"
+fi
 
 echo ""
 echo "==================================================="

@@ -48,6 +48,10 @@ chmod 755 "$ROOTFS/usr/sbin/dropbear"
 gcc -static -O2 -o "$ROOTFS/bin/eventdump" "$HERE/eventdump.c"
 chmod 755 "$ROOTFS/bin/eventdump"
 
+# m0-display: minimal DRM/KMS modeset (no fbdev in the kernel; see display.c)
+gcc -static -O2 -I/usr/include/libdrm -o "$ROOTFS/bin/display" "$HERE/display.c"
+chmod 755 "$ROOTFS/bin/display"
+
 cp "$HERE/init" "$ROOTFS/init"
 chmod 755 "$ROOTFS/init"
 
