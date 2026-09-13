@@ -8,12 +8,12 @@
 
 | 产物 | 字节数 | SHA-256 |
 |---|---|---|
-| `boot-m0.img` | 47,296,512 | `a6d4cda4d440f15c83e5ec98b132cad8bb86ff14d44ee206fe72d7eef1214525` |
-| `initramfs.cpio.gz` | 3,155,821 | `3e89e63c0bfc6599df2c113deeabcb3c0280a42b26631c7ec07ce75cfb181cda` |
+| `boot-m0.img` | 47,632,384 | `a216ff4790a0ee2f89a01ef38884a5d17ff8fffaf8c6de13a82a638fa4c3dd9f` |
+| `initramfs.cpio.gz` | 3,492,243 | `4d26405413eb0fac4c775fb9e56b91699a1c09a7185332764789207400582326` |
 
-> 2026-09-13 重建：USB gadget 改为 NCM 优先（RNDIS 回退，issue #2）；`init`
-> 行尾强制 LF 并加断言（issue #3，CRLF 会导致 init 退出 127）。方式 A 验收
-> 记录见 `docs/acceptance/m0-2026-09-13.md`。
+> 2026-09-13 终轮重建（方式 A 验收通过，见 `docs/acceptance/m0-2026-09-13.md`）：
+> USB gadget NCM 优先（RNDIS 回退，issue #2）；`init` 强制 LF（issue #3）；
+> 新增 `m0-display` 显示接管（issue #4）。
 
 组成（全部有公开来源与校验）：
 
@@ -21,7 +21,8 @@
   `linux-xiaomi-lmi-4.19.325-r9.apk`（该内核已在本机型实机启动验证过）
 - 设备树：`kona-v2.1-lmi.dtb`（同上 APK）
 - initramfs：本项目自建（静态 busybox + dropbear + eventdump + init；
-  USB 网络 gadget：NCM 优先、RNDIS 回退）
+  USB 网络 gadget：NCM 优先、RNDIS 回退；`m0-display`：无 fbdev 下的最小
+  KMS 接管——色条 + 背光 + 常驻 DRM master）
 - 构建：`tools/m0/build.sh`（可复现）
 
 产物位置（手机）：`/sdcard/Download/phone-server/lmi-m0/`
@@ -33,15 +34,16 @@
 - [ ] A1 内核启动（设备进入 Linux，无 Android 界面）
 - [ ] A2 USB 网卡在宿主侧出现（RNDIS，宿主可 `ping 172.16.42.1`）
 - [ ] A3 SSH/telnet 可登录（`ssh root@172.16.42.1`，密码 `<your-password>`）
-- [ ] A4 `eventdump /dev/input/event*` 能收到触摸事件
-- [ ] A5 `dmesg | grep -i -E "drm|dsi|panel"` 显示面板 DRM 初始化
+- [ ] A4 `eventdump /dev/input/event3`（`fts_ts`）能收到触摸事件
+- [ ] A5 面板显示 1080x2400 色条（`m0-display` 自动接管：DSI/panel 绑定成功、
+  `card0-DSI-1` = `enabled`、`bl_power=0`；完整 UI/Weston 属 M1）
 - [ ] A6 返回 Android 正常（`reboot -f` 或长按电源；普通 `reboot` 对
   PID1=busybox sh 无效，2026-09-13 实测）
 - [ ] A7 全程未写 boot/userdata/super（方式 A）或仅写 recovery（方式 B）
 - [ ] A8（方式 B 前置门禁）同一镜像已通过方式 A 实机启动成功，且已生成
   attestation（§4 第 2 步）；未满足不得执行方式 B
 
-A1-A3 为 M0 门禁；A4/A5 允许记为部分通过（显示接管推迟到 M1 完整 rootfs）。
+A1–A5 为 M0 验收项（2026-09-13 终轮全过）；完整 UI（seatd/Weston 等）属 M1。
 
 ## 3. 方式 A：`fastboot boot`（零写入，需要 USB 宿主）
 

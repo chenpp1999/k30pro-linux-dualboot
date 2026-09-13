@@ -1,0 +1,16 @@
+  596 root     /usr/sbin/dropbear -R -p 22
+  598 root     /bin/busybox telnetd -l /bin/sh -p 23
+  599 root     /bin/display
+  626 root     /usr/sbin/dropbear -R -p 22 -2 8
+enabled=enabled dpms=On
+bl_power=0 brightness=1535
+N: Name="xiaomi-touch"
+H: Handlers=event0 cpufreq sde 
+N: Name="qpnp_pon"
+H: Handlers=kbd event1 cpufreq sde 
+N: Name="uinput-goodix"
+H: Handlers=kbd event2 cpufreq sde 
+N: Name="fts_ts"
+H: Handlers=event3 kgsl cpufreq sde 
+N: Name="gpio-keys"
+H: Handlers=kbd event4 cpufreq sde 

@@ -1,0 +1,11 @@
+display: /dev/dri/card0 opened
+display: 2 crtc(s), 2 connector(s), 2 encoder(s)
+display: connector 29: connection=1 modes=2
+display: picked connector 29 mode 1080x2400@60 type=0x8
+display: connector 49: connection=1 modes=34
+display: encoder has no crtc, using first crtc 129
+display: dumb buffer 1080x2400 pitch=4352 size=10444800
+display: crtc 129 -> fb 197, mode set
+backlight: panel0-backlight set to 1535/2047
+display: done
+EXIT=0

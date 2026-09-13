@@ -17,19 +17,24 @@
   （issue #1 部署门禁）；`to-linux` 新增 `--dry-run` / `--force` 选项。
 - `tools/m0/init`：USB 网络 gadget 优先 NCM、RNDIS 回退（issue #2）。
 - `.gitattributes`：构建输入与 shell 脚本强制 LF（issue #3）。
+- `tools/m0/display.c`：`m0-display` 最小 KMS 接管工具（无 fbdev 内核下设置
+  DSI 模式 + 色条 + 背光，常驻持有 DRM master；issue #4）；init 后台拉起。
 - `docs/acceptance/m0-2026-09-13.md`：M0 方式 A 真机验收记录与证据
-  （A1–A3 通过；A4/A5 部分通过，显示/触摸推迟 M1）。
+  （A1–A5 全过；完整 UI 推迟 M1）。
 
 ### Changed
 - `recovery-swap.sh to-linux` 默认启用部署预检：SHA-256 清单 + attestation +
   `ANDROID!` 头 + 分区大小，任一缺失/不符即拒绝写入（issue #1）。
 - M0 门禁收紧：方式 B 写入前，同一镜像必须已通过方式 A 实机启动并生成
   attestation（charter §6、runbook §2 A8）。
-- README：M0 状态更新为方式 A 实机验收通过（2026-09-13）。
-- runbook §1 产物哈希更新（2026-09-13 重建：NCM + LF）；§2/§3 注明退出
-  方式 A 用 `reboot -f`（普通 `reboot` 对 PID1=busybox sh 无效）。
+- README：M0 状态更新为方式 A 实机验收 A1–A5 全过（2026-09-13）。
+- runbook §1 产物哈希更新（2026-09-13 终轮：NCM + LF + display 接管）；§2/§3
+  注明退出方式 A 用 `reboot -f`（普通 `reboot` 对 PID1=busybox sh 无效）。
 
 ### Fixed
+- M0 黑屏根因：内核无 fbdev（`CONFIG_FB=n`）且无用户态 KMS 接管，且
+  `bl_power=4` 且 msm 在最后 DRM 客户端退出时熄屏；以 `m0-display` 解决
+  （issue #4）。触摸验证设备修正为 `fts_ts` → `/dev/input/event3`。
 - M0 启动失败根因：`tools/m0/init` 为 CRLF → busybox shebang 失效 →
   init 退出 127 → kernel panic（issue #3；方式 B 失败链条见 issue #1）。
 - runbook §3 补充 Windows 宿主 fastboot 驱动/接口 GUID 注意事项与
