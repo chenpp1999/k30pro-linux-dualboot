@@ -23,7 +23,7 @@ Android + 真 Linux（postmarketOS / Mobian）双系统方案。
 | 阶段 | 交付 | 状态 |
 |---|---|---|
 | Phase 0 | 立项文档（Charter / 可行性 / 风险 / ADR / 测试计划） | ✅ 完成 |
-| M0 | 非破坏 bring-up：`fastboot boot` RAM 启动 Linux | 🔄 产物已构建，待部署 |
+| M0 | 非破坏 bring-up：`fastboot boot` RAM 启动 Linux | ✅ 2026-09-13 方式 A 实机验收（A1–A3 通过；A4/A5 部分通过，显示推迟 M1） |
 | M1 | 低风险持久化：super 空闲空间 + recovery 分区安装 | ⬜ |
 | M2 | 双向切换器 v0.1（BCB 一次性引导 + 自动回退） | ⬜ |
 | M3 | 可选扩容工具 `lmi-repart`（userdata 尾部缩容） | ⬜ |
@@ -38,6 +38,7 @@ Android + 真 Linux（postmarketOS / Mobian）双系统方案。
 - [测试计划](docs/test-plan.md)
 - [ADR-0001 启动切换机制](docs/adr/0001-boot-switch-mechanism.md)
 - [M0 操作手册](docs/m0-runbook.md)
+- [M0 验收记录（2026-09-13）](docs/acceptance/m0-2026-09-13.md)
 
 ## 许可证
 

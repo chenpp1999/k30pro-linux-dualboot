@@ -8,15 +8,20 @@
 
 | 产物 | 字节数 | SHA-256 |
 |---|---|---|
-| `boot-m0.img` | 47,296,512 | `9e8359dde15401cdecbccf7dbd0528738eeed3bf656b31daabceac49112d67c4` |
-| `initramfs.cpio.gz` | 3,155,712 | `68468781c32e1846098abe14d72827d583209acd7f821a79556712d875065617` |
+| `boot-m0.img` | 47,296,512 | `a6d4cda4d440f15c83e5ec98b132cad8bb86ff14d44ee206fe72d7eef1214525` |
+| `initramfs.cpio.gz` | 3,155,821 | `3e89e63c0bfc6599df2c113deeabcb3c0280a42b26631c7ec07ce75cfb181cda` |
+
+> 2026-09-13 重建：USB gadget 改为 NCM 优先（RNDIS 回退，issue #2）；`init`
+> 行尾强制 LF 并加断言（issue #3，CRLF 会导致 init 退出 127）。方式 A 验收
+> 记录见 `docs/acceptance/m0-2026-09-13.md`。
 
 组成（全部有公开来源与校验）：
 
 - 内核 `vmlinuz`：`jian45154/redmi-k30-pro-postmarketos` D80 release 中
   `linux-xiaomi-lmi-4.19.325-r9.apk`（该内核已在本机型实机启动验证过）
 - 设备树：`kona-v2.1-lmi.dtb`（同上 APK）
-- initramfs：本项目自建（静态 busybox + dropbear + eventdump + init）
+- initramfs：本项目自建（静态 busybox + dropbear + eventdump + init；
+  USB 网络 gadget：NCM 优先、RNDIS 回退）
 - 构建：`tools/m0/build.sh`（可复现）
 
 产物位置（手机）：`/sdcard/Download/phone-server/lmi-m0/`
@@ -30,7 +35,8 @@
 - [ ] A3 SSH/telnet 可登录（`ssh root@172.16.42.1`，密码 `<your-password>`）
 - [ ] A4 `eventdump /dev/input/event*` 能收到触摸事件
 - [ ] A5 `dmesg | grep -i -E "drm|dsi|panel"` 显示面板 DRM 初始化
-- [ ] A6 返回 Android 正常（重启即回）
+- [ ] A6 返回 Android 正常（`reboot -f` 或长按电源；普通 `reboot` 对
+  PID1=busybox sh 无效，2026-09-13 实测）
 - [ ] A7 全程未写 boot/userdata/super（方式 A）或仅写 recovery（方式 B）
 - [ ] A8（方式 B 前置门禁）同一镜像已通过方式 A 实机启动成功，且已生成
   attestation（§4 第 2 步）；未满足不得执行方式 B
@@ -61,8 +67,8 @@ A1-A3 为 M0 门禁；A4/A5 允许记为部分通过（显示接管推迟到 M1 
 11. **记录门禁证据**：拍照/保存 dmesg 与宿主网卡信息。方式 A 成功是方式 B
     的唯一门禁：成功后用**同一镜像**（SHA-256 一致）在手机上生成 attestation
     （见 §4 第 2 步）。
-12. 退出：在 Linux 里 `reboot`（BCB 已被 Linux 清除 → 回 Android）。
-    也可长按电源强制重启。
+12. 退出：在 Linux 里 `reboot -f`（普通 `reboot` 不生效，见 A6 注；BCB 已被
+    Linux 清除 → 回 Android）。也可长按电源强制重启。
 
 回滚：无需（未写任何分区）。
 
