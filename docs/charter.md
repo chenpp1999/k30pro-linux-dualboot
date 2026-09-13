@@ -54,7 +54,7 @@
 
 | 里程碑 | 交付物 | Exit Criteria（通过标准） |
 |---|---|---|
-| M0 | `fastboot boot` RAM 启动 Linux；USB 网络/SSH | 清单全过且**未写入任何分区** |
+| M0 | `fastboot boot` RAM 启动 Linux；USB 网络/SSH | 清单全过；方式 A 未写任何分区；方式 B（可选）仅允许同一镜像先经方式 A 实机启动并生成 attestation 后写入（门禁与 BCB 救援流程见 runbook §4/§5） |
 | M1 | super 空闲空间逻辑分区 + recovery 分区安装 Linux | 30 次重启稳定；TWRP 可恢复；boot 镜像双备份 |
 | M2 | 切换器 v0.1（脚本 + Magisk 模块） | BCB 行为验证；断电/卡死场景验证；双向 20 次 |
 | M3 | `lmi-repart`（dry-run/备份/回滚） | 测试机演练 + 全量备份恢复演练通过 |

@@ -15,8 +15,9 @@
 |---|---|---|
 | T1-01 | `fastboot boot` 启动 Linux（阶段 A） | 显示、触屏、SSH 可用；未写任何分区 |
 | T1-02 | 读取并归档分区表 / GPT / boot / recovery 备份 | 哈希校验通过 |
-| T1-03 | BCB 行为试验：写 boot-recovery 进 TWRP | 确认引导行为与 BCB 清除方（记录：bootloader 清 or recovery 清） |
+| T1-03 | BCB 行为试验：写 boot-recovery 进 TWRP | 确认引导行为与 BCB 清除方（记录：bootloader 清 or recovery 清）。**完成前，文档与流程不得假设 bootloader 会自动清 BCB（issue #1）** |
 | T1-04 | 正常重启回归 | 100 次重启全部回到 Android（可分批） |
+| T1-05 | 方式 B 部署门禁（预检） | 无 attestation / SHA-256 缺失或不匹配时 `to-linux` 拒绝写入；`--dry-run` 不写任何分区 |
 
 ## T2 — 受控破坏性验证（测试机优先）
 
@@ -51,6 +52,7 @@
 
 - 切换中断电 / 拔线
 - Linux 内核 panic、initramfs 卡死
+- BCB 残留导致 fastboot 循环（方式 B 救援：`fastboot erase misc`，见 m0-runbook §5）
 - Android 侧 root 丢失（Magisk 被覆盖）
 - recovery 分区被系统 OTA 恢复成官方镜像
 - 存储写满导致 boot 镜像复制不完整（写入前必须校验空间与哈希）

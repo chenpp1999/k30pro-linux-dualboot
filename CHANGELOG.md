@@ -13,8 +13,22 @@
 - M0 操作手册 `docs/m0-runbook.md`（方式 A：fastboot boot 零写入；
   方式 B：recovery-swap 无宿主部署）。
 - `tools/m1/recovery-swap.sh`：recovery 分区切换部署工具（备份/写入/回滚）。
+- `recovery-swap.sh attest-ramboot`：方式 A RAM 启动通过后的 attestation
+  （issue #1 部署门禁）；`to-linux` 新增 `--dry-run` / `--force` 选项。
+
+### Changed
+- `recovery-swap.sh to-linux` 默认启用部署预检：SHA-256 清单 + attestation +
+  `ANDROID!` 头 + 分区大小，任一缺失/不符即拒绝写入（issue #1）。
+- M0 门禁收紧：方式 B 写入前，同一镜像必须已通过方式 A 实机启动并生成
+  attestation（charter §6、runbook §2 A8）。
 
 ### Fixed
+- runbook §5 重写为 BCB 救援流程（`fastboot erase misc` + 二级救援）；
+  `misc` 列为唯一 erase 例外；删除"方式 B 后无法进 Android 理论不可能"的错误假设。
+- architecture 失败模式表补充"内核未启动 → BCB 残留 → fastboot 循环"；
+  明确 T1-03 完成前不得假设 bootloader 会自动清 BCB。
+- test-plan 新增 T1-05（部署门禁预检）与 T1-03 备注；risk R3 更新为已触发
+  （2026-09-13 真机实测）。
 - initramfs 补全动态链接器 `ld-linux-aarch64.so.1`（此前 dropbear 无法执行）。
 - ramboot init 挂载 `/dev/pts`（SSH/telnet 需要 PTY）。
 - ramboot init 关键步骤改用 `/bin/busybox` 绝对路径，并增加 misc 分区兜底

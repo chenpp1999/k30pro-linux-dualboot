@@ -9,7 +9,8 @@
 2. Android 既有分区（super、userdata、vendor 等）的内容不被修改；
    扩容阶段仅允许调整 userdata 尾部大小。
 3. 每个写操作都有对应备份，且恢复路径事先验证过。
-4. 任何时刻断电，重启后必须能进入 Android 或一个可用的恢复环境（TWRP）。
+4. 任何时刻断电，重启后必须能进入 Android，或进入 fastboot/TWRP 等可救援状态
+   （救援流程见 docs/m0-runbook.md §5）。
 
 ## 2. 现状（实测）
 
@@ -58,6 +59,10 @@ Linux 启动早期（initramfs 阶段）：
   4. 清除 BCB 中的引导指令
   → 此后任何重启都会回到 Android（boot 分区未动）
 
+注：BCB 清除只在 Linux 内核成功启动并运行 initramfs 时发生。内核未启动则
+BCB 残留，设备可能循环进入 recovery→fastboot，须按 runbook §5 救援。
+T1-03（BCB 清除责任方）完成前，任何文档不得假设 bootloader 会自动清 BCB。
+
 回 Android：
   任意方式重启即可（reboot / 长按电源 / 断电）
 ```
@@ -66,10 +71,10 @@ Linux 启动早期（initramfs 阶段）：
 
 | 场景 | 结果 |
 |---|---|
-| 切换命令执行中断电 | boot 仍是 Android → 重启回 Android |
-| Linux 内核 panic / 卡死 | boot 仍是 Android → 强制重启回 Android |
-| Linux 未清 BCB 就断电 | 下次仍进 Linux，但 Linux 每次启动都会清 BCB |
-| 需要 TWRP | 从 Android（root）把 TWRP 镜像 dd 回 recovery 后重启 recovery |
+| 切换命令执行中断电（BCB 未生效） | boot 仍是 Android → 重启回 Android |
+| Linux 启动、init 清 BCB 后 panic/卡死/断电 | boot 仍是 Android → 强制重启回 Android |
+| Linux 内核未启动 / init 未清 BCB（含早期 panic、断电） | BCB 残留 → 重启仍进 recovery，失败则进 fastboot；按 runbook §5 救援（`fastboot erase misc`，唯一 erase 例外） |
+| 需要 TWRP | 从 Android（root）把 TWRP 镜像 dd 回 recovery 后重启 recovery；设备困在 fastboot 时也可 `fastboot boot` TWRP 备份镜像（runbook §5） |
 
 ## 5. 备份与恢复
 
