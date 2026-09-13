@@ -15,16 +15,18 @@ set -euo pipefail
 IN=${1:?usage: patch-libweston.sh <lib> [output]}
 OUT=${2:-${IN}.patched}
 CROSS=${CROSS:-aarch64-linux-gnu-}
+READELF="${CROSS}readelf"
+OBJDUMP="${CROSS}objdump"
 
 cp -f "$IN" "$OUT"
 
-SYM=$(${CROSS}readelf --dyn-syms -W "$OUT" | awk '/weston_drm_format_array_add_format$/ {print $2; exit}')
-SIZE=$(${CROSS}readelf --dyn-syms -W "$OUT" | awk '/weston_drm_format_array_add_format$/ {print $3; exit}')
+SYM=$("$READELF" --dyn-syms -W "$OUT" | awk '/weston_drm_format_array_add_format$/ {print $2; exit}')
+SIZE=$("$READELF" --dyn-syms -W "$OUT" | awk '/weston_drm_format_array_add_format$/ {print $3; exit}')
 [ -n "$SYM" ] || { echo "ERROR: symbol not found (already stripped?)" >&2; exit 1; }
 
 START=$((16#$SYM))
 END=$((START + 16#$SIZE))
-${CROSS}objdump -d --start-address=$START --stop-address=$END "$OUT" > /tmp/libweston-dis.txt
+"$OBJDUMP" -d --start-address="$START" --stop-address="$END" "$OUT" > /tmp/libweston-dis.txt
 
 BL=$(awk '/bl.*__assert_fail/ {gsub(":", "", $1); print $1; exit}' /tmp/libweston-dis.txt)
 [ -n "$BL" ] || { echo "ERROR: __assert_fail call not found in function" >&2; exit 1; }
