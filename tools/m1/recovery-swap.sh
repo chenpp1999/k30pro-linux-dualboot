@@ -17,7 +17,7 @@
 #   recovery-swap.sh backup                    # MUST run first: back up recovery + boot
 #   recovery-swap.sh attest-ramboot <img>      # mark image as method-A RAM-boot verified
 #   recovery-swap.sh to-linux [--dry-run] [--force] <img>
-#   recovery-swap.sh restore-twrp              # put the TWRP backup back into recovery
+#   recovery-swap.sh restore-twrp [--dry-run] # put the TWRP backup back into recovery
 #   recovery-swap.sh status                    # show backup state
 set -eu
 
@@ -59,12 +59,15 @@ cmd_attest_ramboot() {
     WANT=$(awk '{print $1}' "$IMG.sha256")
     [ "$WANT" = "$GOT" ] || die "sha256 mismatch for $IMG (want $WANT got $GOT)"
   fi
+  # Refresh the sha256 manifest too: to-linux requires it (issue #6).
+  printf '%s  %s\n' "$GOT" "$IMG" > "$IMG.sha256"
   {
     echo "# Method-A RAM boot (fastboot boot) verified on this device. Do not edit."
     echo "sha256=$GOT"
     echo "verified_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   } > "$IMG.ramboot-ok"
   echo "attestation written: $IMG.ramboot-ok"
+  echo "  sha256 manifest:   $IMG.sha256"
   echo "  sha256=$GOT"
 }
 
@@ -84,7 +87,6 @@ require_attestation() {
   [ "$A_WANT" = "$A_GOT" ] || die "attestation mismatch: $IMG.ramboot-ok is for a different image (attested $A_WANT got $A_GOT)"
   echo "preflight: RAM-boot attestation verified ($A_GOT)"
 }
-
 cmd_to_linux() {
   DRY=0
   FORCE=0
@@ -138,10 +140,27 @@ cmd_to_linux() {
 }
 
 cmd_restore_twrp() {
+  DRY=0
+  [ "${1:-}" = "--dry-run" ] && DRY=1
   [ -f "$TWRP_IMG" ] || die "no TWRP backup found"
+  if [ -f "$TWRP_IMG.sha256" ]; then
+    WANT=$(awk '{print $1}' "$TWRP_IMG.sha256")
+    GOT=$(sha "$TWRP_IMG")
+    [ "$WANT" = "$GOT" ] || die "TWRP backup sha256 mismatch (want $WANT got $GOT)"
+    echo "preflight: backup sha256 verified: $GOT"
+  else
+    echo "WARN: no $TWRP_IMG.sha256; skipping backup verification"
+  fi
+  if [ "$DRY" = 1 ]; then
+    echo "DRY-RUN: preflight passed; would restore $TWRP_IMG -> recovery"
+    exit 0
+  fi
   echo "restoring TWRP -> recovery"
   dd if="$TWRP_IMG" of="$RECOVERY" bs=1M 2>/dev/null || die "dd restore failed"
   sync
+  GOT=$(magic_md5 "$RECOVERY")
+  [ "$GOT" = "$ANDROID_MAGIC_MD5" ] || die "post-write verify failed (magic md5 $GOT)"
+  echo "post-write verify OK (ANDROID! header present)"
   echo "TWRP restored. Run 'reboot recovery' to enter TWRP."
 }
 
@@ -157,7 +176,7 @@ case "${1:-}" in
   backup) cmd_backup ;;
   attest-ramboot) shift; cmd_attest_ramboot "${1:-}" ;;
   to-linux) shift; cmd_to_linux "$@" ;;
-  restore-twrp) cmd_restore_twrp ;;
+  restore-twrp) shift; cmd_restore_twrp "${1:-}" ;;
   status) cmd_status ;;
-  *) die "usage: recovery-swap.sh {backup|attest-ramboot <img>|to-linux [--dry-run] [--force] <img>|restore-twrp|status}" ;;
+  *) die "usage: recovery-swap.sh {backup|attest-ramboot <img>|to-linux [--dry-run] [--force] <img>|restore-twrp [--dry-run]|status}" ;;
 esac

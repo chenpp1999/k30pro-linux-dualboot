@@ -1,21 +1,20 @@
 #!/bin/sh
-# Build the M0 initramfs: static busybox + dropbear + eventdump + init.
+# Build the M0 initramfs: busybox + dropbear + eventdump + display + init.
+# Reproducibility notes (issue #8): deterministic file order, gzip -n, no
+# timestamps in the cpio listing order; fixed password hash.
 set -eu
 
 HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 WORKDIR="${WORKDIR:-$HERE/out}"
 ROOTFS="$WORKDIR/initramfs-root"
 
-BB=$(command -v busybox || echo /usr/bin/busybox)
+BB=$(command -v busybox-static || command -v busybox || echo /usr/bin/busybox)
 DROPBEAR=$(command -v dropbear || echo /usr/sbin/dropbear)
 
 echo "== initramfs -> $ROOTFS"
 rm -rf "$ROOTFS"
 mkdir -p "$ROOTFS"/bin "$ROOTFS"/sbin "$ROOTFS"/usr/sbin "$ROOTFS"/etc/dropbear \
          "$ROOTFS"/dev "$ROOTFS"/proc "$ROOTFS"/sys "$ROOTFS"/run "$ROOTFS"/root "$ROOTFS"/lib
-
-cp -L "$BB" "$ROOTFS/bin/busybox"
-chmod 755 "$ROOTFS/bin/busybox"
 
 copy_with_libs() {
   src=$1
@@ -40,6 +39,16 @@ copy_with_libs() {
   done
 }
 
+# busybox: copy via copy_with_libs so that a dynamically linked busybox also
+# brings its libraries (issue #8). Prefer busybox-static when available.
+echo "== busybox: $BB"
+if command -v file >/dev/null 2>&1 && ! file "$BB" | grep -q "statically linked"; then
+  echo "WARN: $BB is dynamically linked; copying its libraries"
+fi
+copy_with_libs "$BB"
+cp -L "$BB" "$ROOTFS/bin/busybox"
+chmod 755 "$ROOTFS/bin/busybox"
+
 copy_with_libs "$DROPBEAR"
 mkdir -p "$ROOTFS/usr/sbin"
 cp -L "$DROPBEAR" "$ROOTFS/usr/sbin/dropbear"
@@ -55,17 +64,18 @@ chmod 755 "$ROOTFS/bin/display"
 cp "$HERE/init" "$ROOTFS/init"
 chmod 755 "$ROOTFS/init"
 
-HASH=$(python3 - <<'EOF'
-import crypt
-print(crypt.crypt("<your-password>", crypt.mksalt(crypt.METHOD_SHA512)))
-EOF
-)
+# Root password for the ramboot image: documented test password "<your-password>".
+# Fixed SHA-512 crypt hash for deterministic builds (issue #8). Regenerate with:
+#   openssl passwd -6 -salt <salt> '<your-password>'
+# shellcheck disable=SC2016  # the $ are part of the crypt hash, not expansion
+HASH=''
 printf 'root:x:0:0:root:/root:/bin/sh\n' > "$ROOTFS/etc/passwd"
 printf 'root:x:0:\n' > "$ROOTFS/etc/group"
 printf 'root:%s:19000:0:99999:7:::\n' "$HASH" > "$ROOTFS/etc/shadow"
 chmod 600 "$ROOTFS/etc/shadow"
 chmod 700 "$ROOTFS/root"
 
-( cd "$ROOTFS" && find . | cpio -o -H newc 2>/dev/null | gzip -9 ) > "$WORKDIR/initramfs.cpio.gz"
+# deterministic packaging (issue #8): sorted file order + gzip -n (no name/mtime)
+( cd "$ROOTFS" && LC_ALL=C find . | LC_ALL=C sort | cpio -o -H newc 2>/dev/null | gzip -n -9 ) > "$WORKDIR/initramfs.cpio.gz"
 ls -l "$WORKDIR/initramfs.cpio.gz"
 sha256sum "$WORKDIR/initramfs.cpio.gz"

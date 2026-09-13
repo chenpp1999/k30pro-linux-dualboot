@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
-// utouch: inject a touch tap through /dev/uinput for headless UI verification.
-// Creates a virtual touchscreen with panel-pixel coordinates, taps once, exits.
+// utouch: inject touch taps through /dev/uinput for headless UI verification.
+// Creates a virtual touchscreen with panel-pixel coordinates, taps once, and
+// optionally keeps tapping periodically while holding the device open.
 // Build: aarch64-linux-gnu-gcc -static -O2 -o utouch utouch.c
-// Usage: utouch <x> <y> [hold_seconds]   (screen coordinates, 1080x2400 panel)
+// Usage: utouch <x> <y> [hold_seconds [repeat_seconds]]
+//        (screen coordinates, 1080x2400 panel; repeat needs hold)
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -26,20 +28,39 @@ static void emit(int fd, int type, int code, int val)
 		perror("write");
 }
 
+static void tap(int fd, int x, int y)
+{
+	emit(fd, EV_ABS, ABS_MT_SLOT, 0);
+	emit(fd, EV_ABS, ABS_MT_TRACKING_ID, 42);
+	emit(fd, EV_ABS, ABS_X, x);
+	emit(fd, EV_ABS, ABS_Y, y);
+	emit(fd, EV_ABS, ABS_MT_POSITION_X, x);
+	emit(fd, EV_ABS, ABS_MT_POSITION_Y, y);
+	emit(fd, EV_KEY, BTN_TOUCH, 1);
+	emit(fd, EV_SYN, SYN_REPORT, 0);
+	usleep(90000);
+	emit(fd, EV_ABS, ABS_MT_TRACKING_ID, -1);
+	emit(fd, EV_KEY, BTN_TOUCH, 0);
+	emit(fd, EV_SYN, SYN_REPORT, 0);
+	usleep(150000);
+}
+
 int main(int argc, char **argv)
 {
-	int x, y, fd, hold = 0;
+	int x, y, fd, hold = 0, repeat = 0;
 	struct uinput_setup us;
 	struct uinput_abs_setup ax, ay, amx, amy, aslot, atid;
 
-	if (argc < 3 || argc > 4) {
-		fprintf(stderr, "usage: %s <x> <y> [hold_seconds]\n", argv[0]);
+	if (argc < 3 || argc > 5) {
+		fprintf(stderr, "usage: %s <x> <y> [hold_seconds [repeat_seconds]]\n", argv[0]);
 		return 2;
 	}
 	x = atoi(argv[1]);
 	y = atoi(argv[2]);
-	if (argc == 4)
+	if (argc >= 4)
 		hold = atoi(argv[3]);
+	if (argc >= 5)
+		repeat = atoi(argv[4]);
 
 	fd = open("/dev/uinput", O_WRONLY | O_NONBLOCK);
 	if (fd < 0) {
@@ -99,23 +120,21 @@ int main(int argc, char **argv)
 
 	usleep(600000); /* let libinput pick up the new device */
 
-	emit(fd, EV_ABS, ABS_MT_SLOT, 0);
-	emit(fd, EV_ABS, ABS_MT_TRACKING_ID, 42);
-	emit(fd, EV_ABS, ABS_X, x);
-	emit(fd, EV_ABS, ABS_Y, y);
-	emit(fd, EV_ABS, ABS_MT_POSITION_X, x);
-	emit(fd, EV_ABS, ABS_MT_POSITION_Y, y);
-	emit(fd, EV_KEY, BTN_TOUCH, 1);
-	emit(fd, EV_SYN, SYN_REPORT, 0);
-	usleep(90000);
-	emit(fd, EV_ABS, ABS_MT_TRACKING_ID, -1);
-	emit(fd, EV_KEY, BTN_TOUCH, 0);
-	emit(fd, EV_SYN, SYN_REPORT, 0);
-	usleep(150000);
+	tap(fd, x, y);
 
 	if (hold > 0) {
-		printf("holding device for %d s\n", hold);
-		sleep(hold);
+		int elapsed = 0;
+		if (repeat > 0) {
+			while (elapsed < hold) {
+				sleep((unsigned)repeat);
+				elapsed += repeat;
+				if (elapsed <= hold)
+					tap(fd, x, y);
+			}
+		} else {
+			printf("holding device for %d s\n", hold);
+			sleep((unsigned)hold);
+		}
 	}
 
 	ioctl(fd, UI_DEV_DESTROY);
@@ -123,3 +142,4 @@ int main(int argc, char **argv)
 	printf("tap %d %d done\n", x, y);
 	return 0;
 }
+

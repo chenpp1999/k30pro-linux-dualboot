@@ -212,8 +212,13 @@ int main(int argc, char **argv)
     pres.plane_id_ptr = (uint64_t)(uintptr_t)planes;
     pres.count_planes = 64;
     uint32_t n_planes = 0;
-    if (ioctl(fd, DRM_IOCTL_MODE_GETPLANERESOURCES, &pres) == 0)
-        n_planes = pres.count_planes;
+    if (ioctl(fd, DRM_IOCTL_MODE_GETPLANERESOURCES, &pres) == 0) {
+        /* DRM may report more planes than our buffer holds (issue #10). */
+        uint32_t want = pres.count_planes;
+        n_planes = want > 64 ? 64 : want;
+        if (want > 64)
+            fprintf(stderr, "display: %u planes, using first 64\n", want);
+    }
     printf("display: %u crtc(s), %u connector(s), %u encoder(s), %u plane(s)\n",
            n_crtcs, n_conns, n_encs, n_planes);
 

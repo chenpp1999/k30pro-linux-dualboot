@@ -5,8 +5,21 @@
 为小米 Redmi K30 Pro / POCO F2 Pro（代号 `lmi`，Qualcomm SM8250）提供故障安全的
 Android + 真 Linux（postmarketOS / Mobian）双系统方案。
 
-> ⚠️ **实验性项目，当前处于 Phase 0（立项）阶段。** 涉及引导与分区修改，
+> ⚠️ **实验性项目，当前处于 M1 阶段（M0 已实机验收）。** 涉及引导与分区修改，
 > 操作不当可能丢失数据。请先读完文档并做好备份。
+
+## 构建依赖（G5 可复现性）
+
+在 Linux/arm64 环境（本项目在手机 Termux + proot Debian 内构建）需要：
+
+| 工具 | 用途 | 备注 |
+|---|---|---|
+| `gcc` | 静态编译 eventdump/display | 需 `libdrm-dev` 头（display） |
+| `busybox` | initramfs 基础 | 优先 `busybox-static`；动态版会自动随带库（#8） |
+| `dropbear` | initramfs SSH | 动态版随带库 |
+| `cpio` + `gzip` | initramfs 打包 | 打包已做确定性处理（`sort` + `gzip -n`） |
+| `mkbootimg` | boot 镜像合成 | 需支持 `--header_version 2`；路径/大小记录在构建日志 |
+| `curl` | 上游产物获取 | sha256 固定校验 |
 
 ## 核心理念
 

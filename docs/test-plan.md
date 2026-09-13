@@ -4,10 +4,14 @@
 
 ## T0 — 静态检查（每次提交，CI）
 
-- `shellcheck` 全部 shell 脚本
-- Markdown 链接检查
-- 禁止硬编码设备节点：脚本必须通过参数/探测获取目标分区（允许白名单例外并注明）
-- 破坏性脚本必须包含 `--dry-run` 与回滚入口，否则 CI 拒绝
+由 `tools/ci/checks.sh` 执行（CI job「Guard rails」），实现状态：
+
+- `shellcheck` 全部 shell 脚本（含 `tools/m0/init`；`-e SC2187` 因 busybox shebang）
+- Markdown **本地**链接检查（相对链接必须存在；外链不检查）
+- 禁止硬编码设备节点：仅白名单文件允许（`tools/m0/init`、`tools/m1/m1-init.sh`
+  的 `misc` 兜底节点，已注释说明）；`/dev/block/by-name/*` 为稳定符号链接，允许
+- 破坏性脚本（含 `dd ... of=`）必须提供 `--dry-run`；ramboot init 豁免
+  （其唯一写入是设计内的 BCB 清除，ADR-0001）
 
 ## T1 — 非破坏验证（主力机可执行）
 

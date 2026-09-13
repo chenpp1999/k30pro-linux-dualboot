@@ -8,6 +8,12 @@ WORKDIR="${WORKDIR:-$HERE/out}"
 OUT="${OUT:-$WORKDIR/boot-m0.img}"
 CMDLINE=$(cat "$HERE/kernel-cmdline.txt")
 
+# Tool: AOSP mkbootimg with --header_version 2 support (issue #8). The exact
+# binary is recorded in the build log for reproducibility; both AOSP's
+# system/tools/mkbootimg and distro/pip packagings work.
+MKB=$(command -v mkbootimg) || { echo "mkbootimg not found" >&2; exit 1; }
+echo "mkbootimg: $MKB ($(stat -c %s "$MKB" 2>/dev/null || echo '?') bytes)"
+
 mkbootimg \
   --header_version 2 \
   --pagesize 4096 \

@@ -25,9 +25,12 @@ jobs:
             echo "no shell scripts yet"
           fi
 
+      - name: Guard rails (test-plan T0)
+        run: sh tools/ci/checks.sh
+
       - name: Markdown link check (basic)
         run: |
           set -e
           if git ls-files '*.md' | grep -q .; then
-            echo "markdown files present"
+            echo "markdown files present (local links checked by tools/ci/checks.sh)"
           fi

@@ -93,3 +93,11 @@ T1-03（BCB 清除责任方）完成前，任何文档不得假设 bootloader �
 - `packages/android-app` — 可选图形入口
 - `packages/pmaports` — 设备包贡献（上游）
 - `kernel/` — 必要的 DTS / 补丁（GPL-2.0-only）
+
+## 7. 调试通道威胁模型（M0/M1a）
+
+- USB 网络（NCM/RNDIS）链路上的 SSH 使用仓库中公开记录的测试口令，仅适用于
+  USB 直连的受控宿主；不得将设备 USB 网络桥接到不可信网络。
+- telnet 默认关闭；仅在 boot cmdline 带 `lmi_telnet=1` 时启动，且经 login
+  认证（2026-09-14，issue #9）。未认证 shell 通道不属于任何交付形态。
+- M1 起用户态为完整 rootfs：接入真实网络前必须更换凭据并关闭调试服务。

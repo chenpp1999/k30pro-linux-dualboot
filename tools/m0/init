@@ -21,6 +21,8 @@ for b in /sys/class/block/sda*; do
     break
   fi
 done
+# fallback node: lmi misc = sda11; hardcoded node whitelisted per test-plan T0
+# (see docs/architecture.md §2). The by-name probe above is the primary path.
 [ -n "$MISC" ] || MISC=/dev/sda11
 if [ -b "$MISC" ]; then
   $BB dd if=/dev/zero of="$MISC" bs=32 count=1 conv=notrunc 2>/dev/null
@@ -69,8 +71,12 @@ $BB ip addr add 172.16.42.1/24 dev usb0 2>/dev/null
 # --- SSH (dropbear, host key generated at runtime into RAM) ---
 /usr/sbin/dropbear -R -p 22 2>/dev/null
 
-# --- telnet fallback ---
-$BB telnetd -l /bin/sh -p 23 2>/dev/null
+# --- telnet fallback (opt-in only, authenticated) ---
+# Unauthenticated root over telnet is not started by default (issue #9).
+# Enable explicitly with "lmi_telnet=1" on the boot cmdline; login is required.
+if $BB grep -q "lmi_telnet=1" /proc/cmdline 2>/dev/null; then
+  $BB telnetd -l /bin/login -p 23 2>/dev/null
+fi
 
 # --- Display bring-up: the kernel has no fbdev (CONFIG_FB=n), nothing modesets
 #     the panel in userspace; m0-display sets the DSI mode and backlight. ---
@@ -87,7 +93,9 @@ echo " lmi M0 ramboot (k30pro-linux-dualboot)"
 echo " USB net : ${NETFUNC:-none} 172.16.42.1/24   (host: 172.16.42.2/24)"
 echo " ssh     : root@172.16.42.1  (password in runbook)"
 echo " telnet  : 172.16.42.1"
-echo " touch   : run /bin/eventdump /dev/input/event*"
+echo " touch   : identify the touch device first, e.g."
+echo "           grep -E 'Name=\"fts_ts\"' -A5 /proc/bus/input/devices"
+echo "           /bin/eventdump /dev/input/event3 [more...]  (multi-device via poll)"
 echo " NOTE    : nothing has been written to any partition"
 echo "==================================================="
 

@@ -21,7 +21,7 @@
   DSI 模式 + 色条 + 背光，常驻持有 DRM master；issue #4）；init 后台拉起。
 - `docs/acceptance/m0-2026-09-13.md`：M0 方式 A 真机验收记录与证据
   （A1–A5 全过；完整 UI 推迟 M1）。
-- M1a：全量 Alpine + Weston RAM 引导（issue #5）——
+- M1a：全量 Alpine + Weston RAM 引导（issue #12）——
   `tools/m1/m1-init.sh`、`tools/m1/m1-weston.sh`（RAM 引导 init 与
   Weston/OSK 接管：splash 释放 + pixman + DSI-1 + 手机键盘布局）、
   `tools/m1/utouch.c`（uinput 触摸注入，无头 UI 验证）、
@@ -41,7 +41,20 @@
   注明退出方式 A 用 `reboot -f`（普通 `reboot` 对 PID1=busybox sh 无效）。
 
 ### Fixed
-- M1a 实测根因（issue #5）：weston 在 lmi 启动即 abort（msm 驱动 IN_FORMATS
+- 验证者 issue #5–#11 修复：
+  - #5 `eventdump` 改为 `poll(2)` 多设备监听（原实现只轮询第一个设备）；
+  - #6 `attest-ramboot` 同步刷新 `<img>.sha256` 清单（`to-linux` 预检依赖）；
+  - #7 `restore-twrp` 增加 `--dry-run` 与写后 `ANDROID!` 校验；新增
+    `tools/ci/checks.sh`（md 本地链接 / 设备节点白名单 / `--dry-run` 守则）
+    并接入 CI；
+  - #8 initramfs 打包确定性化（`sort` + `gzip -n`）、busybox 动态版随带库、
+    固定口令哈希（去除 `python3 crypt` 依赖）、`mkbootimg` 记录到构建日志；
+  - #9 telnet 默认关闭（cmdline `lmi_telnet=1` 显式启用，且经 login 认证），
+    architecture 增加调试通道威胁模型；
+  - #10 `display.c` 平面计数与缓冲上限夹取；
+  - #11 文档一致性：README 阶段/构建依赖、runbook 状态与 NCM 术语、宿主侧
+    备份副本步骤、产物哈希随重建说明。
+- M1a 实测根因（issue #12）：weston 在 lmi 启动即 abort（msm 驱动 IN_FORMATS
   重复格式触发 libweston `weston_drm_format_array_add_format` 断言）→
   二进制补丁 `bl __assert_fail` → NOP；libinput 报 `no input devices found`
   （Alpine 基座无 udevd）→ 安装并启动 eudev；`weston-screenshooter` 需
