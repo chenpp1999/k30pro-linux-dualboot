@@ -1,0 +1,9 @@
+# build outputs and local artifacts
+out/
+tools/m0/out/
+*.img
+*.cpio.gz
+*.tar.gz
+*.apk
+kernel/
+d80/
