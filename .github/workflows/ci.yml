@@ -18,7 +18,9 @@ jobs:
           files=$(git ls-files '*.sh'; echo tools/m0/init)
           if [ -n "$files" ]; then
             sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
-            echo "$files" | xargs shellcheck
+            # SC2187: tools/m0/init has a busybox shebang; it is intentionally
+            # POSIX/dash-compatible and must stay byte-identical to the built artifact.
+            echo "$files" | xargs shellcheck -e SC2187
           else
             echo "no shell scripts yet"
           fi
