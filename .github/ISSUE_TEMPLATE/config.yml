@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 数据安全 / 变砖问题
+    url: https://github.com/chenpp1999/k30pro-linux-dualboot/security/advisories/new
+    about: 可能造成数据丢失或设备无法启动的问题请走私密报告，不要公开 Issue。
