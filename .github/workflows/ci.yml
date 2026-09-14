@@ -17,7 +17,7 @@ jobs:
           set -e
           files=$(git ls-files '*.sh'; echo tools/m0/init; \
                   echo tools/m1/m1b/usr/sbin/m1-weston; \
-                  echo tools/m1/m1b/usr/sbin/lmi-hwclock-save; \
+                  echo tools/m1/m1b/usr/sbin/lmi-time-save; \
                   echo tools/m1/m1b/etc/init.d/m1-weston; \
                   echo tools/m1/m1b/etc/init.d/ntpd)
           if [ -n "$files" ]; then

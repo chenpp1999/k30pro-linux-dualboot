@@ -14,7 +14,7 @@ error_log="/var/log/m1-weston.log"
 
 depend() {
 	need localmount
-	after seatd
+	need seatd
 }
 
 start_pre() {

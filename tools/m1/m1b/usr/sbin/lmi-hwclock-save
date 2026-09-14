@@ -1,8 +1,0 @@
-#!/usr/bin/env sh
-# busybox ntpd -S callback: write the system clock back to the RTC on the first
-# step, on stratum changes and every ~11 minutes (busybox ntpd behaviour).
-# Phones are often hard-powered-off, so we cannot rely on the shutdown hook only.
-case "$1" in
-	step|stratum|periodic) /sbin/hwclock -w -u 2>/dev/null ;;
-esac
-exit 0

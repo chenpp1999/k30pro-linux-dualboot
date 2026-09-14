@@ -24,16 +24,16 @@ shipped to the device through the one-shot overlay applied by
 
 | path | role |
 |---|---|
-| `etc/xdg/weston/weston.ini` | panel + 24h clock + wallpaper + launchers (terminal/editor) |
+| `etc/xdg/weston/weston.ini` | panel + 24h clock + launchers (terminal/editor). **Do not add `background-color`/`panel-color`/`background-image`**: they stall the msm/pixman repaint (black screen, `repaint status: awaiting completion`; audit §6.1) |
 | `etc/xdg/weston/weston.ini.fallback` | minimal known-good config (wrapper retry / manual rescue) |
-| `usr/share/lmi/term-icon.png`, `editor-icon.png`, `wallpaper.png` | generated assets (small, committed) |
+| `usr/share/lmi/term-icon.png`, `editor-icon.png` | generated launcher icons (small, committed) |
 | `usr/sbin/m1-weston` | **rewritten**: owns all children, bounded cleanup, retry + fallback (UX audit A4) |
 | `etc/init.d/m1-weston` | **new**: `command_background` start, escalating `stop()` (TERM -> KILL + orphan sweep) |
 | `etc/conf.d/m1-weston` | tunables (RETRIES/BACKOFF/SEAT_WAIT) |
-| `etc/init.d/ntpd` | **override**: `use net` + `after lmi-wifi` (no `networking` service) |
-| `etc/conf.d/ntpd` | CN NTP pools + `-S /usr/sbin/lmi-hwclock-save` |
-| `usr/sbin/lmi-hwclock-save` | ntpd callback: write system time back to RTC |
-| `etc/conf.d/hwclock` | RTC kept in UTC (shared with Android) |
+| `etc/init.d/ntpd` | **override**: `use net` + `after lmi-wifi` (no `networking` service); runs as root for the `-S` callback |
+| `etc/conf.d/ntpd` | CN NTP pools + `-S /usr/sbin/lmi-time-save` |
+| `usr/sbin/lmi-time-save` | ntpd callback: try RTC write, else touch swclock's timestamp (lmi RTC is read-only from the AP) |
+| `etc/conf.d/hwclock` | RTC kept in UTC (stock; hwclock service is disabled, swclock used instead) |
 | `etc/localtime`, `etc/timezone` | Asia/Shanghai (TZif v2, musl-compatible) |
 | `etc/profile.d/00-lmi-locale.sh` | `LANG=C.UTF-8` (musl >= 1.2.4) |
 | `etc/fonts/conf.{avail,d}/4[34]-wqy-zenhei.conf`, `91-wqy-zenhei.conf` | WQY fontconfig rules (shipped as regular files, not symlinks) |

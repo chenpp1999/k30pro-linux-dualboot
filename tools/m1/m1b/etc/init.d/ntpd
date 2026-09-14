@@ -8,9 +8,10 @@ description="NTP client (busybox) with lmi-wifi ordering and RTC writeback"
 
 command="/usr/sbin/ntpd"
 command_args="${NTPD_OPTS:--N -p pool.ntp.org} -n"
-command_user="ntp"
 command_background="yes"
 pidfile="/run/ntpd.pid"
+# Runs as root: the -S callback needs to touch swclock's state file when the
+# (read-only) RTC write fails.
 
 depend() {
 	use net

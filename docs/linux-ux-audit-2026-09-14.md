@@ -109,3 +109,35 @@
 - 修改 weston.ini/m1-weston 属于低风险（不动分区），但 weston 重启竞态会导致
   黑屏（无输入），修复 A4 时应保证服务可恢复（SSH 保留）。
 - weston-keyboard 补丁需注意与 weston 14.0.2 的 ABI/协议一致，先在测试设备验证。
+
+## 6. 实测补充（2026-09-15，v8 首启验证中发现）
+
+### 6.1 weston 合成卡死（黑屏）根因：`background-color`/`panel-color`/`background-image`
+
+- 现象：屏幕全黑（只剩冻结帧），`weston-debug scene-graph` 显示
+  `repaint status: awaiting completion`（有未完成的 flip），desktop-shell 的
+  fade 黑幕停在全屏不透明。
+- 二分实验（同一镜像、只改 weston.ini）：
+  | 配置 | repaint 状态 |
+  |---|---|
+  | 基线（outputs + `[terminal]`） | `no repaint`（健康） |
+  | + `[shell] panel-position/clock-format` | 健康 |
+  | + `background-color`/`panel-color` | **卡死** |
+  | + `background-image`（1080×2400 壁纸） | **卡死** |
+  | panel/clock + launchers（**无颜色/无壁纸**） | 健康 ✅ |
+- 结论：msm（shadow framebuffer + pixman）路径对 **solid-colour buffer**
+  与大尺寸 SHM 壁纸的 flip 完成事件存在问题；**规避方式 = 不使用
+  `background-color`/`panel-color`/`background-image`**，保留面板+启动器+24h
+  时钟（已验证可用，见 `tools/m1/m1b/etc/xdg/weston/weston.ini`）。
+- 备注：该问题是 v8 首启 UX 验证时发现并修复的；`wallpaper.png` 已从 payload
+  移除（保留此结论，待内核/weston 修复后可重试）。
+
+### 6.2 其它 v8 修复（首启验证发现）
+
+- `m1-weston` 重写版漏 `export XDG_RUNTIME_DIR` → weston `fatal`（已修）。
+- init 脚本 `after seatd` 不足以保证 seatd 可用（首启出现过 seatd socket
+  不可接受的窗口）→ 恢复 `need seatd`（已修）。
+- **lmi RTC 对 AP 只读**（`hwclock -w` → `ioctl ... Permission denied`）→
+  弃用 hwclock 写回，改 **swclock 时间戳 + 每次开机 NTP 校正**：
+  `lmi-time-save` 先试 RTC，失败则 `touch /var/lib/misc/openrc-shutdowntime`；
+  runlevel 改 `hwclock boot` → `swclock boot`（已修）。
