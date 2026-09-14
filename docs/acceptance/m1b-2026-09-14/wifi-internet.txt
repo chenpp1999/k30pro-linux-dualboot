@@ -1,0 +1,21 @@
+nameserver 192.168.1.x
+---
+PING 1.1.1.1 (1.1.1.1): 56 data bytes
+64 bytes from 1.1.1.1: seq=0 ttl=50 time=73.342 ms
+64 bytes from 1.1.1.1: seq=1 ttl=50 time=83.729 ms
+64 bytes from 1.1.1.1: seq=2 ttl=50 time=63.652 ms
+
+--- 1.1.1.1 ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 63.652/73.574/83.729 ms
+---
+PING www.baidu.com (2409:8c20:6:1794:0:ff:b080:87f0): 56 data bytes
+64 bytes from 2409:8c20:6:1794:0:ff:b080:87f0: seq=0 ttl=52 time=42.112 ms
+64 bytes from 2409:8c20:6:1794:0:ff:b080:87f0: seq=1 ttl=52 time=51.929 ms
+64 bytes from 2409:8c20:6:1794:0:ff:b080:87f0: seq=2 ttl=52 time=65.085 ms
+
+--- www.baidu.com ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 42.112/53.042/65.085 ms
+---
+default via 192.168.1.x dev wlan0 metric 309 
