@@ -40,6 +40,11 @@
   debugfs 写入 → 修计数 → dump+cmp 校验；支持 `--dry-run`）。
 - dropbear 覆盖文件入仓：`tools/m1/m1b/etc/init.d/dropbear`（`use net`）、
   `tools/m1/m1b/etc/conf.d/dropbear`（`-P /run/dropbear.pid`）。
+- overlay v2 / `boot-m1b-v6.img` 重建（2026-09-14）：三个修补文件进入 overlay 树
+  （`m1b-old` → `m1b2` 增量），overlay 版本升至 `m1b-wifi-v2`；产物 sha256
+  `346343b3…`（54,546,432 B）、overlay v2 `db760fec…`（5,991,807 B，212 文件）。
+  v5 内嵌 overlay v1（旧 `lmi-wifi-start`）只影响全新部署的首启，已由 v6 修正；
+  实机 RAM 验证与 attestation 待 M2 会话执行。
 
 ### Changed
 - `recovery-swap.sh to-linux` 默认启用部署预检：SHA-256 清单 + attestation +
@@ -56,6 +61,8 @@
 - README / handoff / m1b-persistent：M1b 状态更新为已验收（2026-09-14）。
 - m1b-wifi-runbook：新增 §0.1 试飞结果与两个真机根因；§3 更新为局域网 SSH
   实测方法；§6 给出复核结论。
+- `tools/m1/m1b-init.sh`：overlay 版本常量升为 `m1b-wifi-v2`（引导逻辑不变），
+  供 `boot-m1b-v6` 内嵌 overlay v2 使用。
 
 ### Fixed
 - M1b 实测（issue #13）：`baseband_guard` 禁止 Android 用户态写入 `super`

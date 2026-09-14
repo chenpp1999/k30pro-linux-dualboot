@@ -1,4 +1,4 @@
-# M1b WiFi 试飞手册（boot-m1b-v5，2026-09-14）
+# M1b WiFi 试飞手册（boot-m1b-v5/v6，2026-09-14）
 
 > 目标：在 M1b 持久 rootfs 上首次拉起 QCA6390 WiFi，然后做持久化测试与 SSH 验收
 > （追踪 issue #14）。本手册同时给出**方法 A（电脑 fastboot，推荐首次使用）**与
@@ -8,11 +8,20 @@
 
 | 产物 | 位置 | sha256 |
 |---|---|---|
-| `boot-m1b-v5.img` | 手机 `/sdcard/Download/phone-server/lmi-m1b/`；`/data/local/lmi-dualboot/` | `7658da6a6ffb8f2a398ee26256ed463ad22b781f53d9a4e8a59532b99a537b93`（54,534,144 B） |
-| `m1b-overlay-v1.tar.gz` | 同上 | 6,0 MB（210 文件；rootfs 增量） |
+| `boot-m1b-v6.img`（**当前**） | 手机 `/sdcard/Download/phone-server/lmi-m1b/`；`/data/local/lmi-dualboot/` | `346343b3d658dc3a9b66f1eb54f9f71701d6bc16f80c001507188362336a4b87`（54,546,432 B） |
+| `m1b-overlay-v2.tar.gz`（**当前**） | 同上 | `db760fec6e0d58343eca6d4d08f0bc05306eea27a323556a52c42985310a76ba`（5,991,807 B，212 文件） |
+| `boot-m1b-v5.img`（M1b 验收产物，保留对照/回退） | 同上 | `7658da6a6ffb8f2a398ee26256ed463ad22b781f53d9a4e8a59532b99a537b93`（54,534,144 B） |
+| `m1b-overlay-v1.tar.gz` | 同上 | 5,991,682 B（210 文件） |
 | `rootfs-fixed2.img`（当前部署 rootfs） | 同上；已写入 super | sha256 `0734a5de607d87f3dd642fa327c66d8077a8c710dc9e1a2c2ddc888b13e7c1cf`（1.5 GiB；2026-09-14 修补 dropbear/wpa 后） |
-| `boot-m1b-v5.img.buildinfo` | 同上 | 构建记录（内核/DTB hash 与旧版一致） |
+| `boot-m1b-v6.img.buildinfo` | 同上 | 构建记录（内核/DTB hash 与 v5 一致） |
 | TWRP 备份 | `/data/local/lmi-dualboot/recovery-twrp.img`（sha 与当前 recovery 分区一致，已校验） | — |
+
+v6 相对 v5：内核、DTB、引导逻辑不变；initramfs 内嵌 overlay v2（版本
+`m1b-wifi-v2`），把设备实测的三个修补文件（`lmi-wifi-start`、`etc/init.d/dropbear`、
+`etc/conf.d/dropbear`）纳入 overlay —— 全新部署（`rootfs.img` + v6）首启即得到与
+当前部署一致的修补后 rootfs（v5 的 overlay v1 含旧 `lmi-wifi-start`，仅影响
+全新部署首启）。v6 尚未实机 RAM 验证（未生成 attestation，`to-linux` 门禁会按
+设计拒绝写入）；M2 会话先 `fastboot boot` 验证后补 attestation。
 
 v5 相对 v4 的变化：内核、DTB 字节不变；initramfs 加了 `m1b-init.sh` v5
 （rootfs 增量自动应用、引导计数、mailbox 上报）与 6 MB overlay（WiFi 用户态 +
@@ -42,11 +51,11 @@ USB 与局域网 SSH。完整记录与证据见 `acceptance/m1b-2026-09-14.md`
 
 ```sh
 # 电脑侧（手机已用 USB 连接、USB 调试已开）
-adb pull /sdcard/Download/phone-server/lmi-m1b/boot-m1b-v5.img .
-sha256sum boot-m1b-v5.img          # 应等于 7658da6a…
+adb pull /sdcard/Download/phone-server/lmi-m1b/boot-m1b-v6.img .
+sha256sum boot-m1b-v6.img          # 应等于 346343b3…
 adb reboot bootloader
 fastboot devices
-fastboot boot boot-m1b-v5.img      # 全程不写任何分区
+fastboot boot boot-m1b-v6.img      # 全程不写任何分区
 ```
 
 启动后（约 30 s）宿主机会多出一个 NCM/USB 网卡：
@@ -98,11 +107,11 @@ cat /var/log/cnss-daemon.log 2>/dev/null
 ```sh
 # Termux 内以 root 运行（本仓库 tools/m1/recovery-swap.sh 已部署到 Termux home）
 sh recovery-swap.sh status
-sh recovery-swap.sh to-linux --force /data/local/lmi-dualboot/boot-m1b-v5.img
+sh recovery-swap.sh to-linux --force /data/local/lmi-dualboot/boot-m1b-v6.img
 ```
 
-- 该命令把 v5 写入 recovery 分区并 `reboot recovery`；回 Android 只需任意重启
-  （v5 init 在挂载 rootfs 前先清 BCB）。
+- 该命令把 v6 写入 recovery 分区并 `reboot recovery`；回 Android 只需任意重启
+  （v6 init 在挂载 rootfs 前先清 BCB）。
 - **残余风险**：若镜像在清 BCB 前就崩（内核 panic），设备会反复进 recovery，
   需要 USB 主机 `fastboot erase misc` 救援；`--force` 绕过的是"方式 A 已验证"
   的门禁，本手册记录这一风险由操作者确认。

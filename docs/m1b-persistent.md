@@ -51,6 +51,7 @@ fastboot boot boot-m1b.img          # 小 initramfs（~4.5 MB）+ 同款内核/D
 | `rootfs-fixed2.img`（**当前部署**） | 手机 sdcard `lmi-m1b/`；已写入 super | sha256 `0734a5de607d87f3dd642fa327c66d8077a8c710dc9e1a2c2ddc888b13e7c1cf`；修补 dropbear（initd/confd）与 `lmi-wifi-start` |
 | `boot-m1b.img` | 手机 sdcard `lmi-m1b/` | RAM initramfs 引导镜像（v4 起修复救援端口冲突） |
 | `boot-m1b-v5.img` | 同上 + `/data/local/lmi-dualboot/` | 内嵌 overlay v1 + 引导计数（sha256 `7658da6a…b937`） |
+| `boot-m1b-v6.img`（**当前构建产物**） | 手机 sdcard `lmi-m1b/`；`/data/local/lmi-dualboot/` | v5 + overlay v2（修补文件入 overlay，版本 `m1b-wifi-v2`）；sha256 `346343b3…`（54,546,432 B）；overlay v2 `db760fec…`（5,991,807 B） |
 
 ## 6. 离线修补 rootfs 镜像（journal 陷阱，已固化工具）
 
