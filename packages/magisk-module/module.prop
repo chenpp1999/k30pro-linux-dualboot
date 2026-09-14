@@ -1,0 +1,6 @@
+id=lmi-dualboot-switch
+name=K30 Pro Dualboot Switch
+version=v0.1
+versionCode=1
+author=chenpp1999
+description=One-key Android -> Linux switch via recovery + one-shot BCB (ADR-0001). The Android boot partition is never modified; any later reboot returns to Android. Press the module Action button (Magisk 27+) to switch. Uses recovery-swap.sh (default: Termux home) and an attested Linux boot image (default: /data/local/lmi-dualboot/boot-m1b-v6.img).

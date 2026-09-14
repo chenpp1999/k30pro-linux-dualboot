@@ -28,6 +28,9 @@ jobs:
       - name: Guard rails (test-plan T0)
         run: sh tools/ci/checks.sh
 
+      - name: M2 switch tests (offline, no partitions touched)
+        run: sh tools/tests/m2-switch-test.sh
+
       - name: Markdown link check (basic)
         run: |
           set -e
