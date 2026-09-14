@@ -15,7 +15,11 @@ jobs:
       - name: ShellCheck
         run: |
           set -e
-          files=$(git ls-files '*.sh'; echo tools/m0/init)
+          files=$(git ls-files '*.sh'; echo tools/m0/init; \
+                  echo tools/m1/m1b/usr/sbin/m1-weston; \
+                  echo tools/m1/m1b/usr/sbin/lmi-hwclock-save; \
+                  echo tools/m1/m1b/etc/init.d/m1-weston; \
+                  echo tools/m1/m1b/etc/init.d/ntpd)
           if [ -n "$files" ]; then
             sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
             # SC2187: tools/m0/init has a busybox shebang; it is intentionally

@@ -1,0 +1,4 @@
+# m1-weston tunables (sourced by /usr/sbin/m1-weston)
+RETRIES=3
+BACKOFF=3
+SEAT_WAIT=15

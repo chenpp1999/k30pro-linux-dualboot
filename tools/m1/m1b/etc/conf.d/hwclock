@@ -1,0 +1,3 @@
+# RTC is kept in UTC (shared with Android); hwclock service restored the system
+# clock from /dev/rtc0 at boot and writes it back on shutdown (OpenRC stock).
+clock="UTC"

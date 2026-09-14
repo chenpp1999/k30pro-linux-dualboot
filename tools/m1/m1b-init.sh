@@ -33,7 +33,7 @@ done
 ROOT_SIZE_BLOCKS=393216
 MBOX_GAP_BLOCKS=256
 MBOX_SECTION_BLOCKS=16
-OVERLAY_VERSION=m1b-wifi-v2
+OVERLAY_VERSION=m1b-ux-v3
 
 $BB mount -t proc none /proc
 $BB mount -t sysfs none /sys
@@ -45,7 +45,7 @@ $BB mount -t tmpfs none /run 2>/dev/null
 $BB mount -t tmpfs none /tmp 2>/dev/null
 $BB mount -t configfs none /sys/kernel/config 2>/dev/null
 
-echo "===== M1b init v5 (persistent rootfs) ====="
+echo "===== M1b init v8 (persistent rootfs) ====="
 
 # Locate the super partition (by GPT PARTNAME); whitelisted fallback sda32.
 SUPER=""
@@ -169,6 +169,17 @@ if [ -f "$OVERLAY" ] && [ "$CUR_VER" != "$OVERLAY_VERSION" ]; then
     printf '%s FAILED to apply %s\n' "$($BB date -u '+%Y-%m-%dT%H:%M:%SZ')" "$OVERLAY_VERSION" >> "$OVERLAY_LOG"
     OVERLAY_RESULT=failed
   fi
+fi
+
+# --- post-overlay setup (runs only when the overlay was applied) ---
+# Enables the time services and refreshes the font cache inside the new root;
+# runlevel symlinks are not shipped in the overlay (repo is checked out on
+# Windows), so enable them here instead. Failures are non-fatal.
+if [ "$OVERLAY_RESULT" = applied ]; then
+  echo "post-overlay setup (service enablement, font cache)"
+  $BB chroot /newroot /bin/sh -c \
+    '/sbin/rc-update add ntpd default >/dev/null 2>&1; /sbin/rc-update add hwclock boot >/dev/null 2>&1; /usr/bin/fc-cache --system-only >/dev/null 2>&1' \
+    2>>"$OVERLAY_LOG" || echo "WARN: post-overlay setup failed (see $OVERLAY_LOG)"
 fi
 $BB sync
 

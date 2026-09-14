@@ -1,4 +1,4 @@
-# tools/m1/m1b — persistent-rootfs WiFi bring-up files
+# tools/m1/m1b — persistent-rootfs payloads (WiFi + UX)
 
 These files are copied into the M1b persistent rootfs tree
 (Alpine 3.23 + OpenRC, living inside the Android `super` free space) and are
@@ -6,6 +6,8 @@ shipped to the device through the one-shot overlay applied by
 `tools/m1/m1b-init.sh` on the first boot after switch_root.
 
 ## Layout
+
+### WiFi bring-up (overlay v1/v2)
 
 | path | role |
 |---|---|
@@ -17,6 +19,29 @@ shipped to the device through the one-shot overlay applied by
 | `usr/sbin/lmi-wifi-start` | linear bring-up: firmware links -> qrtr-ns -> cnss-daemon -> WLAN on -> wpa_supplicant -> DHCP, with mailbox reporting |
 | `usr/sbin/m1-mailbox` | writes reports into the super mailbox (readable from Android) |
 | `usr/sbin/lmi-cnss-daemon-wrapper` | runs the vendor daemon with the Android-property shim |
+
+### UX batch (overlay `m1b-ux-v3`, 2026-09-14; plan: docs/linux-ux-plan-2026-09-14.md)
+
+| path | role |
+|---|---|
+| `etc/xdg/weston/weston.ini` | panel + 24h clock + wallpaper + launchers (terminal/editor) |
+| `etc/xdg/weston/weston.ini.fallback` | minimal known-good config (wrapper retry / manual rescue) |
+| `usr/share/lmi/term-icon.png`, `editor-icon.png`, `wallpaper.png` | generated assets (small, committed) |
+| `usr/sbin/m1-weston` | **rewritten**: owns all children, bounded cleanup, retry + fallback (UX audit A4) |
+| `etc/init.d/m1-weston` | **new**: `command_background` start, escalating `stop()` (TERM -> KILL + orphan sweep) |
+| `etc/conf.d/m1-weston` | tunables (RETRIES/BACKOFF/SEAT_WAIT) |
+| `etc/init.d/ntpd` | **override**: `use net` + `after lmi-wifi` (no `networking` service) |
+| `etc/conf.d/ntpd` | CN NTP pools + `-S /usr/sbin/lmi-hwclock-save` |
+| `usr/sbin/lmi-hwclock-save` | ntpd callback: write system time back to RTC |
+| `etc/conf.d/hwclock` | RTC kept in UTC (shared with Android) |
+| `etc/localtime`, `etc/timezone` | Asia/Shanghai (TZif v2, musl-compatible) |
+| `etc/profile.d/00-lmi-locale.sh` | `LANG=C.UTF-8` (musl >= 1.2.4) |
+| `etc/fonts/conf.{avail,d}/4[34]-wqy-zenhei.conf`, `91-wqy-zenhei.conf` | WQY fontconfig rules (shipped as regular files, not symlinks) |
+| `usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc` | CJK font, from `font-wqy-zenhei-0.9.46-r0.apk` (sha256 `59b2fe2c…`); TTC sha256 `38ed4249…` |
+
+`m1b-init.sh` bumps `OVERLAY_VERSION` to `m1b-ux-v3` and, only when the overlay
+was applied, runs a `chroot /newroot` post-step: `rc-update add ntpd default`,
+`rc-update add hwclock boot`, `fc-cache --system-only`.
 
 ## Pitfalls (device-verified 2026-09-14)
 

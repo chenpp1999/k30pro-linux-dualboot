@@ -1,0 +1,114 @@
+#!/bin/sh
+# m1-weston — Weston launcher for lmi (persistent rootfs, weston 14.x, pixman/DSI-1).
+#
+# Owns every child process: TERM/INT tears them down before exit, so an OpenRC
+# stop/restart can never race a leftover compositor for the DRM seat (UX audit A4,
+# 2026-09-14). Bounded waits everywhere; retries with a fallback config if weston
+# refuses to come up (e.g. broken weston.ini).
+set -u
+
+CONF=/etc/xdg/weston/weston.ini
+FALLBACK=/etc/xdg/weston/weston.ini.fallback
+RUNDIR=/run/lmi-weston
+SOCK=wayland-0
+RETRIES=3
+BACKOFF=3
+SEAT_WAIT=15
+# shellcheck source=/dev/null
+[ -r /etc/conf.d/m1-weston ] && . /etc/conf.d/m1-weston
+
+log() { printf '%s [%s] %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$$" "$*"; }
+
+WPID=''; C1=''; C2=''; MTEST=''; FEEDER=''; WORK=''
+STOPPING=0
+trap 'STOPPING=1' TERM INT HUP
+
+kill_wait() { # $1=pid $2=timeout_s
+  _p=$1; _t=${2:-5}; _i=0
+  [ -n "$_p" ] || return 0
+  kill -TERM "$_p" 2>/dev/null
+  while [ "$_i" -lt "$_t" ] && kill -0 "$_p" 2>/dev/null; do sleep 1; _i=$((_i+1)); done
+  kill -0 "$_p" 2>/dev/null && kill -KILL "$_p" 2>/dev/null
+  return 0
+}
+
+cleanup() {
+  kill_wait "$C1" 3; kill_wait "$C2" 3
+  kill_wait "$MTEST" 3; kill_wait "$FEEDER" 3
+  if [ -n "$WPID" ]; then kill_wait "$WPID" 8; wait "$WPID" 2>/dev/null; fi
+  [ -n "$WORK" ] && rm -rf "$WORK"
+  rm -f "$RUNDIR/$SOCK"
+  log "cleanup done"
+}
+trap cleanup EXIT
+
+mkdir -p "$RUNDIR"; chmod 700 "$RUNDIR"
+
+wait_seat() {
+  i=0
+  while [ "$i" -lt "$SEAT_WAIT" ]; do
+    [ -S /run/seatd.sock ] && [ -e /dev/dri/card0 ] && return 0
+    i=$((i+1)); sleep 1
+  done
+  return 1
+}
+
+sweep_stale() { # only a leftover weston from a killed/daemonized run
+  pgrep -x weston >/dev/null 2>&1 || return 0
+  log "stale weston detected; terminating"
+  kill_wait "$(pgrep -x weston)" 8
+  pgrep -x weston >/dev/null 2>&1 && { log "WARN: stale weston survived"; return 1; }
+  return 0
+}
+
+splash_release() { # D80-proven modetest sequence, bounded
+  WORK=$(mktemp -d /tmp/m1-weston.XXXXXX) || { WORK=''; return 0; }
+  mkfifo "$WORK/input" || { rm -rf "$WORK"; WORK=''; return 0; }
+  tail -f /dev/null > "$WORK/input" & FEEDER=$!
+  modetest -a -s '29@129:#0@XR24' -P '58@129:1080x2400@XR24' < "$WORK/input" & MTEST=$!
+  sleep 3
+  kill_wait "$FEEDER" 2; FEEDER=''
+  kill_wait "$MTEST" 5; MTEST=''
+  rm -rf "$WORK"; WORK=''
+}
+
+start_weston() { # $1=config file
+  weston --config="$1" --backend=drm-backend.so --drm-device=card0 \
+    --renderer=pixman --socket="$SOCK" --idle-time=0 \
+    --continue-without-input --debug --log=/var/log/weston.log &
+  WPID=$!
+  i=0
+  while [ "$i" -lt 20 ]; do
+    [ -S "$RUNDIR/$SOCK" ] && return 0
+    if ! kill -0 "$WPID" 2>/dev/null; then WPID=''; return 1; fi
+    i=$((i+1)); sleep 1
+  done
+  return 1
+}
+
+attempt=0
+while [ "$attempt" -lt "$RETRIES" ]; do
+  attempt=$((attempt+1))
+  wait_seat || log "WARN: seatd/dri not ready after ${SEAT_WAIT}s"
+  sweep_stale || log "WARN: DRM seat may still be busy"
+  splash_release
+  conf=$CONF
+  if [ "$attempt" -ge 2 ] && [ -f "$FALLBACK" ]; then
+    conf=$FALLBACK; log "retry with fallback config: $FALLBACK"
+  fi
+  if start_weston "$conf"; then
+    log "weston up (attempt $attempt)"
+    WAYLAND_DISPLAY="$SOCK" weston-terminal --maximized --font-size=16 & C1=$!
+    WAYLAND_DISPLAY="$SOCK" weston-editor & C2=$!
+    wait "$WPID"; rc=$?; WPID=''
+    [ "$STOPPING" = 1 ] && { log "stop requested"; exit 0; }
+    log "weston exited rc=$rc"
+  else
+    log "weston failed to start (attempt $attempt)"
+    kill_wait "$WPID" 3; WPID=''
+  fi
+  [ "$STOPPING" = 1 ] && exit 0
+  sleep "$BACKOFF"
+done
+log "FATAL: weston not up after $RETRIES attempts"
+exit 1

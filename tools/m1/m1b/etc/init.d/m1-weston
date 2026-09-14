@@ -1,0 +1,60 @@
+#!/sbin/openrc-run
+# m1-weston — OpenRC service for the Weston compositor on the DSI panel.
+#
+# start uses the stock command_background+pidfile machinery; stop() escalates
+# because the pidfile points at the wrapper, which owns weston (UX audit A4:
+# a plain TERM to the wrapper used to leave the compositor holding the seat).
+
+description="Weston compositor on the DSI panel (k30pro-linux-dualboot)"
+command="/usr/sbin/m1-weston"
+command_background="yes"
+pidfile="/run/m1-weston.pid"
+output_log="/var/log/m1-weston.log"
+error_log="/var/log/m1-weston.log"
+
+depend() {
+	need localmount
+	after seatd
+}
+
+start_pre() {
+	checkpath -d -m 0700 /run/lmi-weston
+}
+
+stop() {
+	ebegin "Stopping ${RC_SVCNAME}"
+	spid=''
+	[ -r "$pidfile" ] && read -r spid < "$pidfile"
+	if [ -n "$spid" ] && kill -0 "$spid" 2>/dev/null; then
+		kill -TERM "$spid" 2>/dev/null
+		i=0
+		while [ "$i" -lt 30 ] && kill -0 "$spid" 2>/dev/null; do
+			sleep 0.2; i=$((i+1))
+		done
+		if kill -0 "$spid" 2>/dev/null; then
+			ewarn "wrapper $spid ignored SIGTERM; SIGKILL"
+			kill -KILL "$spid" 2>/dev/null
+		fi
+	fi
+	# last-resort orphan sweep (the wrapper normally reaped everything already)
+	for p in weston weston-terminal weston-editor modetest; do
+		pkill -x "$p" 2>/dev/null
+	done
+	sleep 1
+	rm -f "$pidfile"
+	eend 0
+}
+
+start_post() {
+	i=0
+	while [ "$i" -lt 25 ]; do
+		[ -S /run/lmi-weston/wayland-0 ] && break
+		i=$((i+1)); sleep 1
+	done
+	if [ -S /run/lmi-weston/wayland-0 ]; then
+		printf 'weston: socket ready after %ss at %s\n' "$i" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" > /var/log/m1-weston.status
+		return 0
+	fi
+	printf 'weston: socket NOT ready after %ss at %s\n' "$i" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" > /var/log/m1-weston.status
+	ewarn "weston socket not ready (see /var/log/m1-weston.log, /var/log/weston.log)"
+}

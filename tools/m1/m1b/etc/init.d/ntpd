@@ -1,0 +1,19 @@
+#!/sbin/openrc-run
+# ntpd override for the lmi rootfs: the stock busybox-openrc script declares
+# `need net`, but this rootfs runs no `networking` service and lmi-wifi owns
+# connectivity (same pitfall as dropbear, see tools/m1/m1b/README.md).
+
+name="busybox ntpd"
+description="NTP client (busybox) with lmi-wifi ordering and RTC writeback"
+
+command="/usr/sbin/ntpd"
+command_args="${NTPD_OPTS:--N -p pool.ntp.org} -n"
+command_user="ntp"
+command_background="yes"
+pidfile="/run/ntpd.pid"
+
+depend() {
+	use net
+	after lmi-wifi
+	provide ntp-client
+}

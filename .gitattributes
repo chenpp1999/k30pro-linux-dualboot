@@ -9,3 +9,5 @@ tools/m0/* text eol=lf
 tools/m1/m1b/** text eol=lf
 # Binary payloads inside the overlay must never be normalized.
 *.png binary
+*.ttc binary
+tools/m1/m1b/etc/localtime binary

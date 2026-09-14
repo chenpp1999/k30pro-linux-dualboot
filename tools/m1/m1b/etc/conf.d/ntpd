@@ -1,0 +1,5 @@
+# NTP client options for the lmi rootfs (busybox ntpd).
+# The rootfs has no `networking` service and lmi-wifi owns connectivity, so the
+# init script override uses `use net` + `after lmi-wifi` (see etc/init.d/ntpd).
+# -S writes the clock back to the RTC (step/stratum change/every ~11 min).
+NTPD_OPTS="-N -p cn.pool.ntp.org -p ntp.aliyun.com -S /usr/sbin/lmi-hwclock-save"
