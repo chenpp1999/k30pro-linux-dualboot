@@ -26,14 +26,14 @@
   写入必须走 **TWRP**（电脑 adb）或 **Linux 环境**
 - **回滚**：不再引导即可；或在 TWRP 中将该区域清零（见 `docs/m1b-persistent.md`）；
   super 元数据备份 `/sdcard/Download/phone-server/backup/super-metadata.bin`
-- **待办（建议顺序）**：
+- **待办（建议顺序，追踪 issue #14）**：
   1. **WiFi 直连**：给 rootfs 增加 ath11k/qca6391 固件与 wpa_supplicant 配置，
      Linux 启动即连路由器 → 摆脱"必须有 USB 主机"的限制
   2. 持久化读写测试（写入 → 重启 → 校验，≥3 轮）
   3. SSH 验收（WiFi 后从局域网 OPPO 直连）
   4. 更新 `docs/m1b-persistent.md` 与 README 状态
 
-## 三、M2 设计要点（照 `docs/adr/0001-boot-switch-mechanism.md`）
+## 三、M2 设计要点（照 `docs/adr/0001-boot-switch-mechanism.md`；追踪 issue #15）
 
 - Android 侧一键切换：Linux boot 镜像写入 `recovery` + 写 `misc`/BCB `boot-recovery` + reboot
 - Linux 侧：启动早期清 BCB（M1b init 已实现，直接复用）→ 任意重启回 Android
