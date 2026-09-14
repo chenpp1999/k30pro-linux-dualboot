@@ -141,8 +141,8 @@
 本仓库刻意不依赖会话记忆：新会话拿到仓库 + 下列三步即可完整接手。
 
 1. **同步**：电脑侧 `git pull --ff-only`；手机侧仓库（`/root/work/k30pro-linux-dualboot/`）
-   同样先 pull（GitHub 不稳时用 `git bundle` + scp，见 §四）。当前 tip ≥ `1ab5a22`
-   （boot-m1b-v6 构建记录；M2 提交在其后）。
+   同样先 pull（GitHub 不稳时用 `git bundle` + scp，见 §四）。当前 tip ≥ `4ac3f4c`
+   （M2 v0.1 实现；实机验收后请更新本节）。
 2. **阅读顺序**：`AGENTS.md` → `docs/ai-protocol.md` → 本文 → 按任务进
    `docs/m1b-wifi-runbook.md` / `docs/m1b-persistent.md` /
    `docs/acceptance/m1b-2026-09-14.md`。
@@ -153,7 +153,7 @@
 
 > 你在开发仓库 `k30pro-linux-dualboot`（Redmi K30 Pro 双系统）。
 > 先读 `AGENTS.md` → `docs/ai-protocol.md` → `docs/handoff.md`，然后 `git pull`
-> 并确认 HEAD 与 `origin/main` 一致（≥ `1ab5a22`）。
+> 并确认 HEAD 与 `origin/main` 一致（≥ `4ac3f4c`）。
 > 当前状态：M0/M1（含 M1b）已实机验收；`boot-m1b-v6.img`（overlay v2）已构建并
 > 分发（sdcard `lmi-m1b/` 与 `/data/local/lmi-dualboot/`），但尚未实机 RAM 验证
 > （无 attestation）；M2 v0.1 已实现（`tools/m1/recovery-swap.sh` + 离线测试 +
