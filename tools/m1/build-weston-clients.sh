@@ -47,8 +47,7 @@ apk add --no-cache build-base meson ninja pkgconf patch wayland-dev wayland-prot
   libevdev-dev libseat-dev libdisplay-info-dev libwebp-dev libjpeg-turbo-dev \
   freetype-dev fontconfig-dev mtdev-dev dbus-dev eudev-dev libcap
 
-for p in "$PATCHES"/0001-*.patch "$PATCHES"/0002-*.patch "$PATCHES"/0003-*.patch \
-         "$PATCHES"/0004-*.patch "$PATCHES"/0005-*.patch; do
+for p in "$PATCHES"/*.patch; do
   echo "--- applying $(basename "$p")"
   patch -p0 -f < "$p"
 done

@@ -159,3 +159,6 @@
   另：补丁需 `patch -p0` 应用；跨环境（WSL 与手机 rootfs 的库版本不同）编译的二进制
   不可互换，务必在设备内构建。
 - 验证：终端聚焦时 OSK 自动弹出；字母/符号逐键上屏；`Enter`/`Backspace`/方向键可用。
+  6. `0006` 退格键修复：客户端未提供 surrounding text 时（weston-terminal），
+     OSK 的退格改发 `XKB_KEY_BackSpace` keysym（终端映射为 `0x7f`），
+     而不是依赖 `delete_surrounding_text`（无 surrounding text 时那条路是空操作）。

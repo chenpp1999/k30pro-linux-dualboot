@@ -1,0 +1,18 @@
+--- clients/keyboard.c
++++ clients/keyboard.c
+@@ -570,7 +570,14 @@
+ 			if (state != WL_POINTER_BUTTON_STATE_PRESSED)
+ 				break;
+ 
+-			if (strlen(keyboard->keyboard->preedit_string) == 0) {
++			if (keyboard->keyboard->surrounding_text == NULL) {
++				/* Client provides no surrounding text (weston-terminal):
++				 * send a BackSpace keysym, the client can act on it. */
++				zwp_input_method_context_v1_keysym(keyboard->keyboard->context,
++								   display_get_serial(keyboard->keyboard->display),
++								   time,
++								   XKB_KEY_BackSpace, key_state, mod_mask);
++			} else if (strlen(keyboard->keyboard->preedit_string) == 0) {
+ 				delete_before_cursor(keyboard->keyboard);
+ 			} else {
+ 				keyboard->keyboard->preedit_string[strlen(keyboard->keyboard->preedit_string) - 1] = '\0';
