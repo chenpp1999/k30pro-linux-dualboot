@@ -49,6 +49,11 @@ part_size() { blockdev --getsize64 "$1" 2>/dev/null || stat -c %s "$1" 2>/dev/nu
 magic_md5() { dd if="$1" bs=1 count=8 2>/dev/null | md5sum | awk '{print $1}'; }
 ANDROID_MAGIC_MD5=$(printf 'ANDROID!' | md5sum | awk '{print $1}')
 
+# `reboot` is not always in PATH (e.g. a Magisk su shell from Termux): resolve it
+# once, preferring the absolute toybox binary.
+REBOOT_BIN=/system/bin/reboot
+[ -x "$REBOOT_BIN" ] || REBOOT_BIN=$(command -v reboot) || REBOOT_BIN=reboot
+
 log() {
   mkdir -p "$DIR"
   printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" >> "$LOG"
@@ -216,7 +221,7 @@ cmd_to_linux() {
   echo "done. rebooting into recovery (Linux)..."
   echo "NOTE: if Linux never starts and the device loops into fastboot, rescue from a USB host:"
   echo "      fastboot erase misc && fastboot reboot"
-  reboot recovery
+  "$REBOOT_BIN" recovery
 }
 
 cmd_bcb() {
