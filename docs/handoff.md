@@ -16,20 +16,36 @@
 
 ## 二、M1b 现状（收尾项的起点）
 
+> **2026-09-14 下午更新（WiFi 试飞就绪）**：`boot-m1b-v5.img`
+> （sha256 `7658da6a6ffb8f2a398ee26256ed463ad22b781f53d9a4e8a59532b99a537b93`）
+> 已构建并放入 `/sdcard/Download/phone-server/lmi-m1b/` 与
+> `/data/local/lmi-dualboot/`。v5 = v4 同内核/DTB + 新 initramfs（自动应用
+> rootfs 增量、引导计数、super mailbox 上报）+ WiFi overlay（v1）。
+> **操作步骤与验收清单见 `docs/m1b-wifi-runbook.md`**；首次建议用方法 A
+> （电脑 `fastboot boot`，零写入），手机侧会话在切换前应保持现状。
+
 - **存储**：1.5 GiB ext4 rootfs 镜像写入 `super`（`/dev/block/sda32`）空闲区：
   - 偏移 6,540,705,792 B（= 4K 单元 1,596,852，cmdline `lmi_root_off=1596852`）
   - **不修改 super 元数据**；Android 完全无感、可回滚
+  - mailbox 上报区：rootfs 后 1 MiB 起（super 4K 块 1,990,324 起），
+    仅供 initramfs/rootfs 写、Android 只读（`dd` + `strings`）
 - **引导链**：`boot-m1b.img`（小 RAM initramfs）→ 清 BCB → NCM gadget →
-  `losetup -o <offset>` 挂载 super 内 ext4 → switch_root → OpenRC（udev/seatd/dropbear/weston）
-- **产物**：`/sdcard/Download/phone-server/lmi-m1b/rootfs.img`、`boot-m1b.img`（含 .sha256）
+  `losetup -o <offset>` 挂载 super 内 ext4 → 应用 overlay（一次性）→ switch_root
+  → OpenRC（udev/seatd/dropbear/weston/lmi-wifi）
+- **产物**：`/sdcard/Download/phone-server/lmi-m1b/rootfs.img`、`boot-m1b.img`、
+  `boot-m1b-v5.img`（含 .sha256/.buildinfo）、`m1b-overlay-v1.tar.gz`
 - **设备限制（issue #13）**：Android 用户态写 super 被内核 `baseband_guard` 拒绝；
   写入必须走 **TWRP**（电脑 adb）或 **Linux 环境**
 - **回滚**：不再引导即可；或在 TWRP 中将该区域清零（见 `docs/m1b-persistent.md`）；
   super 元数据备份 `/sdcard/Download/phone-server/backup/super-metadata.bin`
 - **待办（建议顺序，追踪 issue #14）**：
-  1. **WiFi 直连**：给 rootfs 增加 ath11k/qca6391 固件与 wpa_supplicant 配置，
-     Linux 启动即连路由器 → 摆脱"必须有 USB 主机"的限制
-  2. 持久化读写测试（写入 → 重启 → 校验，≥3 轮）
+  1. ~~**WiFi 直连**~~ **已实现待试飞**（v5/overlay v1）：内核走**下游
+     CNSS2 + qcacld**（本内核无 ath11k，issue #14 原描述有误），固件用 modem
+     分区的 qca6390 包 + persist 的 MAC；用户态 = 静态 qrtr-ns + vendor
+     cnss-daemon（Android runtime APEX / system / vendor 只读挂载）+
+     wpa_supplicant + udhcpc
+  2. 持久化读写测试（写入 → 重启 → 校验，≥3 轮）——initramfs 已自带引导计数
+     账本（`/root/m1b-boot-count`），重启后由 mailbox/SSH 校验
   3. SSH 验收（WiFi 后从局域网 OPPO 直连）
   4. 更新 `docs/m1b-persistent.md` 与 README 状态
 
