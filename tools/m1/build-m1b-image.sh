@@ -12,7 +12,13 @@
 #     --kernel <vmlinuz> --dtb <dtb> --cmdline <file> \
 #     --overlay-version <ver> --out <boot-m1b.img> \
 #     [--base-image <rootfs.img> | --base-tree <deployed-tree>] \
-#     [--overlay-out <file>] [--dry-run]
+#     [--recovery-dtbo <dtbo.img>] [--overlay-out <file>] [--dry-run]
+#
+# --recovery-dtbo is REQUIRED for images deployed to the `recovery` partition:
+# the lmi ABL recovery path reads the DTBO table from the boot image header's
+# recovery_dtbo field (magic D7B7AB1E); with the field empty it reads the
+# "ANDROID!" magic instead and falls back to fastboot (T1-03, 2026-09-14).
+# Use the device's current dtbo table (see docs/m2-runbook.md §7).
 set -eu
 
 HERE=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
@@ -28,6 +34,7 @@ OUT=
 BASE_IMAGE=
 BASE_TREE=
 OVERLAY_OUT=
+RECOVERY_DTBO=
 DRY=0
 
 die() { echo "FATAL: $*" >&2; exit 1; }
@@ -43,6 +50,7 @@ while [ $# -gt 0 ]; do
     --out) OUT=$2; shift 2 ;;
     --base-image) BASE_IMAGE=$2; shift 2 ;;
     --base-tree) BASE_TREE=$2; shift 2 ;;
+    --recovery-dtbo) RECOVERY_DTBO=$2; shift 2 ;;
     --overlay-out) OVERLAY_OUT=$2; shift 2 ;;
     --dry-run) DRY=1; shift ;;
     *) die "unknown option: $1" ;;
@@ -61,6 +69,9 @@ for f in "$KERNEL" "$DTB" "$CMDLINE"; do
 done
 [ -n "$OVERLAY_VERSION" ] || die "--overlay-version required"
 [ -n "$OUT" ] || die "--out required"
+if [ -n "$RECOVERY_DTBO" ] && [ ! -f "$RECOVERY_DTBO" ]; then
+  die "--recovery-dtbo not found: $RECOVERY_DTBO"
+fi
 
 command -v mkbootimg >/dev/null || die "mkbootimg not found"
 command -v cpio >/dev/null || die "cpio not found"
@@ -74,6 +85,8 @@ if [ "$DRY" = 1 ]; then
   echo "DRY-RUN: initramfs=$INITRAMFS_DIR (init <- $ROOT/tools/m1/m1b-init.sh)"
   [ -n "$BASE_IMAGE" ] && echo "DRY-RUN: baseline image=$BASE_IMAGE (extract to diff)"
   [ -n "$BASE_TREE" ] && echo "DRY-RUN: baseline tree=$BASE_TREE"
+  [ -n "$RECOVERY_DTBO" ] && echo "DRY-RUN: recovery_dtbo=$RECOVERY_DTBO"
+  [ -z "$RECOVERY_DTBO" ] && echo "WARN: no --recovery-dtbo: image will NOT boot from the recovery partition (T1-03)"
   echo "DRY-RUN: would write overlay=$OVERLAY_VERSION, out=$OUT"
   exit 0
 fi
@@ -101,8 +114,14 @@ fi
 ( cd "$INITRAMFS_DIR" && find . -print | cpio -o -H newc --owner root:root 2>/dev/null | gzip -9 ) > "$WORK/initramfs.cpio.gz"
 
 # 4) boot image
+if [ -n "$RECOVERY_DTBO" ]; then
+  set -- --recovery_dtbo "$RECOVERY_DTBO"
+else
+  set --
+fi
 mkbootimg --header_version 2 --pagesize 4096 \
   --kernel "$KERNEL" --ramdisk "$WORK/initramfs.cpio.gz" --dtb "$DTB" \
+  "$@" \
   --cmdline "$(cat "$CMDLINE")" \
   --base 0x00000000 --kernel_offset 0x00008000 --ramdisk_offset 0x01000000 \
   --second_offset 0x00000000 --tags_offset 0x00000100 --dtb_offset 0x01f00000 \
@@ -119,6 +138,10 @@ IMAGE_BYTES=$(stat -c %s "$OUT")
   echo "overlay_version: $OVERLAY_VERSION"
   echo "kernel_sha256: $KERNEL_SHA"
   echo "dtb_sha256: $DTB_SHA"
+  if [ -n "$RECOVERY_DTBO" ]; then
+    echo "recovery_dtbo_sha256: $(sha256sum "$RECOVERY_DTBO" | awk '{print $1}')"
+    echo "recovery_dtbo_bytes: $(stat -c %s "$RECOVERY_DTBO")"
+  fi
   echo "initramfs_bytes: $INITRAMFS_BYTES"
   echo "image_bytes: $IMAGE_BYTES"
 } > "$OUT.buildinfo"
