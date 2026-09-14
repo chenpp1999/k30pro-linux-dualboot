@@ -32,6 +32,14 @@
   super 空闲区内的 ext4 rootfs → `switch_root` 进 OpenRC；救援 SSH 仅在
   挂载失败时启动）、`tools/m1/kernel-cmdline-m1b.txt`（`lmi_root_off=1596852`）、
   `docs/m1b-persistent.md`（布局/引导/回滚实录）。
+- M1b 验收（issue #14，2026-09-14）：持久 rootfs + WiFi 直连 + 持久化三轮 +
+  USB/局域网 SSH 全过；`docs/acceptance/m1b-2026-09-14.md` 与证据目录
+  `docs/acceptance/m1b-2026-09-14/`（引导账本 / WiFi 状态 / SSH 会话 /
+  持久化轮测 / super 写回校验 / 根因摘录）。
+- `tools/m1/patch-rootfs-image.sh`：离线修补 rootfs 镜像（先回放 journal →
+  debugfs 写入 → 修计数 → dump+cmp 校验；支持 `--dry-run`）。
+- dropbear 覆盖文件入仓：`tools/m1/m1b/etc/init.d/dropbear`（`use net`）、
+  `tools/m1/m1b/etc/conf.d/dropbear`（`-P /run/dropbear.pid`）。
 
 ### Changed
 - `recovery-swap.sh to-linux` 默认启用部署预检：SHA-256 清单 + attestation +
@@ -43,6 +51,11 @@
   M1b 持久化待做。
 - runbook §1 产物哈希更新（2026-09-13 终轮：NCM + LF + display 接管）；§2/§3
   注明退出方式 A 用 `reboot -f`（普通 `reboot` 对 PID1=busybox sh 无效）。
+- `.gitattributes`：`tools/m1/m1b/**` 强制 LF（overlay 载荷按字节写入 rootfs，
+  CRLF 会破坏 OpenRC init 脚本与 conf.d）。
+- README / handoff / m1b-persistent：M1b 状态更新为已验收（2026-09-14）。
+- m1b-wifi-runbook：新增 §0.1 试飞结果与两个真机根因；§3 更新为局域网 SSH
+  实测方法；§6 给出复核结论。
 
 ### Fixed
 - M1b 实测（issue #13）：`baseband_guard` 禁止 Android 用户态写入 `super`
@@ -67,6 +80,17 @@
   二进制补丁 `bl __assert_fail` → NOP；libinput 报 `no input devices found`
   （Alpine 基座无 udevd）→ 安装并启动 eudev；`weston-screenshooter` 需
   `weston --debug` 才被授权（headless 验证依赖）。
+- M1b 实测根因（issue #14，2026-09-14）：
+  - dropbear 无法启动：Alpine initd 依赖 `need net`，rootfs 未启用 networking
+    → `cannot start dropbear as networking would not start`；改 `use net` 并为
+    conf.d 加 `-P /run/dropbear.pid`（stop/status 生效）。
+  - wpa_supplicant 打印 usage 即退出：Alpine 构建未启用 `CONFIG_DEBUG_FILE`，
+    `-f <log>` 不受支持；`lmi-wifi-start` 改为 stderr 追加重定向
+    （`2>>/var/log/wpa_supplicant.log`）后 WiFi 正常（`status=ok`）。
+  - 离线修补镜像的 journal 陷阱：从分区 dump 的 ext4 若带未回放 journal，
+    debugfs 直写后 `e2fsck -fy` 会先回放 journal 并**静默回滚**修补（实测
+    `conf.d/dropbear` 被截断为 190 B）→ 固化为"先回放 → 写入 → 修计数 →
+    校验"顺序与 `tools/m1/patch-rootfs-image.sh`。
 - M0 黑屏根因：内核无 fbdev（`CONFIG_FB=n`）且无用户态 KMS 接管，且
   `bl_power=4` 且 msm 在最后 DRM 客户端退出时熄屏；以 `m0-display` 解决
   （issue #4）。触摸验证设备修正为 `fts_ts` → `/dev/input/event3`。

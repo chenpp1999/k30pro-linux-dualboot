@@ -1,0 +1,79 @@
+# 根因证据摘录（2026-09-14，均来自真机运行现场）
+
+## 1. dropbear 依赖链失败（boot=2 现场 /var/log/messages）
+
+```
+Feb  4 23:27:06 lmi-m1 daemon.err dropbear[1478]: ERROR: cannot start dropbear as networking would not start
+```
+
+Alpine /etc/init.d/dropbear（原始）：
+
+```
+depend() {
+	use logger dns
+	need net
+	after firewall
+}
+```
+
+修复（当前部署）：`need net` -> `use net`，并给 conf.d 加
+`DROPBEAR_OPTS="-P /run/dropbear.pid"`。boot=4 起：
+
+```
+rc-service dropbear status  =>  * status: started
+1348 /usr/sbin/dropbear -P /run/dropbear.pid
+```
+
+## 2. wpa_supplicant 不支持 -f（boot=2 现场 /var/log/lmi-wifi.log）
+
+```
+[23:03:04] stage=wpa_supplicant
+wpa_supplicant v2.11
+...
+usage:
+  wpa_supplicant [-BddhKLqqstuvW] [-P<pid file>] [-g<global ctrl>] \
+        [-G<group>] \
+        -i<ifname> -c<config file> [-C<ctrl>] [-D<driver>] [-p<driver_param>] \
+        [-b<br_ifname>] [-e<entropy file>] \
+...
+（usage 中无 -f；Alpine 构建未启用 CONFIG_DEBUG_FILE，-f 触发 usage + rc=1）
+```
+
+原始调用：
+
+```
+  /sbin/wpa_supplicant -B -P "$WPA_PIDFILE" -i wlan0 -c "$LMI_WPA_CONF" \
+    -D nl80211 -f /var/log/wpa_supplicant.log
+```
+
+修复后（boot=6 实测）：
+
+```
+[02:03:39] stage=wpa_supplicant
+[02:03:43] stage=dhcp
+[02:03:45] wifi up: 192.168.1.x/24
+      [02:03:45] exit rc=0 status=ok
+```
+
+## 3. journal 回放导致修补被静默回滚
+
+第一次离线修补（debugfs 直写 + 之后 `e2fsck -fy`）后，从 super 重新 dump
+发现 `/etc/conf.d/dropbear` 变成 190 字节、以 `DROPBEAR_OPTS="-P` 截断——
+即"新内容前缀 + 旧文件长度"。根因链：
+
+```
+# 修补前该 fs 的 read-only 检查已经提示（从分区 dump，非正常卸载）
+Warning: skipping journal recovery because doing a read-only filesystem check.
+# debugfs 直写之后，e2fsck -fy 先回放 journal（旧 inode/数据块），
+# 覆盖了刚写入的内容 → 修补静默失效。
+```
+
+修复顺序（已固化到 `tools/m1/patch-rootfs-image.sh`）：
+
+```
+e2fsck -fy   # 先回放 journal（把 fs 归位到最终状态）
+# debugfs rm/write/sif  （每个文件）
+e2fsck -fy   # 修计数（journal 已空，不会再回放）
+# debugfs dump + cmp 校验
+sha256sum
+```

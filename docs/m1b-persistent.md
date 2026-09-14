@@ -1,8 +1,9 @@
 # M1b 持久化 rootfs — 设计与实录
 
-> 状态（2026-09-14）：rootfs 已写入 `super` 空闲区并以 RAM initramfs 引导，
-> OpenRC + Weston 真机运行（屏幕可见 Wayland Terminal + Text Editor）。
-> 收尾中：SSH 救援端口冲突修复（v4 init）、持久化读写测试。
+> 状态（2026-09-14）：**已验收**（issue #14）。rootfs 写入 `super` 空闲区并以
+> RAM initramfs 引导（OpenRC + Weston，屏幕可见）；WiFi 直连（<SSID>，
+> DHCP `192.168.1.x/24`）、持久化三轮读写（boot=4→6）、USB + 局域网 SSH
+> 全部通过。验收记录：`acceptance/m1b-2026-09-14.md`。
 > 关键设备限制见 issue #13（baseband_guard）。
 
 ## 1. 存储布局（实测）
@@ -46,5 +47,30 @@ fastboot boot boot-m1b.img          # 小 initramfs（~4.5 MB）+ 同款内核/D
 
 | 产物 | 位置 | 说明 |
 |---|---|---|
-| `rootfs.img`（1.5 GiB ext4） | 手机 sdcard `lmi-m1b/` | sha256 `843b956d…`；含 Alpine 3.23 + Weston + OpenRC 服务 |
+| `rootfs.img`（1.5 GiB ext4，初始） | 手机 sdcard `lmi-m1b/` | sha256 `843b956d…`；Alpine 3.23 + Weston + OpenRC 服务 |
+| `rootfs-fixed2.img`（**当前部署**） | 手机 sdcard `lmi-m1b/`；已写入 super | sha256 `0734a5de607d87f3dd642fa327c66d8077a8c710dc9e1a2c2ddc888b13e7c1cf`；修补 dropbear（initd/confd）与 `lmi-wifi-start` |
 | `boot-m1b.img` | 手机 sdcard `lmi-m1b/` | RAM initramfs 引导镜像（v4 起修复救援端口冲突） |
+| `boot-m1b-v5.img` | 同上 + `/data/local/lmi-dualboot/` | 内嵌 overlay v1 + 引导计数（sha256 `7658da6a…b937`） |
+
+## 6. 离线修补 rootfs 镜像（journal 陷阱，已固化工具）
+
+镜像可以离线修补（把文件写入 ext4 镜像后再写回 super），但**顺序关键**：
+
+1. 从分区 dump 出的 ext4 可能带未回放 journal（强制重启/非正常卸载）。
+2. 若直接 debugfs 写入、之后再跑 `e2fsck -fy`，e2fsck 会**先回放 journal**，
+   用旧 inode/数据块**静默回滚**刚写入的内容（2026-09-14 实测：
+   `etc/conf.d/dropbear` 被回滚为 190 B 截断文件，导致 dropbear 语法错误）。
+3. 正确顺序：
+
+   ```sh
+   e2fsck -fy rootfs.img            # 1) 先回放 journal（归位到最终状态）
+   # debugfs -w -R "rm/write/sif"   # 2) 逐文件写入（rm -> write -> 修 mode/uid/gid）
+   e2fsck -fy rootfs.img            # 3) 修计数（journal 已空，不会再回放）
+   # debugfs dump + cmp 校验        # 4) 逐文件字节校验，最后 sha256sum
+   ```
+
+4. 工具：`../tools/m1/patch-rootfs-image.sh`（支持 `--dry-run`，自动完成
+   上述 1–4 步并在任一文件校验失败时中止）。
+5. 写回设备：TWRP 内 `dd if=<img> of=/dev/block/by-name/super bs=4096
+   seek=1596852 conv=notrunc`，随后同法回读 sha256 核对（本次回读
+   `0734a5de…` 与导出镜像一致）。

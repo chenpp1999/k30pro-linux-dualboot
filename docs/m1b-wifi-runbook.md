@@ -10,12 +10,33 @@
 |---|---|---|
 | `boot-m1b-v5.img` | 手机 `/sdcard/Download/phone-server/lmi-m1b/`；`/data/local/lmi-dualboot/` | `7658da6a6ffb8f2a398ee26256ed463ad22b781f53d9a4e8a59532b99a537b93`（54,534,144 B） |
 | `m1b-overlay-v1.tar.gz` | 同上 | 6,0 MB（210 文件；rootfs 增量） |
+| `rootfs-fixed2.img`（当前部署 rootfs） | 同上；已写入 super | sha256 `0734a5de607d87f3dd642fa327c66d8077a8c710dc9e1a2c2ddc888b13e7c1cf`（1.5 GiB；2026-09-14 修补 dropbear/wpa 后） |
 | `boot-m1b-v5.img.buildinfo` | 同上 | 构建记录（内核/DTB hash 与旧版一致） |
 | TWRP 备份 | `/data/local/lmi-dualboot/recovery-twrp.img`（sha 与当前 recovery 分区一致，已校验） | — |
 
 v5 相对 v4 的变化：内核、DTB 字节不变；initramfs 加了 `m1b-init.sh` v5
 （rootfs 增量自动应用、引导计数、mailbox 上报）与 6 MB overlay（WiFi 用户态 +
 固件 + wpa 配置）；`/init` 之前仍会清 BCB（第一次写 misc 之前的所有逻辑不变）。
+
+## 0.1 试飞结果（2026-09-14，已完成）
+
+M1b 收尾项（issue #14）已全部通过：WiFi 直连（<SSID>，`wpa_state=COMPLETED`，
+DHCP `192.168.1.x/24`，WiFi6/HE 速率）、持久化三轮读写（boot=4→5→6）、
+USB 与局域网 SSH。完整记录与证据见 `acceptance/m1b-2026-09-14.md`
+（证据目录 `acceptance/m1b-2026-09-14/`）。
+
+首次试飞发现并修复的两个真机问题（修复已进入当前部署 rootfs）：
+
+1. **dropbear 依赖链失败**：Alpine initd 为 `need net`，rootfs 未启用
+   networking → `ERROR: cannot start dropbear as networking would not start`。
+   现文件：`../tools/m1/m1b/etc/init.d/dropbear`（`use net`）+
+   `../tools/m1/m1b/etc/conf.d/dropbear`（`-P /run/dropbear.pid`）。
+2. **wpa_supplicant `-f` 不受支持**：Alpine 构建未启用 `CONFIG_DEBUG_FILE`，
+   带 `-f` 会打印 usage 并退出 → WiFi 全程 `status=failed`。现文件：
+   `../tools/m1/m1b/usr/sbin/lmi-wifi-start`（`2>>/var/log/wpa_supplicant.log`）。
+
+离线修补 rootfs 镜像必须先回放 journal，否则 `e2fsck -fy` 会把修补静默回滚——
+见 `m1b-persistent.md` 第 6 节与 `../tools/m1/patch-rootfs-image.sh`。
 
 ## 1. 方法 A：电脑 `fastboot boot`（零写入，推荐）
 
@@ -33,7 +54,7 @@ fastboot boot boot-m1b-v5.img      # 全程不写任何分区
 ```sh
 # 电脑侧（Linux；Windows 需装 RNDIS/NCM 驱动）
 sudo ip addr add 172.16.42.2/24 dev <新网卡>
-ssh root@172.16.42.1               # 无密码（M1b 的 dropbear）
+ssh root@172.16.42.1               # 密码 <your-password>（M1b 的 dropbear）
 ```
 
 > ⚠️ 手机与电脑之间的 USB 线不要拔；WiFi 验证时仍可保持 USB。
@@ -47,12 +68,12 @@ cat /root/m1b-boot-count                # 1
 cat /root/m1b-boots.log
 
 # 2.2 WiFi bring-up
-cat /var/log/lmi-wifi.log               # 逐 stage 日志
-ip -4 addr show wlan0
-iw dev
+cat /var/log/lmi-wifi.log               # 逐 stage 日志；尾部应为 exit rc=0 status=ok
+ip -4 addr show wlan0                   # 应为 DHCP 租约地址（实测 192.168.1.x/24）
+iw dev wlan0 link                       # 实测 HE（WiFi6）速率
 /sbin/wpa_cli -i wlan0 status           # wpa_state=COMPLETED
 ip route show default
-ping -c2 192.168.5.1
+ping -c2 <网关 IP>
 ping -c2 1.1.1.1
 DNS：cat /etc/resolv.conf
 
@@ -62,12 +83,15 @@ ls -l /sys/kernel/cnss/ /dev/wlan /mnt/android-* /apex/com.android.runtime
 cat /var/log/cnss-daemon.log 2>/dev/null
 ```
 
-## 3. 验收：OPPO 经局域网 SSH 直连
+## 3. 验收：局域网 SSH 直连（已通过）
 
-1. 记下 Linux 的 wlan0 IP（通常路由器会给回手机 Android 用过的同一个地址
-   `192.168.5.12`，因为 MAC 相同）。
-2. OPPO（连同一路由器 CMCC-9rgu）用 Termius 或 `ssh` 直连该 IP、用户 root。
-3. 成功后 `uname -a` 应显示 4.19.325 内核（Linux，不是 Android）。
+1. 记下 Linux 的 wlan0 IP：`ip -4 addr show wlan0`（DHCP；MAC 与 Android 相同
+   `7c:2a:db:01:95:59`，路由器可能复用旧租约）。
+2. 同网段主机 `ssh root@<wlan0 IP>`（用户 root，密码 `<your-password>`）。
+3. 成功后 `uname -a` 应显示 `4.19.325…aarch64 Linux`（不是 Android）。
+
+> 实测（2026-09-14）：电脑（`192.168.1.x`，同一 <SSID>）直连
+> `ssh root@192.168.1.x` 成功；USB 通道（`172.16.42.1`）同时可用。
 
 ## 4. 方法 B：纯手机 recovery 引导（无需电脑）
 
@@ -95,7 +119,12 @@ dd if=/dev/block/by-name/super bs=4096 skip=1990372 count=16 2>/dev/null | strin
 
 （对应 super 内 rootfs 尾部 1 MiB 之后的一段空闲区；不涉及任何分区元数据。）
 
-## 6. 已知不确定点（首次试飞重点观察）
+## 6. 已知不确定点（首次试飞重点观察；2026-09-14 复核）
+
+> 复核结论：第 1–4 项全部通过（无需补 rmtfs/pd-mapper 等；EROFS 偏移、REGDOM、
+> MAC 租约复用均正常，`wlan0` 秒级出现、数秒内完成 wpa+DHCP）。
+> 唯一遗留：内核偶发 `cnss: Firmware does not support non-DRV suspend, reject`
+> 告警（功能无影响），M2 评估。详见 `acceptance/m1b-2026-09-14.md`。
 
 1. **cnss-daemon 依赖链**：v1 overlay 未包含 `rmtfs`/`tqftpserv`/`pd-mapper`
    （D80 基线里有，但它们可能只服务 modem/ADSP）。若 `wlan0` 出现但固件加载

@@ -37,7 +37,7 @@ Android + 真 Linux（postmarketOS / Mobian）双系统方案。
 |---|---|---|
 | Phase 0 | 立项文档（Charter / 可行性 / 风险 / ADR / 测试计划） | ✅ 完成 |
 | M0 | 非破坏 bring-up：`fastboot boot` RAM 启动 Linux | ✅ 2026-09-13 方式 A 实机验收 A1–A5 全过（显示为色条接管；完整 UI 属 M1） |
-| M1 | 低风险持久化：super 空闲空间 + recovery 分区安装 | 🔄 M1a 完成（RAM 全量 Alpine+Weston，触摸+虚拟键盘可用）；M1b 持久化 rootfs 已写入 super 空闲区并可引导（OpenRC+Weston 真机运行），收尾 SSH/持久化测试 |
+| M1 | 低风险持久化：super 空闲空间 + recovery 分区安装 | ✅ M1a 完成；**M1b 已验收**（持久 rootfs + WiFi 直连 + 持久化 3 轮 + USB/局域网 SSH；证据 [M1b 验收记录](docs/acceptance/m1b-2026-09-14.md)） |
 | M2 | 双向切换器 v0.1（BCB 一次性引导 + 自动回退） | ⬜ |
 | M3 | 可选扩容工具 `lmi-repart`（userdata 尾部缩容） | ⬜ |
 | M4 | v1.0 公开发布 | ⬜ |

@@ -1,0 +1,17 @@
+Linux lmi-m1 4.19.325-cip128-st12-perf #10-postmarketOS SMP PREEMPT Fri Jul 10 18:13:02 UTC 2026 aarch64 Linux
+---
+ * status: started
+ * status: started
+---
+1: lo    inet 127.0.0.1/8 brd 127.255.255.255 scope host lo\       valid_lft forever preferred_lft forever
+8: usb0    inet 172.16.42.1/24 scope global usb0\       valid_lft forever preferred_lft forever
+9: wlan0    inet 192.168.1.x/24 scope global wlan0\       valid_lft forever preferred_lft forever
+---
+m1b-wifi-v1
+---
+1348 /usr/sbin/dropbear -P /run/dropbear.pid
+1724 /usr/sbin/dropbear -P /run/dropbear.pid -2 9
+1622 /sbin/wpa_supplicant -B -P /run/wpa_supplicant.wlan0.pid -i wlan0 -c /etc/wpa_supplicant/wpa_supplicant.conf -D nl80211
+---
+cgroup_disable=pressure ramoops_memreserve=4M rcupdate.rcu_expedited=1 rcu_nocbs=0-7 kpti=off androidboot.hardware=qcom androidboot.console=ttyMSM0 androidboot.memcg=1 lpm_levels.sleep_disabled=1 msm_rtb.filter=0x237 service_locator.enable=1 androidboot.usbcontroller=a600000.dwc3 swiotlb=2048 loop.max_part=7 cgroup.memory=nokmem,nosocket reboot=panic_warm androidboot.fstab_suffix=qcom androidboot.init_fatal_reboot_target=recovery console=tty0 loglevel=7 lmi_root_off=1596852 androidboot.verifiedbootstate=orange androidboot.keymaster=1  androidboot.bootdevice=1d84000.ufshc androidboot.fstab_suffix=default androidboot.boot_devices=soc/1d84000.ufshc androidboot.serialno=REDACTED androidboot.secureboot=1 androidboot.hwversion=3.9.0 androidboot.cpuid=REDACTED androidboot.camera.config=1 androidboot.network.mode=2 androidboot.hwc=CN androidboot.hwlevel=MP androidboot.product.hardware.sku=std androidboot.baseband=mdm msm_drm.dsi_display0=qcom,mdss_dsi_j11_38_08_0a_fhd_cmd: androidboot.dtbo_idx=0 androidboot.dtb_idx=0 androidboot.ramdump=disable block2mtd.block2mtd=/dev/block/sda15,2097152 mtdoops.mtddev=0 mtdoops.record_size=2097152 mtdoops.dump_oops=0 printk.always_kmsg_dump=1 androidboot.dp=0x0 androidboot.cert=REDACTED
+ * status: crashed

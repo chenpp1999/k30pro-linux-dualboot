@@ -1,0 +1,31 @@
+# TWRP 写回 + super 回读校验（2026-09-14）
+
+## 写入
+
+$ adb shell
+dd if=/sdcard/Download/phone-server/lmi-m1b/rootfs-fixed2.img \
+   of=/dev/block/by-name/super bs=4096 seek=1596852 conv=notrunc
+393216+0 records in
+
+## 回读（super 内 1.5 GiB 区域）
+
+$ adb shell
+dd if=/dev/block/by-name/super bs=4096 skip=1596852 count=393216 2>/dev/null | sha256sum
+393216+0 records out
+1610612736 bytes (1.5 G) copied, 10.325603 s, 149 M/s
+0734a5de607d87f3dd642fa327c66d8077a8c710dc9e1a2c2ddc888b13e7c1cf  -
+
+## 期望值（导出镜像）
+
+$ sha256sum /sdcard/Download/phone-server/lmi-m1b/rootfs-fixed2.img
+0734a5de607d87f3dd642fa327c66d8077a8c710dc9e1a2c2ddc888b13e7c1cf  rootfs-fixed2.img
+
+## 结论
+
+回读与导出镜像 sha256 完全一致 → 写入完整落盘（TWRP 会话内 `dd` + 回读，
+未触碰 super 元数据）。
+
+## 说明
+
+- seek=1596852（4K 单元）= 偏移 6,540,705,792 B = 扇区 12,774,816；
+- 早前 v5 首装时同法写入并校验（ext4 magic `53 ef` 抽查）。

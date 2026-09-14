@@ -1,0 +1,57 @@
+bssid=a8:02:db:d3:00:d6
+freq=2462
+ssid=<SSID>
+id=2
+mode=station
+wifi_generation=6
+pairwise_cipher=CCMP
+group_cipher=CCMP
+key_mgmt=WPA2-PSK
+wpa_state=COMPLETED
+ip_address=192.168.1.x
+p2p_device_address=7c:2a:db:01:95:59
+address=7c:2a:db:01:95:59
+uuid=e4d118ee-5c9e-50b5-bb7e-ef0e1ea4757b
+ieee80211ac=1
+---
+9: wlan0    inet 192.168.1.x/24 scope global wlan0\       valid_lft forever preferred_lft forever
+---
+Connected to a8:02:db:d3:00:d6 (on wlan0)
+	SSID: <SSID>
+	freq: 2462.0
+	RX: 4592 bytes (65 packets)
+	TX: 1820 bytes (16 packets)
+	signal: -79 dBm
+	rx bitrate: 34.4 MBit/s HE-MCS 1 HE-NSS 2 HE-GI 0 HE-DCM 0
+	tx bitrate: 51.6 MBit/s HE-MCS 2 HE-NSS 2 HE-GI 0 HE-DCM 0
+---
+[02:03:19] sleep 8s before WLAN enable
+[02:03:39] stage=wait_wlan0
+[02:03:39] wlan0 present after 0s
+[02:03:39] stage=wpa_supplicant
+[02:03:43] stage=dhcp
+[02:03:45] wifi up: 192.168.1.x/24
+         [01:47:33] wifi up: 192.168.1.x/24
+      [01:47:33] exit rc=0 status=ok
+      [01:58:25] stage=firmware
+      [01:58:25] stage=super
+      [01:58:25] stage=qrtr
+      [01:58:26] stage=cnss_daemon
+      [01:58:28] stage=fs_ready
+      [01:58:28] stage=wlan_on
+      [01:58:48] stage=wait_wlan0
+      [01:58:48] stage=wpa_supplicant
+      [01:59:20] stage=dhcp
+      [01:59:24] wifi up: 192.168.1.x/24
+   [01:59:24] exit rc=0 status=ok
+   [02:03:16] stage=firmware
+   [02:03:16] stage=super
+   [02:03:16] stage=qrtr
+   [02:03:17] stage=cnss_daemon
+   [02:03:19] stage=fs_ready
+   [02:03:19] stage=wlan_on
+   [02:03:39] stage=wait_wlan0
+   [02:03:39] stage=wpa_supplicant
+   [02:03:43] stage=dhcp
+   [02:03:45] wifi up: 192.168.1.x/24
+[02:03:45] exit rc=0 status=ok

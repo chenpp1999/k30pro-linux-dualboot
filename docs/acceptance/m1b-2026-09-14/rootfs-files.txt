@@ -1,0 +1,11 @@
+3f054e31fe49ab9f878aa73e175f92de82170d5823f732c0f2d6e36895acefce  /etc/init.d/dropbear
+33611c8c5daf43ced641e7782fe4f7a0465f29225a4e20c15533b119437540f0  /etc/conf.d/dropbear
+94813b0f650237a64b2688dcbbedee13bd9f20bf72d0ab824ceb5d7c098641c9  /usr/sbin/lmi-wifi-start
+---
+217:    -D nl80211 2>>/var/log/wpa_supplicant.log
+8:	use net
+DROPBEAR_OPTS="-P /run/dropbear.pid"
+---
+-rw-r--r--    1 root     root           210 Sep 14  2026 /etc/conf.d/dropbear
+-rwxr-xr-x    1 root     root          1056 Sep 14  2026 /etc/init.d/dropbear
+-rwxr-xr-x    1 root     root          8348 Sep 14  2026 /usr/sbin/lmi-wifi-start

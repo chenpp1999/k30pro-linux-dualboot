@@ -11,10 +11,25 @@ shipped to the device through the one-shot overlay applied by
 |---|---|
 | `etc/conf.d/lmi-wifi` | super extents, CNSS2 timing, DHCP budgets (device specific) |
 | `etc/init.d/lmi-wifi` | OpenRC service (background runner of `lmi-wifi-start`) |
+| `etc/init.d/dropbear` | **override** of Alpine stock: `use net` (the rootfs has no `networking` service; `need net` blocks dropbear) |
+| `etc/conf.d/dropbear` | **override** of Alpine stock: `DROPBEAR_OPTS="-P /run/dropbear.pid"` (working stop/status) |
 | `etc/wpa_supplicant/wpa_supplicant.conf.template` | network template (PSKs injected at build time, never committed) |
 | `usr/sbin/lmi-wifi-start` | linear bring-up: firmware links -> qrtr-ns -> cnss-daemon -> WLAN on -> wpa_supplicant -> DHCP, with mailbox reporting |
 | `usr/sbin/m1-mailbox` | writes reports into the super mailbox (readable from Android) |
 | `usr/sbin/lmi-cnss-daemon-wrapper` | runs the vendor daemon with the Android-property shim |
+
+## Pitfalls (device-verified 2026-09-14)
+
+- `usr/sbin/lmi-wifi-start`: Alpine's `wpa_supplicant` is built without
+  `CONFIG_DEBUG_FILE`, so `-f <log>` prints usage and exits (WiFi fails with
+  `status=failed`). Log via `2>>/var/log/wpa_supplicant.log` instead — do not
+  reintroduce `-f`.
+- `etc/init.d/dropbear`: keep `use net`, not `need net` — the rootfs does not
+  run the `networking` service, so `need net` makes OpenRC refuse to start
+  dropbear (`cannot start dropbear as networking would not start`).
+- When patching a dumped rootfs image offline, replay the ext4 journal first
+  (`tools/m1/patch-rootfs-image.sh`): debugfs writes followed by `e2fsck -fy`
+  get silently reverted by journal replay otherwise.
 
 ## Files taken from the device (not committed)
 

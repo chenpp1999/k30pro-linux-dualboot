@@ -10,19 +10,18 @@
 |---|---|---|
 | M0 | ✅ 已验收（2026-09-13，方式 A） | A1–A5 全过；证据 `docs/acceptance/m0-2026-09-13/` |
 | M1a | ✅ 完成 | Alpine+Weston RAM 全量 bring-up（触摸+虚拟键盘）；`docs/m1a-ramboot.md`、证据 `docs/acceptance/m1a-2026-09-14/` |
-| M1b | 🔄 收尾中 | 持久 rootfs 已写入 super 空闲区并可引导（OpenRC+Weston 真机运行）；剩 SSH/持久化测试 |
-| M2 | ⬜ 未开始 | 双向切换器 v0.1 |
+| M1b | ✅ 已验收（2026-09-14） | 持久 rootfs（super 空闲区）+ WiFi 直连 + 持久化 3 轮 + USB/局域网 SSH；`docs/acceptance/m1b-2026-09-14.md` |
+| M2 | ⬜ 未开始 | 双向切换器 v0.1；接手先做"overlay v2 / boot-m1b-v6 重建"（见 §二末） |
 | M3/M4 | ⬜ | 见 `docs/charter.md` |
 
 ## 二、M1b 现状（收尾项的起点）
 
-> **2026-09-14 下午更新（WiFi 试飞就绪）**：`boot-m1b-v5.img`
-> （sha256 `7658da6a6ffb8f2a398ee26256ed463ad22b781f53d9a4e8a59532b99a537b93`）
-> 已构建并放入 `/sdcard/Download/phone-server/lmi-m1b/` 与
-> `/data/local/lmi-dualboot/`。v5 = v4 同内核/DTB + 新 initramfs（自动应用
-> rootfs 增量、引导计数、super mailbox 上报）+ WiFi overlay（v1）。
-> **操作步骤与验收清单见 `docs/m1b-wifi-runbook.md`**；首次建议用方法 A
-> （电脑 `fastboot boot`，零写入），手机侧会话在切换前应保持现状。
+> **2026-09-14 验收完成**：M1b 收尾项全部通过——WiFi 直连（<SSID>，
+> `wpa_state=COMPLETED`，DHCP `192.168.1.x/24`，WiFi6/HE）、持久化三轮
+> （boot=4→6）、USB 与局域网 SSH。当前部署 = `boot-m1b-v5.img`
+> （sha256 `7658da6a…b937`）+ super 内 rootfs（修补后 sha256 `0734a5de…`）。
+> 验收记录 `docs/acceptance/m1b-2026-09-14.md`；试飞手册
+> `docs/m1b-wifi-runbook.md`（§0.1 结果摘要）。
 
 - **存储**：1.5 GiB ext4 rootfs 镜像写入 `super`（`/dev/block/sda32`）空闲区：
   - 偏移 6,540,705,792 B（= 4K 单元 1,596,852，cmdline `lmi_root_off=1596852`）
@@ -38,16 +37,20 @@
   写入必须走 **TWRP**（电脑 adb）或 **Linux 环境**
 - **回滚**：不再引导即可；或在 TWRP 中将该区域清零（见 `docs/m1b-persistent.md`）；
   super 元数据备份 `/sdcard/Download/phone-server/backup/super-metadata.bin`
-- **待办（建议顺序，追踪 issue #14）**：
-  1. ~~**WiFi 直连**~~ **已实现待试飞**（v5/overlay v1）：内核走**下游
-     CNSS2 + qcacld**（本内核无 ath11k，issue #14 原描述有误），固件用 modem
-     分区的 qca6390 包 + persist 的 MAC；用户态 = 静态 qrtr-ns + vendor
-     cnss-daemon（Android runtime APEX / system / vendor 只读挂载）+
-     wpa_supplicant + udhcpc
-  2. 持久化读写测试（写入 → 重启 → 校验，≥3 轮）——initramfs 已自带引导计数
-     账本（`/root/m1b-boot-count`），重启后由 mailbox/SSH 校验
-  3. SSH 验收（WiFi 后从局域网 OPPO 直连）
-  4. 更新 `docs/m1b-persistent.md` 与 README 状态
+- **M1b 已完成（issue #14，2026-09-14）**：
+  1. WiFi 直连：下游 CNSS2 + qcacld（本内核无 ath11k）+ qrtr-ns +
+     vendor cnss-daemon + wpa_supplicant + udhcpc；实测 `wpa_state=COMPLETED`、
+     DHCP 与 WiFi6/HE 速率
+  2. 持久化读写 3 轮：`/root/m1b-persist.log`（boot=4→5→6）与引导账本
+     `/root/m1b-boots.log`
+  3. SSH 验收：USB（`172.16.42.1`）与局域网（`192.168.1.x`）均通过
+  4. 修复入仓：dropbear 依赖链 `need net`→`use net`、wpa `-f`→`2>>` 重定向；
+     新增 `tools/m1/patch-rootfs-image.sh`（离线修补，含 journal 回放）
+- **下一步（M1b 收官 → M2 准备，建议顺序）**：
+  1. 重建 overlay v2 / `boot-m1b-v6`：把修补后的三个文件放入 overlay 树，
+     使"镜像 + overlay"链路与仓库一致（v5 内嵌 overlay v1 仍含旧
+     `lmi-wifi-start`，仅首启应用、不影响已部署设备）
+  2. M2 双向切换器 v0.1（见 §三）
 
 ## 三、M2 设计要点（照 `docs/adr/0001-boot-switch-mechanism.md`；追踪 issue #15）
 
@@ -74,6 +77,10 @@
 ## 五、已知坑（不要重复踩）
 
 - `baseband_guard` 禁止 Android 写 super（issue #13）
+- **离线修补 rootfs 镜像必须先回放 journal**：从分区 dump 的 ext4 若带未回放
+  journal，debugfs 直写后任何 `e2fsck -fy` 会先回放 journal、**静默回滚**修补
+  （实测 `conf.d/dropbear` 被截断成 190 B）；正确顺序见
+  `docs/m1b-persistent.md` §6，工具 `tools/m1/patch-rootfs-image.sh`
 - **关机冷启动会卡 Redmi logo 4–5 分钟**：ABL 开机震动反馈在坏芯片上重试（硬件问题，
   不可软件修复）；日常用"重启"（SERVER_NOTES 第 15 节）
 - Magisk 覆盖 init `.rc` 无效（init 解析早于 Magisk 挂载）——勿再尝试
