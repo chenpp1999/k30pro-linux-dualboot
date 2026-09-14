@@ -1,6 +1,7 @@
 # ADR-0001：启动切换机制 — recovery 分区 + BCB 一次性引导
 
-- 状态：Accepted（待 M0 实测复核 BCB 清除行为）
+- 状态：Accepted（2026-09-14 T1-03 实测复核：recovery 引导需镜像自带
+  `recovery_dtbo`；BCB 由 Linux init 清除，bootloader 不清）
 - 日期：2026-09-13
 - 决策人：chenpp1999
 

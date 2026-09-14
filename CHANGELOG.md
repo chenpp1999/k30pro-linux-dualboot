@@ -51,6 +51,10 @@
   `switch.log` 证据日志；离线功能测试 `tools/tests/m2-switch-test.sh`（8 组，
   CI 运行）；手册 `docs/m2-runbook.md`；Magisk 一键骨架
   `packages/magisk-module/`（Action 按钮）。
+- T1-03 修复产物 `boot-m1b-v7.img`（sha256 `754b63b4…`，55,029,760 B）：
+  `build-m1b-image.sh` 新增 `--recovery-dtbo`；记录
+  `docs/acceptance/m2-2026-09-14.md`（T1-03/T2-03/T2-04/救援/TWRP 演练全过；
+  T2-02 5 轮零失败）。
 
 ### Changed
 - `recovery-swap.sh to-linux` 默认启用部署预检：SHA-256 清单 + attestation +
@@ -73,8 +77,17 @@
   截断；真实块设备语义不变），并补充写后全量 sha256 回读校验。
 - README / handoff / test-plan：M2 v0.1 状态、文档索引与验收入口更新；
   handoff 新增"电脑→手机"通道与 overlay 重建避坑记录。
+- test-plan/handoff/README：T1-03 标记完成（结论：ABL 不清 BCB、Linux init 清；
+  recovery 引导需 `recovery_dtbo`）；T2-02 记录"5 轮零失败 + 负责人提前结束
+  （时间成本），标准修订待定"。
 
 ### Fixed
+- **T1-03 根因（2026-09-14 实机）**：写入 `recovery` 的镜像缺 `recovery_dtbo`
+  时，lmi ABL 的 recovery 引导路径读不到 DTBO 表（读到 `ANDROID!` 魔数）→
+  `Error: Device Tree blob not found` → 落 fastboot（v6/M0 方式 B 失败的真正
+  根因；此前误判为 init CRLF）。修复：`build-m1b-image.sh --recovery-dtbo`
+  （内容=本机 dtbo 表 487,424 B）；另修复 Debian 版 `mkbootimg`
+  `get_number_of_pages` 真除 bug（`/`→`//`，否则 `pack('Q')` 报错）。
 - M1b 实测（issue #13）：`baseband_guard` 禁止 Android 用户态写入 `super`
   （root/SELinux/RO 均无关）→ 镜像写入改在 TWRP 执行；RAM initramfs 的救援
   dropbear 会在 `switch_root` 后存活并占用 22 端口 → v4 起救援 SSH 仅在

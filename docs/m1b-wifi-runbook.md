@@ -8,20 +8,19 @@
 
 | 产物 | 位置 | sha256 |
 |---|---|---|
-| `boot-m1b-v6.img`（**当前**） | 手机 `/sdcard/Download/phone-server/lmi-m1b/`；`/data/local/lmi-dualboot/` | `346343b3d658dc3a9b66f1eb54f9f71701d6bc16f80c001507188362336a4b87`（54,546,432 B） |
+| `boot-m1b-v7.img`（**当前部署**，含 `recovery_dtbo`） | 手机 `/sdcard/Download/phone-server/lmi-m1b/`；`/data/local/lmi-dualboot/` | `754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81`（55,029,760 B） |
+| `boot-m1b-v6.img`（**勿再用于 recovery 部署**） | 同上（保留为缺陷对照） | `346343b3…`（54,546,432 B；缺 `recovery_dtbo` → recovery 引导落 fastboot，T1-03） |
 | `m1b-overlay-v2.tar.gz`（**当前**） | 同上 | `db760fec6e0d58343eca6d4d08f0bc05306eea27a323556a52c42985310a76ba`（5,991,807 B，212 文件） |
 | `boot-m1b-v5.img`（M1b 验收产物，保留对照/回退） | 同上 | `7658da6a6ffb8f2a398ee26256ed463ad22b781f53d9a4e8a59532b99a537b93`（54,534,144 B） |
 | `m1b-overlay-v1.tar.gz` | 同上 | 5,991,682 B（210 文件） |
 | `rootfs-fixed2.img`（当前部署 rootfs） | 同上；已写入 super | sha256 `0734a5de607d87f3dd642fa327c66d8077a8c710dc9e1a2c2ddc888b13e7c1cf`（1.5 GiB；2026-09-14 修补 dropbear/wpa 后） |
-| `boot-m1b-v6.img.buildinfo` | 同上 | 构建记录（内核/DTB hash 与 v5 一致） |
+| `boot-m1b-v7.img.buildinfo` | 同上 | 构建记录（内核/DTB 与 v5 一致；含 recovery_dtbo sha256） |
 | TWRP 备份 | `/data/local/lmi-dualboot/recovery-twrp.img`（sha 与当前 recovery 分区一致，已校验） | — |
 
-v6 相对 v5：内核、DTB、引导逻辑不变；initramfs 内嵌 overlay v2（版本
-`m1b-wifi-v2`），把设备实测的三个修补文件（`lmi-wifi-start`、`etc/init.d/dropbear`、
-`etc/conf.d/dropbear`）纳入 overlay —— 全新部署（`rootfs.img` + v6）首启即得到与
-当前部署一致的修补后 rootfs（v5 的 overlay v1 含旧 `lmi-wifi-start`，仅影响
-全新部署首启）。v6 尚未实机 RAM 验证（未生成 attestation，`to-linux` 门禁会按
-设计拒绝写入）；M2 会话先 `fastboot boot` 验证后补 attestation。
+v7 相对 v6：内核、DTB、initramfs 内容不变；打包增加 `recovery_dtbo`
+（本机 dtbo 表 487,424 B）——这是从 `recovery` 分区启动的必要条件（T1-03：
+缺该字段时 ABL 读不到 DTBO 表并落 fastboot）。**部署到 recovery 必须用 v7**；
+v6 仅可用于 `fastboot boot`（RAM 引导）对照。
 
 v5 相对 v4 的变化：内核、DTB 字节不变；initramfs 加了 `m1b-init.sh` v5
 （rootfs 增量自动应用、引导计数、mailbox 上报）与 6 MB overlay（WiFi 用户态 +

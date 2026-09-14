@@ -19,7 +19,7 @@
 |---|---|---|
 | T1-01 | `fastboot boot` 启动 Linux（阶段 A） | 显示、触屏、SSH 可用；未写任何分区 |
 | T1-02 | 读取并归档分区表 / GPT / boot / recovery 备份 | 哈希校验通过 |
-| T1-03 | BCB 行为试验：写 boot-recovery 进 TWRP | 确认引导行为与 BCB 清除方（记录：bootloader 清 or recovery 清）。**完成前，文档与流程不得假设 bootloader 会自动清 BCB（issue #1）** |
+| T1-03 | BCB 行为试验：写 boot-recovery 进 TWRP | ✅ 2026-09-14 完成：ABL **不**清 BCB、Linux init 清除；且 recovery 引导要求镜像自带 `recovery_dtbo`（v6 缺 → fastboot；v7 修复）。见 `acceptance/m2-2026-09-14.md` |
 | T1-04 | 正常重启回归 | 100 次重启全部回到 Android（可分批） |
 | T1-05 | 方式 B 部署门禁（预检） | 无 attestation / SHA-256 缺失或不匹配时 `to-linux` 拒绝写入；`--dry-run` 不写任何分区。自动化：`tools/tests/m2-switch-test.sh`（CI 运行，含 BCB 写/清校验、`--force`、尺寸检查） |
 
@@ -31,7 +31,7 @@
 | 编号 | 项目 | 通过标准 |
 |---|---|---|
 | T2-01 | 阶段 B 安装（super 空闲空间 + recovery） | 30 次重启稳定；TWRP 可恢复 |
-| T2-02 | 双向切换 | 各 20 次无失败 |
+| T2-02 | 双向切换 | 各 20 次无失败。**2026-09-14 实机：5 轮零失败后由负责人决定提前结束（时间成本）；标准修订待定**（见 `acceptance/m2-2026-09-14.md`） |
 | T2-03 | Linux 未清 BCB 时断电 | 重启能回到 Android 或自愈 |
 | T2-04 | 切换命令执行中断电 | 重启回 Android |
 | T2-05 | M3 扩容 dry-run | 输出与预期分区表一致 |

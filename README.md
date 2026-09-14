@@ -38,7 +38,7 @@ Android + 真 Linux（postmarketOS / Mobian）双系统方案。
 | Phase 0 | 立项文档（Charter / 可行性 / 风险 / ADR / 测试计划） | ✅ 完成 |
 | M0 | 非破坏 bring-up：`fastboot boot` RAM 启动 Linux | ✅ 2026-09-13 方式 A 实机验收 A1–A5 全过（显示为色条接管；完整 UI 属 M1） |
 | M1 | 低风险持久化：super 空闲空间 + recovery 分区安装 | ✅ M1a 完成；**M1b 已验收**（持久 rootfs + WiFi 直连 + 持久化 3 轮 + USB/局域网 SSH；证据 [M1b 验收记录](docs/acceptance/m1b-2026-09-14.md)） |
-| M2 | 双向切换器 v0.1（BCB 一次性引导 + 自动回退） | 🚧 v0.1 已实现（离线测试通过），实机验收待做；手册 [M2 切换器](docs/m2-runbook.md) |
+| M2 | 双向切换器 v0.1（BCB 一次性引导 + 自动回退） | 🚧 v0.1 实机验收完成（T1-03/T2-03/T2-04/救援/TWRP 全过；T2-02 5 轮零失败）；记录 [M2 验收](docs/acceptance/m2-2026-09-14.md) |
 | M3 | 可选扩容工具 `lmi-repart`（userdata 尾部缩容） | ⬜ |
 | M4 | v1.0 公开发布 | ⬜ |
 
@@ -58,6 +58,7 @@ Android + 真 Linux（postmarketOS / Mobian）双系统方案。
 - [M1b WiFi 试飞手册（boot-m1b-v5/v6）](docs/m1b-wifi-runbook.md)
 - [M1b 验收记录（2026-09-14）](docs/acceptance/m1b-2026-09-14.md)
 - [M2 双向切换器手册与验收流程](docs/m2-runbook.md)
+- [M2 验收记录（2026-09-14）](docs/acceptance/m2-2026-09-14.md)
 - [开发交接（handoff）](docs/handoff.md)
 
 ## 许可证

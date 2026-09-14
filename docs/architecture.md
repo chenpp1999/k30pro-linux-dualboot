@@ -61,7 +61,11 @@ Linux 启动早期（initramfs 阶段）：
 
 注：BCB 清除只在 Linux 内核成功启动并运行 initramfs 时发生。内核未启动则
 BCB 残留，设备可能循环进入 recovery→fastboot，须按 runbook §5 救援。
-T1-03（BCB 清除责任方）完成前，任何文档不得假设 bootloader 会自动清 BCB。
+**T1-03（2026-09-14 实测）**：ABL **不**清 BCB，清除责任方是 Linux init
+（ledger 记录 `bcb=boot-recovery` 后由 init 清零）；且 ABL 的 recovery 引导
+路径要求镜像自带 `recovery_dtbo`（DTBO 表），缺该字段会落 fastboot——
+部署镜像必须用 `build-m1b-image.sh --recovery-dtbo` 构建
+（见 `docs/m2-runbook.md` §6 与 `docs/acceptance/m2-2026-09-14.md`）。
 
 回 Android：
   任意方式重启即可（reboot / 长按电源 / 断电）

@@ -20,6 +20,16 @@ shipped to the device through the one-shot overlay applied by
 
 ## Pitfalls (device-verified 2026-09-14)
 
+- **Images deployed to `recovery` must be built with `--recovery-dtbo`**
+  (`tools/m1/build-m1b-image.sh`): lmi's ABL reads the DTBO table from the boot
+  image header's `recovery_dtbo` field; when empty it reads the `ANDROID!`
+  magic instead (`Dtbo hdr magic mismatch 52444E41`), finds no DTB and falls
+  back to fastboot (T1-03; v6 defect, fixed in v7). Content: the device's
+  current dtbo table (`dtbo-new.img`, 487,424 B, sha `32e9ba4f…`).
+- The Debian-packaged `mkbootimg` has a true-division bug in
+  `get_number_of_pages` (`/` instead of `//`): with `--recovery_dtbo` the
+  offset becomes a float and `pack('Q')` raises struct.error. Patch:
+  `sed -i 's|) / page_size|) // page_size|' /usr/bin/mkbootimg`.
 - `usr/sbin/lmi-wifi-start`: Alpine's `wpa_supplicant` is built without
   `CONFIG_DEBUG_FILE`, so `-f <log>` prints usage and exits (WiFi fails with
   `status=failed`). Log via `2>>/var/log/wpa_supplicant.log` instead — do not

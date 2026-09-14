@@ -11,7 +11,7 @@
 | M0 | ✅ 已验收（2026-09-13，方式 A） | A1–A5 全过；证据 `docs/acceptance/m0-2026-09-13/` |
 | M1a | ✅ 完成 | Alpine+Weston RAM 全量 bring-up（触摸+虚拟键盘）；`docs/m1a-ramboot.md`、证据 `docs/acceptance/m1a-2026-09-14/` |
 | M1b | ✅ 已验收（2026-09-14） | 持久 rootfs（super 空闲区）+ WiFi 直连 + 持久化 3 轮 + USB/局域网 SSH；`docs/acceptance/m1b-2026-09-14.md` |
-| M2 | 🚧 v0.1 已实现（离线测试通过） | 双向切换器；手册 `docs/m2-runbook.md`；实机验收（T2）待做（见 §三） |
+| M2 | 🚧 v0.1 实机验收完成（部分标准） | 双向切换器；T1-03 完成并修复 recovery 引导缺陷（v7）；T2-02 5 轮零失败（负责人决定提前结束）；`docs/acceptance/m2-2026-09-14.md` |
 | M3/M4 | ⬜ | 见 `docs/charter.md` |
 
 ## 二、M1b 现状（收尾项的起点）
@@ -58,17 +58,29 @@
      `lmi-m1b/` 与 `/data/local/lmi-dualboot/`。构建要点：`tools/m1/m1b-init.sh`
      版本常量 → `m1b-wifi-v2`；staged 树 `m1b2` 带入三个修补文件；overlay 用
      `--base-tree /root/work/m1b-old` 生成（勿用 `--base-image`，见 §五）。
-     **v6 尚未实机 RAM 验证**（attestation 未生成，`to-linux` 门禁会按设计拒绝）。
   2. ✅ M2 v0.1 已实现：`tools/m1/recovery-swap.sh`（显式 BCB、全量回读校验、
      中断安全顺序、`bcb` 子命令、`switch.log`）、离线测试
      `tools/tests/m2-switch-test.sh`（CI 运行）、`docs/m2-runbook.md`、
-     Magisk 骨架 `packages/magisk-module/`。实机验收（T2）待做，见 §三。
-- **下一步（M2 实机验收，建议顺序）**：
-  1. 电脑 `fastboot boot boot-m1b-v6.img`（方法 A，零写入）→ Linux 内验证
-     overlay v2 已应用、WiFi/SSH 正常 → 回 Android 后 `attest-ramboot` 生成
-     attestation（同时闭环 v6 实机验证）。
-  2. 按 `docs/m2-runbook.md` §4 跑 T1-03 补课 + T2-02/03/04 + TWRP 恢复演练，
-     证据归档 `docs/acceptance/m2-<日期>.md`。
+     Magisk 骨架 `packages/magisk-module/`。
+- **M2 实机验收完成（2026-09-14 会话）**：
+  1. ✅ **T1-03 完成**：recovery 引导失败根因 = 镜像缺 `recovery_dtbo`
+     （ABL 从该字段读 DTBO 表，读到 `ANDR` → 无 DTB → fastboot）。修复：
+     `build-m1b-image.sh --recovery-dtbo`（内容=本机 dtbo 表 `32e9ba4f…`，
+     487,424 B），产物升级为 **`boot-m1b-v7.img`**（sha256 `754b63b4…`，
+     55,029,760 B）；ABL 日志确认 `Apply Overlay`、无 Dtbo/DTB 报错。
+     BCB 结论：**ABL 不清 BCB，由 Linux init 清除**（ledger 记录 `bcb=boot-recovery`）。
+  2. ✅ T2-04 中断电（写镜像阶段 SIGKILL）→ BCB 空 → 回 Android；
+     ✅ T2-03 自愈（Linux 设 BCB → 重启仍进 Linux → init 清除）；
+     ✅ 救援演练（损坏 v6 + BCB → fastboot → `fastboot erase misc` → Android）；
+     ✅ TWRP 恢复演练（`restore-twrp` → `reboot recovery` → TWRP 3.7.1）。
+  3. ⚠️ T2-02 往返：**5 轮零失败**（boot=10…14，~188 s/轮），负责人决定提前
+     结束（时间成本），未跑满 20 轮；标准修订待定。证据
+     `docs/acceptance/m2-2026-09-14.md`。
+  4. 最终状态：手机在 Android（默认）；`recovery` = `boot-m1b-v7.img`（回读
+     校验通过）；BCB 空；`boot` 分区 sha256 `8d441fc5…` 全程未变。
+- **下一步（建议）**：标准修订（G2/T2-02 轮数）→ M2 Go/No-Go → M3 评估；
+  遗留：T2-01（30 次重启）、T1-04（100 次重启回归）、Magisk 模块实机安装、
+  Linux 启动耗时波动观察。
 
 ## 三、M2 设计要点（照 `docs/adr/0001-boot-switch-mechanism.md`；追踪 issue #15）
 
@@ -82,7 +94,9 @@
   `--no-reboot` 只准备不重启；`bcb show|clear|boot-recovery`；`switch.log` 证据。
   离线测试 `tools/tests/m2-switch-test.sh`（8 组，CI 运行）；手册
   `docs/m2-runbook.md`；Magisk 一键骨架 `packages/magisk-module/`。
-- **实机验收（待做）**：按 `docs/m2-runbook.md` §4 执行并归档。
+- **实机验收（2026-09-14 完成，见 `docs/acceptance/m2-2026-09-14.md`）**：
+  T1-03 完成（recovery 引导需 `recovery_dtbo`，修复产物 = `boot-m1b-v7.img`）；
+  T2-04/T2-03/救援/TWRP 演练全过；T2-02 5 轮零失败（负责人决定提前结束）。
 
 ## 四、开发环境与约定
 
@@ -120,6 +134,21 @@
   （M2 脚本已处理，勿回退）
 - FIFO rootbridge 无 worker 时 `echo > .rootbridge.fifo` 会**阻塞**（写端等读者）；
   先确认 `ps | grep rootbridge` 再写
+- **部署到 recovery 的镜像必须带 `recovery_dtbo`**（T1-03，2026-09-14）：ABL 的
+  recovery 路径从 boot header 的该字段读 DTBO 表，缺了会读到 `ANDROID!` 魔数
+  → "Dtbo hdr magic mismatch" → "Device Tree blob not found" → 落 fastboot。
+  构建加 `--recovery-dtbo /root/work/dtbo-new.img`（本机 dtbo 表，487,424 B，
+  sha `32e9ba4f…`）；RAM 引导（方法 A）不需要。
+- **Debian 版 `mkbootimg` 真除 bug**：`get_number_of_pages` 用了 `/` 产生 float，
+  带 `--recovery_dtbo` 时 `pack('Q')` 报 struct.error；需
+  `sed -i 's|) / page_size|) // page_size|' /usr/bin/mkbootimg`（环境修复，
+  不入仓；build 脚本已加 `--recovery-dtbo` 透传）。
+- **adb forward 到 run-as 启动的 Termux sshd 会被拒**（SELinux/上下文）；
+  用 WiFi `ssh -p 8022`（需 Termux 本体启动 sshd）或 `adb shell run-as com.termux
+  <cmd>` 直跑；root 用 `run-as com.termux /debug_ramdisk/su -c '<cmd>'`。
+- fastboot/TWRP 之后 **USB 常需重新插拔**才会重新枚举（电脑侧 adb/fastboot 都看不到时先重插）。
+- Linux 启动到 SSH 可达的耗时偶发变长（最长 ~6–10 分钟，NCM 宿主侧枚举慢为主因），
+  自动化轮询超时给足（≥5 分钟）。
 - **离线修补 rootfs 镜像必须先回放 journal**：从分区 dump 的 ext4 若带未回放
   journal，debugfs 直写后任何 `e2fsck -fy` 会先回放 journal、**静默回滚**修补
   （实测 `conf.d/dropbear` 被截断成 190 B）；正确顺序见
@@ -141,11 +170,11 @@
 本仓库刻意不依赖会话记忆：新会话拿到仓库 + 下列三步即可完整接手。
 
 1. **同步**：电脑侧 `git pull --ff-only`；手机侧仓库（`/root/work/k30pro-linux-dualboot/`）
-   同样先 pull（GitHub 不稳时用 `git bundle` + scp，见 §四）。当前 tip ≥ `4ac3f4c`
-   （M2 v0.1 实现；实机验收后请更新本节）。
+   同样先 pull（GitHub 不稳时用 `git bundle` + scp，见 §四）。当前 tip ≥ `3701751`
+   （T1-03 修复；本次验收文档提交在其后，以 `git log` 为准）。
 2. **阅读顺序**：`AGENTS.md` → `docs/ai-protocol.md` → 本文 → 按任务进
-   `docs/m1b-wifi-runbook.md` / `docs/m1b-persistent.md` /
-   `docs/acceptance/m1b-2026-09-14.md`。
+   `docs/acceptance/m2-2026-09-14.md` / `docs/m2-runbook.md` /
+   `docs/m1b-persistent.md` / `docs/m1b-wifi-runbook.md`。
 3. **开工前检查**：open issues（`[VFY]` 开头 = 独立验证者产出，按协议评论
    `Resolved-by:`）；`git log --oneline -10` 对照本文"下一步"。
 
@@ -153,11 +182,11 @@
 
 > 你在开发仓库 `k30pro-linux-dualboot`（Redmi K30 Pro 双系统）。
 > 先读 `AGENTS.md` → `docs/ai-protocol.md` → `docs/handoff.md`，然后 `git pull`
-> 并确认 HEAD 与 `origin/main` 一致（≥ `4ac3f4c`）。
-> 当前状态：M0/M1（含 M1b）已实机验收；`boot-m1b-v6.img`（overlay v2）已构建并
-> 分发（sdcard `lmi-m1b/` 与 `/data/local/lmi-dualboot/`），但尚未实机 RAM 验证
-> （无 attestation）；M2 v0.1 已实现（`tools/m1/recovery-swap.sh` + 离线测试 +
-> `docs/m2-runbook.md`），实机验收待做；手机当前在 Android、adb 可用。
-> 任务：先 `fastboot boot boot-m1b-v6.img` 闭环验证并生成 attestation，再按
-> `docs/m2-runbook.md` §4 跑 M2 实机验收（T1-03 补课 + T2-02/03/04 + TWRP 演练）。
+> 并确认 HEAD 与 `origin/main` 一致（≥ `3701751`）。
+> 当前状态：M0/M1（含 M1b）已实机验收；M2 v0.1 已实机验收（T1-03 完成，修复
+> recovery 引导缺陷 → `boot-m1b-v7.img` 部署在 recovery；T2-02 5 轮零失败；
+> 故障场景/TWRP 演练全过；见 `docs/acceptance/m2-2026-09-14.md`）。手机当前在
+> Android（默认）；BCB 空；`boot` 分区未动。
+> 任务：先读验收记录与 handoff §二/§三 的遗留项（标准修订、T2-01/T1-04、Magisk
+> 模块实机、Linux 启动耗时观察），与负责人确认 M2 Go/No-Go 后再进入 M3。
 > 收到后先复述计划再动手。
