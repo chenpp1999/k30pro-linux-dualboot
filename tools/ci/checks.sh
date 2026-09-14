@@ -34,7 +34,7 @@ rm -f "$broken"
 echo "== 2. destructive scripts must offer --dry-run =="
 # Ram boot init scripts are exempt: their only write is the documented one-shot
 # BCB clear (ADR-0001), gated by design, not an operator-run deployment.
-DRY_EXEMPT="tools/m0/init tools/m1/m1-init.sh"
+DRY_EXEMPT="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh"
 for f in $(git ls-files '*.sh' 'tools/m0/init'); do
   if grep -qE 'dd .*of=' "$f" 2>/dev/null; then
     case " $DRY_EXEMPT " in
@@ -53,7 +53,7 @@ done
 echo "== 3. hardcoded device nodes =="
 # by-name symlinks (/dev/block/by-name/...) are stable and allowed; raw /dev/sd*
 # partition nodes are only allowed in the documented whitelist files.
-NODE_ALLOWED="tools/m0/init tools/m1/m1-init.sh"
+NODE_ALLOWED="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh"
 for f in $(git ls-files '*.sh' 'tools/m0/init'); do
   if grep -qE '/dev/sd[a-z][0-9]*' "$f" 2>/dev/null; then
     case " $NODE_ALLOWED " in
