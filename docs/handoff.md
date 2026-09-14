@@ -11,7 +11,7 @@
 | M0 | ✅ 已验收（2026-09-13，方式 A） | A1–A5 全过；证据 `docs/acceptance/m0-2026-09-13/` |
 | M1a | ✅ 完成 | Alpine+Weston RAM 全量 bring-up（触摸+虚拟键盘）；`docs/m1a-ramboot.md`、证据 `docs/acceptance/m1a-2026-09-14/` |
 | M1b | ✅ 已验收（2026-09-14） | 持久 rootfs（super 空闲区）+ WiFi 直连 + 持久化 3 轮 + USB/局域网 SSH；`docs/acceptance/m1b-2026-09-14.md` |
-| M2 | ⬜ 未开始 | 双向切换器 v0.1；接手先做"overlay v2 / boot-m1b-v6 重建"（见 §二末） |
+| M2 | 🚧 v0.1 已实现（离线测试通过） | 双向切换器；手册 `docs/m2-runbook.md`；实机验收（T2）待做（见 §三） |
 | M3/M4 | ⬜ | 见 `docs/charter.md` |
 
 ## 二、M1b 现状（收尾项的起点）
@@ -52,16 +52,23 @@
   3. SSH 验收：USB（`172.16.42.1`）与局域网（`192.168.1.x`）均通过
   4. 修复入仓：dropbear 依赖链 `need net`→`use net`、wpa `-f`→`2>>` 重定向；
      新增 `tools/m1/patch-rootfs-image.sh`（离线修补，含 journal 回放）
-- **下一步（M1b 收官 → M2 准备，建议顺序）**：
-  1. 重建 overlay v2 / `boot-m1b-v6`：把修补后的三个文件放入 overlay 树，
-     使"镜像 + overlay"链路与仓库一致（v5 内嵌 overlay v1 仍含旧
-     `lmi-wifi-start`，仅首启应用、不影响已部署设备）。现成输入在手机 Debian
-     `/root/work/`：`m1b-v5-initramfs/`（initramfs 目录）、`m1b-v5-out/`
-     （产物 + buildinfo，重建前先对照）、`m1b2/`（staged 树）、`secrets/`
-     （真实 wpa PSK，勿入库）、`rootfs-live2.img`（修补后镜像）；
-     构建脚本 `tools/m1/build-m1b-image.sh` + `tools/m1/mk-overlay.py`，
-     仓库树内已含修复后的三个文件。
-  2. M2 双向切换器 v0.1（见 §三）
+- **M1b 收官完成（2026-09-14 会话）**：
+  1. ✅ overlay v2 / `boot-m1b-v6` 重建完成并校验：镜像 sha256 `346343b3…`
+     （54,546,432 B）、overlay v2 `db760fec…`（5,991,807 B）；产物在 sdcard
+     `lmi-m1b/` 与 `/data/local/lmi-dualboot/`。构建要点：`tools/m1/m1b-init.sh`
+     版本常量 → `m1b-wifi-v2`；staged 树 `m1b2` 带入三个修补文件；overlay 用
+     `--base-tree /root/work/m1b-old` 生成（勿用 `--base-image`，见 §五）。
+     **v6 尚未实机 RAM 验证**（attestation 未生成，`to-linux` 门禁会按设计拒绝）。
+  2. ✅ M2 v0.1 已实现：`tools/m1/recovery-swap.sh`（显式 BCB、全量回读校验、
+     中断安全顺序、`bcb` 子命令、`switch.log`）、离线测试
+     `tools/tests/m2-switch-test.sh`（CI 运行）、`docs/m2-runbook.md`、
+     Magisk 骨架 `packages/magisk-module/`。实机验收（T2）待做，见 §三。
+- **下一步（M2 实机验收，建议顺序）**：
+  1. 电脑 `fastboot boot boot-m1b-v6.img`（方法 A，零写入）→ Linux 内验证
+     overlay v2 已应用、WiFi/SSH 正常 → 回 Android 后 `attest-ramboot` 生成
+     attestation（同时闭环 v6 实机验证）。
+  2. 按 `docs/m2-runbook.md` §4 跑 T1-03 补课 + T2-02/03/04 + TWRP 恢复演练，
+     证据归档 `docs/acceptance/m2-<日期>.md`。
 
 ## 三、M2 设计要点（照 `docs/adr/0001-boot-switch-mechanism.md`；追踪 issue #15）
 
@@ -70,12 +77,26 @@
 - 工具基础：`tools/m1/recovery-swap.sh`（backup/to-linux/restore-twrp），M2 在其上演进
 - 验收（见 `docs/test-plan.md` T2）：双向各 20 次；切换中断电；Linux 卡死强制重启；
   TWRP 恢复演练；boot 分区全程未被修改
+- **v0.1 实现（2026-09-14）**：`recovery-swap.sh` 已演进——写 recovery → 全量
+  sha256 回读校验 → 写 BCB（校验）→ 重启（先镜像后 BCB，缩小中断窗口）；
+  `--no-reboot` 只准备不重启；`bcb show|clear|boot-recovery`；`switch.log` 证据。
+  离线测试 `tools/tests/m2-switch-test.sh`（8 组，CI 运行）；手册
+  `docs/m2-runbook.md`；Magisk 一键骨架 `packages/magisk-module/`。
+- **实机验收（待做）**：按 `docs/m2-runbook.md` §4 执行并归档。
 
 ## 四、开发环境与约定
 
 - **主环境 = 手机本机 opencode**（Debian proot 内）；**电脑 opencode 仅当 USB 工具**：
   `fastboot boot`（方法 A）、TWRP adb 写 super、大编译。
   电脑开工前 `git pull`、收工 `git push`，严禁两边并行修改同一文件
+- 电脑→手机通道（2026-09-14 实测可用，手机在 Android 时）：
+  `adb shell run-as com.termux <prefix>/bin/sshd` + `adb forward tcp:18022 tcp:8022`
+  → `ssh -p 18022 u0_a289@localhost`；复杂命令写成脚本 scp 过去，
+  用 `proot-distro login debian -- /bin/bash /root/work/<script>.sh` 执行。
+  ⚠️ proot 内不要用相对 `bash`（会命中 Termux 的 bash），脚本里自带
+  `PATH=/usr/sbin:/usr/bin:/sbin:/bin`。手机 GitHub 不稳时，仓库同步可用
+  电脑侧 `git bundle` + scp + `git -C <repo> pull <bundle> main`。
+  root 命令（rootbridge 未运行时）：`/debug_ramdisk/su -c 'sh <script>'`。
 - root 通道：
   `echo '命令' > /data/data/com.termux/files/home/.rootbridge.fifo`，结果读 `~/.rootbridge.log`
   ⚠️ 命令勿含英文括号、勿过长；复杂命令写成脚本文件再执行（SERVER_NOTES 第 3 节）
@@ -88,6 +109,17 @@
 ## 五、已知坑（不要重复踩）
 
 - `baseband_guard` 禁止 Android 写 super（issue #13）
+- **overlay 重建的 base 是树不是镜像**：v5 用的是 `--base-tree /root/work/m1b-old`；
+  若用 `--base-image m1b-rootfs.img` 会得到 ~119 MB 超限 delta（镜像内容与
+  `m1b2` 树差异大，64 MiB 上限直接拒绝）
+- `m1b-out/vmlinuz`、`m1b-out/kona-v2.1-lmi.dtb` 符号链接已失效；内核/DTB 实际在
+  `/root/work/lmi-m0/kernel/`（sha256 与 v5 buildinfo 一致）
+- proot 的 fake root **不能**绕过真实文件权限：root 属主的
+  `m1b-out/initramfs-root` 读不了，构建用已 chown 的 `m1b-v5-initramfs` 作基底
+- `od` 会把重复行缩写成 `*`：读 BCB 等定长数据必须 `od -An -v -tx1`
+  （M2 脚本已处理，勿回退）
+- FIFO rootbridge 无 worker 时 `echo > .rootbridge.fifo` 会**阻塞**（写端等读者）；
+  先确认 `ps | grep rootbridge` 再写
 - **离线修补 rootfs 镜像必须先回放 journal**：从分区 dump 的 ext4 若带未回放
   journal，debugfs 直写后任何 `e2fsck -fy` 会先回放 journal、**静默回滚**修补
   （实测 `conf.d/dropbear` 被截断成 190 B）；正确顺序见
@@ -109,7 +141,8 @@
 本仓库刻意不依赖会话记忆：新会话拿到仓库 + 下列三步即可完整接手。
 
 1. **同步**：电脑侧 `git pull --ff-only`；手机侧仓库（`/root/work/k30pro-linux-dualboot/`）
-   同样先 pull。当前 tip ≥ `6359c42`（M1b 验收）。
+   同样先 pull（GitHub 不稳时用 `git bundle` + scp，见 §四）。当前 tip ≥ `1ab5a22`
+   （boot-m1b-v6 构建记录；M2 提交在其后）。
 2. **阅读顺序**：`AGENTS.md` → `docs/ai-protocol.md` → 本文 → 按任务进
    `docs/m1b-wifi-runbook.md` / `docs/m1b-persistent.md` /
    `docs/acceptance/m1b-2026-09-14.md`。
@@ -120,9 +153,11 @@
 
 > 你在开发仓库 `k30pro-linux-dualboot`（Redmi K30 Pro 双系统）。
 > 先读 `AGENTS.md` → `docs/ai-protocol.md` → `docs/handoff.md`，然后 `git pull`
-> 并确认 HEAD 与 `origin/main` 一致（≥ `6359c42`）。
-> 当前状态：M1b 已实机验收（`docs/acceptance/m1b-2026-09-14.md`），部署 =
-> `boot-m1b-v5.img` + super 内修补后 rootfs（`0734a5de…`）；手机当前在 Android、
-> adb 可用。
-> 任务：按 handoff §二末完成 overlay v2 / `boot-m1b-v6` 重建，随后进入 M2
-> （handoff §三、issue #15）。收到后先复述计划再动手。
+> 并确认 HEAD 与 `origin/main` 一致（≥ `1ab5a22`）。
+> 当前状态：M0/M1（含 M1b）已实机验收；`boot-m1b-v6.img`（overlay v2）已构建并
+> 分发（sdcard `lmi-m1b/` 与 `/data/local/lmi-dualboot/`），但尚未实机 RAM 验证
+> （无 attestation）；M2 v0.1 已实现（`tools/m1/recovery-swap.sh` + 离线测试 +
+> `docs/m2-runbook.md`），实机验收待做；手机当前在 Android、adb 可用。
+> 任务：先 `fastboot boot boot-m1b-v6.img` 闭环验证并生成 attestation，再按
+> `docs/m2-runbook.md` §4 跑 M2 实机验收（T1-03 补课 + T2-02/03/04 + TWRP 演练）。
+> 收到后先复述计划再动手。

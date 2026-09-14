@@ -21,9 +21,12 @@
 | T1-02 | 读取并归档分区表 / GPT / boot / recovery 备份 | 哈希校验通过 |
 | T1-03 | BCB 行为试验：写 boot-recovery 进 TWRP | 确认引导行为与 BCB 清除方（记录：bootloader 清 or recovery 清）。**完成前，文档与流程不得假设 bootloader 会自动清 BCB（issue #1）** |
 | T1-04 | 正常重启回归 | 100 次重启全部回到 Android（可分批） |
-| T1-05 | 方式 B 部署门禁（预检） | 无 attestation / SHA-256 缺失或不匹配时 `to-linux` 拒绝写入；`--dry-run` 不写任何分区 |
+| T1-05 | 方式 B 部署门禁（预检） | 无 attestation / SHA-256 缺失或不匹配时 `to-linux` 拒绝写入；`--dry-run` 不写任何分区。自动化：`tools/tests/m2-switch-test.sh`（CI 运行，含 BCB 写/清校验、`--force`、尺寸检查） |
 
 ## T2 — 受控破坏性验证（测试机优先）
+
+> M2 v0.1 实现完成（2026-09-14）：命令与验收步骤见 `docs/m2-runbook.md`；
+> 下表 T2-02/03/04 与 TWRP 恢复演练待实机执行并归档。
 
 | 编号 | 项目 | 通过标准 |
 |---|---|---|

@@ -5,7 +5,7 @@
 为小米 Redmi K30 Pro / POCO F2 Pro（代号 `lmi`，Qualcomm SM8250）提供故障安全的
 Android + 真 Linux（postmarketOS / Mobian）双系统方案。
 
-> ⚠️ **实验性项目，当前处于 M1 阶段（M0 已实机验收）。** 涉及引导与分区修改，
+> ⚠️ **实验性项目，当前处于 M2 阶段（M0/M1 已实机验收）。** 涉及引导与分区修改，
 > 操作不当可能丢失数据。请先读完文档并做好备份。
 
 ## 构建依赖（G5 可复现性）
@@ -38,7 +38,7 @@ Android + 真 Linux（postmarketOS / Mobian）双系统方案。
 | Phase 0 | 立项文档（Charter / 可行性 / 风险 / ADR / 测试计划） | ✅ 完成 |
 | M0 | 非破坏 bring-up：`fastboot boot` RAM 启动 Linux | ✅ 2026-09-13 方式 A 实机验收 A1–A5 全过（显示为色条接管；完整 UI 属 M1） |
 | M1 | 低风险持久化：super 空闲空间 + recovery 分区安装 | ✅ M1a 完成；**M1b 已验收**（持久 rootfs + WiFi 直连 + 持久化 3 轮 + USB/局域网 SSH；证据 [M1b 验收记录](docs/acceptance/m1b-2026-09-14.md)） |
-| M2 | 双向切换器 v0.1（BCB 一次性引导 + 自动回退） | ⬜ |
+| M2 | 双向切换器 v0.1（BCB 一次性引导 + 自动回退） | 🚧 v0.1 已实现（离线测试通过），实机验收待做；手册 [M2 切换器](docs/m2-runbook.md) |
 | M3 | 可选扩容工具 `lmi-repart`（userdata 尾部缩容） | ⬜ |
 | M4 | v1.0 公开发布 | ⬜ |
 
@@ -54,6 +54,11 @@ Android + 真 Linux（postmarketOS / Mobian）双系统方案。
 - [M0 验收记录（2026-09-13）](docs/acceptance/m0-2026-09-13.md)
 - [M1a 复现手册（RAM 全量 Linux + Weston）](docs/m1a-ramboot.md)
 - [M1a 验收记录（2026-09-14）](docs/acceptance/m1a-2026-09-14.md)
+- [M1b 持久化 rootfs 设计与实录](docs/m1b-persistent.md)
+- [M1b WiFi 试飞手册（boot-m1b-v5/v6）](docs/m1b-wifi-runbook.md)
+- [M1b 验收记录（2026-09-14）](docs/acceptance/m1b-2026-09-14.md)
+- [M2 双向切换器手册与验收流程](docs/m2-runbook.md)
+- [开发交接（handoff）](docs/handoff.md)
 
 ## 许可证
 

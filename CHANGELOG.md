@@ -45,6 +45,12 @@
   `346343b3…`（54,546,432 B）、overlay v2 `db760fec…`（5,991,807 B，212 文件）。
   v5 内嵌 overlay v1（旧 `lmi-wifi-start`）只影响全新部署的首启，已由 v6 修正；
   实机 RAM 验证与 attestation 待 M2 会话执行。
+- M2 切换器 v0.1（issue #15）：`tools/m1/recovery-swap.sh` 演进——显式写 BCB
+  `boot-recovery`（写后校验）、recovery 全量 sha256 回读校验、先镜像后 BCB 的
+  中断安全顺序、`--no-reboot`、`bcb show|clear|boot-recovery` 子命令、
+  `switch.log` 证据日志；离线功能测试 `tools/tests/m2-switch-test.sh`（8 组，
+  CI 运行）；手册 `docs/m2-runbook.md`；Magisk 一键骨架
+  `packages/magisk-module/`（Action 按钮）。
 
 ### Changed
 - `recovery-swap.sh to-linux` 默认启用部署预检：SHA-256 清单 + attestation +
@@ -63,6 +69,10 @@
   实测方法；§6 给出复核结论。
 - `tools/m1/m1b-init.sh`：overlay 版本常量升为 `m1b-wifi-v2`（引导逻辑不变），
   供 `boot-m1b-v6` 内嵌 overlay v2 使用。
+- `recovery-swap.sh` 分区写入改用 `dd conv=notrunc`（文件式测试分区不再被
+  截断；真实块设备语义不变），并补充写后全量 sha256 回读校验。
+- README / handoff / test-plan：M2 v0.1 状态、文档索引与验收入口更新；
+  handoff 新增"电脑→手机"通道与 overlay 重建避坑记录。
 
 ### Fixed
 - M1b 实测（issue #13）：`baseband_guard` 禁止 Android 用户态写入 `super`

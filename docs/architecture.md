@@ -67,6 +67,11 @@ T1-03（BCB 清除责任方）完成前，任何文档不得假设 bootloader �
   任意方式重启即可（reboot / 长按电源 / 断电）
 ```
 
+> v0.1 实现（2026-09-14，issue #15）：`tools/m1/recovery-swap.sh` 按
+> "写镜像 → 全量 sha256 回读校验 → 写 BCB（写后校验）→ 重启"执行（先镜像后
+> BCB，缩小断电窗口）；`bcb show|clear|boot-recovery` 子命令可单独操作/验证
+> BCB；操作与验收流程见 `docs/m2-runbook.md`。
+
 失败模式分析：
 
 | 场景 | 结果 |
@@ -88,7 +93,8 @@ T1-03（BCB 清除责任方）完成前，任何文档不得假设 bootloader �
 ## 6. 组件划分
 
 - `tooling/repart` — M3 扩容工具（dry-run/回滚）
-- `tooling/switch` — Android/Linux 双端切换脚本
+- `tools/m1/recovery-swap.sh` — Android 端切换器 v0.1（`tooling/switch` 落地；
+  Linux 侧清 BCB 在 `tools/m1/m1b-init.sh`）
 - `packages/magisk-module` — Android 端一键切换入口
 - `packages/android-app` — 可选图形入口
 - `packages/pmaports` — 设备包贡献（上游）
