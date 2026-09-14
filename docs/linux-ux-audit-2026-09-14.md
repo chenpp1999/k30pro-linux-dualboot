@@ -162,3 +162,20 @@
   6. `0006` 退格键修复：客户端未提供 surrounding text 时（weston-terminal），
      OSK 的退格改发 `XKB_KEY_BackSpace` keysym（终端映射为 `0x7f`），
      而不是依赖 `delete_surrounding_text`（无 surrounding text 时那条路是空操作）。
+
+### 6.4 按键与息屏（Phase 2 追加，2026-09-15 完成）
+
+- **音量键 → 亮度**：`tools/m1/lmi-keys.c`（静态 musl 二进制，`/usr/sbin/lmi-keys`，
+  OpenRC 服务 `lmi-keys`）：音量 ± 每步 10%；实测注入事件 536↔944 双向生效。
+  设备能力实测：`qpnp_pon` = POWER+VOLDOWN，`gpio-keys` = VOLUP（音量上下分属
+  两个设备），`uinput-goodix` = 三键全有；守护进程按能力位扫描全部 event 节点。
+- **空闲息屏**：weston 的 `--idle-time` 会覆盖 weston.ini `[core] idle-time`，
+  故在 `m1-weston` 中设为 `IDLE_TIME=300`（CRTC off）；lmi-keys 同时把背光写 0
+  （DRM 后端不动 `panel0-backlight`）。任意触摸/按键恢复亮度。实测：20s 空闲 →
+  背光 0；注入触摸 → 恢复；电源键短按 → 开关屏。
+- **电源键**：短按切换开关屏（长按由 PMIC 直接复位，与系统无关）。
+- 测试工具：`tools/m1/dev/lmi-inject.py`（/dev/uinput 注入按键/触摸，供无人值守
+  验证；本轮全部现象均用它复现/验证）。
+- 坑：`qpn_pon`（真实设备）只报 VOLDOWN，VOLUP 在 `gpio-keys`；触摸设备
+  `fts_ts` 的 BTN_TOUCH + ABS_MT 能力位需按 EV_KEY/EV_ABS 分别读；sysfs
+  `capabilities/key` 是高位字在前（解析注意）。

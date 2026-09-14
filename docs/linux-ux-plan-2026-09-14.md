@@ -16,8 +16,8 @@
 | 4 | **OSK 打不进终端**（调研发现，比缺符号更根本） | weston-terminal 不实现 `zwp_text_input_v1`；OSK 只能给 text-input 客户端输入 | 补丁 weston-terminal 增加 text-input v1 支持（editor 已有实现可参考）；或（次选）uinput 注入助手 | P1 |
 | 5 | 时间 1970 | 无 NTP、无 RTC 初始化、无时区 | busybox ntpd（圆 `need net`→`use net` + `after lmi-wifi`）+ hwclock boot 服务 + ntpd `-S` 定期回写 RTC + tzdata/Asia-Shanghai；weston 时钟 24h | P0 |
 | 6 | 中文显示方块 | 仅 DejaVu；无 CJK | `font-wqy-zenhei`（装后 16.29 MB，可入 overlay）+ fc-cache；`LANG=C.UTF-8` | P0 |
-| 7 | 音量键无反应 | Weston 14 **没有** `[keybindings]` 配置（硬编码） | udev hwdb 把音量键重映射为亮度键（Weston 内置 brightness-up/down）；或 acpid + brightnessctl 脚本 | P1 |
-| 8 | 永不息屏/OLED 风险 | `--idle-time=0`；msm DPMS 息屏有黑屏风险 | 实验：开 idle→DPMS/锁屏，SSH 兜底测试协议（见 input-power.md §3.2）；不安全则退"低亮度+定时提醒" | P2 |
+| 7 | 音量键无反应 | Weston 14 **没有** `[keybindings]` 配置（硬编码） | ✅ 已修：自研 `lmi-keys` 守护（`tools/m1/lmi-keys.c`）读 evdev 直接调背光；实测双向生效（audit §6.4） | 完成 |
+| 8 | 永不息屏/OLED 风险 | `--idle-time=0`；msm DPMS 息屏有黑屏风险 | ✅ 已修：`m1-weston IDLE_TIME=300`（CRTC off）+ lmi-keys 同步背光 0；触摸/电源键唤醒实测安全（audit §6.4） | 完成 |
 | 9 | 无电量指示 | 面板只支持时钟；Waybar 需 layer-shell | LED 表示低电 + SSH 查询；不做 UI | P2 |
 | 10 | weston 重启竞态（stop 杀不掉子进程） | wrapper 只 `wait`，pidfile 指向 wrapper | 重写 m1-weston（trap 全量子进程）+ init stop 三级升级（TERM→等待→KILL+孤儿清理） | P0 |
 | 11 | 光标主题告警 / 其他 | 无 cursor theme；FTS 触摸日志噪声；无 BT/音频 | 装 cursor theme（可选）；其余列入 P2/非目标 | P2 |
@@ -59,10 +59,11 @@ recovery + attestation → 首启应用 overlay → 验收。
 风险：weston 客户端与 14.0.2 源码必须严格对应（同上游 tag），先 live 验证再固化。
 
 ### Phase 3（P2，可选）
-- 音量键亮度（hwdb 或 acpid+brightnessctl）；idle/DPMS 黑屏实验（SSH 兜底）；
+- ✅ 音量键亮度（`lmi-keys`）；✅ idle/DPMS 息屏 + 背光联动（`m1-weston IDLE_TIME`，实测安全）；
 - kiosk 纯控制台模式开关（`/usr/lib/weston/kiosk-shell.so` 需先确认存在）；
 - LED 低电提示；cursor theme；WiFi 配置脚本；
-- 非目标：蓝牙/音频/中文输入法（另评估）；Sxmo/Phosh 迁移（M4 战略评估）。
+- 非目标：蓝牙/音频；中文输入法见 `docs/research/ux-ime-2026-09-15.md`（推荐给
+  weston-keyboard 加拼音页 + 候选条，7–11 人日）；Sxmo/Phosh 迁移（M4 战略评估）。
 
 ## 3. 验收清单（UX 子项，按 test-plan 风格）
 - UX1-01 时间：开机（含无网/有网）后 60 s 内 `date` 正确（±2 s），重启保持；
@@ -89,7 +90,8 @@ recovery + attestation → 首启应用 overlay → 验收。
 - `docs/research/ux-2026-09-14/integration.md`（服务修复与仓库落地流程）
 - 各报告末尾附官方文档/源码/包索引等来源链接。
 
-## 6. 待负责人决策
-1. Phase 1 立即执行？（会重建 `boot-m1b-v8.img` 并部署到 recovery；不动 boot 分区）
-2. 桌面形态：方案 A（黑化桌面+面板）默认，还是方案 B（kiosk 纯控制台）默认？
-3. 是否启动 Phase 2（weston 客户端补丁构建，需在设备上临时安装 ~209 MB 构建依赖）？
+## 6. 负责人决策（2026-09-14 已定）
+1. ✅ Phase 1 立即执行（已重建并部署 `boot-m1b-v8.img`）。
+2. ✅ 桌面形态：方案 A（正常桌面，设计目标"像 Debian"）。
+3. ✅ 启动 Phase 2（补丁客户端已构建、验证并入仓）；追加：音量键/息屏（已完成）、
+   中文输入法（调研完成，待排期）。

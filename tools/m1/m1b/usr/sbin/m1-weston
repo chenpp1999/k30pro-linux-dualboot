@@ -14,6 +14,10 @@ SOCK=wayland-0
 RETRIES=3
 BACKOFF=3
 SEAT_WAIT=15
+# CRTC-off timeout for inactivity; lmi-keys turns the backlight off at the
+# same time. This is passed on the command line because --idle-time
+# overrides the [core] idle-time from weston.ini. 0 = never idle.
+IDLE_TIME=300
 # shellcheck source=/dev/null
 [ -r /etc/conf.d/m1-weston ] && . /etc/conf.d/m1-weston
 
@@ -75,7 +79,7 @@ splash_release() { # D80-proven modetest sequence, bounded
 
 start_weston() { # $1=config file
   weston --config="$1" --backend=drm-backend.so --drm-device=card0 \
-    --renderer=pixman --socket="$SOCK" --idle-time=0 \
+    --renderer=pixman --socket="$SOCK" --idle-time="$IDLE_TIME" \
     --continue-without-input --debug --log=/var/log/weston.log &
   WPID=$!
   i=0

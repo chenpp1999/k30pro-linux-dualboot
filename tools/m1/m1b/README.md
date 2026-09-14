@@ -40,11 +40,13 @@ shipped to the device through the one-shot overlay applied by
 | `usr/share/fonts/wqy-zenhei/wqy-zenhei.ttc` | CJK font, from `font-wqy-zenhei-0.9.46-r0.apk` (sha256 `59b2fe2c…`); TTC sha256 `38ed4249…` |
 | `usr/bin/weston-terminal` | **patched build** (weston 14.0.2 + `tools/m1/weston-patches/`): text-input v1 → the OSK can type into the terminal |
 | `usr/libexec/weston-keyboard` | **patched build**: symbols `_ . ,` in the `?123` layer, key width 45 (fits 540 logical px), immediate commit (no preedit buffering), Backspace via `XKB_KEY_BackSpace` keysym when the client provides no surrounding text |
+| `usr/sbin/lmi-keys` | **new**: static musl daemon (`tools/m1/lmi-keys.c`) — volume keys → backlight ±10%, power key toggles screen, idle (`-t 300`) turns the backlight off (Weston's `--idle-time` only drops the CRTC) |
+| `etc/init.d/lmi-keys` | OpenRC service for the daemon (`command_args="-t 300"`) |
 
 The patched clients are built by `tools/m1/build-weston-clients.sh` (on device;
 meson must use `-Dprefix=/usr`, see the script header and the audit §6).
 
-`m1b-init.sh` bumps `OVERLAY_VERSION` to `m1b-ux-v3` and, only when the overlay
+`m1b-init.sh` bumps `OVERLAY_VERSION` to `m1b-ux-v5` and, only when the overlay
 was applied, runs a `chroot /newroot` post-step: `rc-update add ntpd default`,
 `rc-update add hwclock boot`, `fc-cache --system-only`.
 

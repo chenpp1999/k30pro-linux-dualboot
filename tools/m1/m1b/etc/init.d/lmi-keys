@@ -1,0 +1,14 @@
+#!/sbin/openrc-run
+# Volume keys -> panel backlight (no audio stack on lmi yet).
+description="Map hardware volume keys to backlight brightness"
+
+command="/usr/sbin/lmi-keys"
+command_args="-t 300"
+command_background="yes"
+pidfile="/run/lmi-keys.pid"
+output_log="/var/log/lmi-keys.log"
+error_log="/var/log/lmi-keys.log"
+
+depend() {
+	need localmount
+}
