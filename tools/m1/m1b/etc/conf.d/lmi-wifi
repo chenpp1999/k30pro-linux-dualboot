@@ -1,0 +1,25 @@
+# lmi-wifi — QCA6390 WLAN bring-up on the M1b persistent rootfs (xiaomi lmi).
+#
+# Extents below are for THIS device's super layout (lpdump, 2026-09-14):
+#   system: sector 7133184  -> 3652190208 B, size 1028714496 B
+#   vendor: sector 10770432 -> 5514461184 B, size 1026244608 B
+# Re-derive with `lpdump` after any super re-layout (M3 re-partitioning).
+
+LMI_SYSTEM_OFFSET=3652190208
+LMI_SYSTEM_SIZE=1028714496
+LMI_VENDOR_OFFSET=5514461184
+LMI_VENDOR_SIZE=1026244608
+
+# CNSS2 timing (seconds), as in the verified D80 baseline.
+LMI_WLAN_PRE_ON_DELAY=8
+LMI_WLAN_POST_ON_DELAY=45
+
+# Association / DHCP budgets.
+LMI_WPA_WAIT=60
+LMI_DHCP_TRIES=8
+LMI_DHCP_PER_TRY=5
+
+# auto = start vendor cnss-daemon when its prerequisites mount; off = skip.
+LMI_CNSS_DAEMON=auto
+
+LMI_WPA_CONF=/etc/wpa_supplicant/wpa_supplicant.conf

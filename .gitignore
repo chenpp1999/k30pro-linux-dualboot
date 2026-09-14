@@ -7,3 +7,5 @@ tools/m0/out/
 *.apk
 kernel/
 d80/
+__pycache__/
+*.pyc

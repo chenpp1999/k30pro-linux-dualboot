@@ -1,0 +1,23 @@
+# wpa_supplicant.conf for the M1b rootfs — TEMPLATE.
+#
+# The real file (with PSKs) is injected at build time from a local, untracked
+# source (see tools/m1/m1b/README.md); PSKs must never be committed to this
+# public repository.
+#
+# Networks are tried by priority: the router first, the phone hotspot second.
+
+ctrl_interface=/run/wpa_supplicant
+update_config=1
+country=CN
+
+network={
+	ssid="<router-ssid>"
+	psk="<router-psk>"
+	priority=10
+}
+
+network={
+	ssid="<hotspot-ssid>"
+	psk="<hotspot-psk>"
+	priority=5
+}

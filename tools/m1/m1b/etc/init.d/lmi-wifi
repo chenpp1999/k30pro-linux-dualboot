@@ -1,0 +1,17 @@
+#!/sbin/openrc-run
+# SPDX-License-Identifier: MIT
+# lmi-wifi — run the QCA6390 WLAN bring-up in the background at boot.
+
+name="lmi-wifi"
+description="QCA6390 WLAN bring-up (downstream CNSS2 + qcacld)"
+
+command="/usr/sbin/lmi-wifi-start"
+command_background="yes"
+pidfile="/run/lmi-wifi.pid"
+output_log="/var/log/lmi-wifi.out.log"
+error_log="/var/log/lmi-wifi.out.log"
+
+depend() {
+	need localmount
+	after m1-weston
+}

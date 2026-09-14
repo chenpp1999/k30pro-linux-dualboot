@@ -1,0 +1,80 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# m1-mailbox — write a diagnostic report into the lmi "mailbox".
+#
+# The mailbox is a raw, filesystem-less region in the free tail of the Android
+# `super` partition. It is never part of any dynamic partition and never
+# touches super metadata (same discipline as the M1b rootfs itself), so it is
+# safe to write from the Linux side and safe to read from Android:
+#
+#   Android (root):  dd if=/dev/block/by-name/super bs=4096 skip=1990324 count=16
+#
+# Layout (all 4096-byte blocks inside super):
+#   rootfs start  = lmi_root_off from /proc/cmdline (default 1596852)
+#   rootfs size   = 393216 blocks (1.5 GiB, M1b rootfs)
+#   mailbox start = rootfs start + 393216 + 256        (1 MiB clear of rootfs)
+#   each section  = 16 blocks (64 KiB), sections in this order:
+#     init 0 | rootfs 1 | wifi 2 | persist 3 | m2 4
+#
+# usage: m1-mailbox [--dry-run] <section> [file]
+#   file "-" (default) reads stdin.
+set -u
+
+DRY=0
+if [ "${1:-}" = "--dry-run" ]; then
+  DRY=1
+  shift
+fi
+
+SECTION=${1:-}
+SRC=${2:--}
+case "$SECTION" in
+  init) IDX=0 ;;
+  rootfs) IDX=1 ;;
+  wifi) IDX=2 ;;
+  persist) IDX=3 ;;
+  m2) IDX=4 ;;
+  *) echo "usage: m1-mailbox [--dry-run] <init|rootfs|wifi|persist|m2> [file]" >&2; exit 1 ;;
+esac
+
+ROOT_OFF_BLOCKS=1596852
+for w in $(cat /proc/cmdline 2>/dev/null); do
+  case "$w" in lmi_root_off=*) ROOT_OFF_BLOCKS=${w#lmi_root_off=} ;; esac
+done
+ROOT_SIZE_BLOCKS=393216
+MBOX_GAP_BLOCKS=256
+SECTION_BLOCKS=16
+MBOX_BLOCK=$((ROOT_OFF_BLOCKS + ROOT_SIZE_BLOCKS + MBOX_GAP_BLOCKS + IDX * SECTION_BLOCKS))
+
+# Locate super by GPT partition name (docs/architecture.md §2 whitelist fallback).
+SUPER=""
+for b in /sys/class/block/sd*; do
+  if grep -q '^PARTNAME=super$' "$b/uevent" 2>/dev/null; then
+    SUPER="/dev/${b##*/}"
+    break
+  fi
+done
+# whitelisted fallback node (lmi super = sda32)
+[ -n "$SUPER" ] || SUPER=/dev/sda32
+
+if [ "$DRY" = 1 ]; then
+  echo "DRY-RUN: would zero section $SECTION (blocks $MBOX_BLOCK..$((MBOX_BLOCK + SECTION_BLOCKS - 1)))"
+  echo "DRY-RUN: would write $(wc -c < "${SRC:--}" 2>/dev/null || echo "?") bytes to $SUPER@$MBOX_BLOCK"
+  exit 0
+fi
+
+[ -b "$SUPER" ] || { echo "m1-mailbox: $SUPER not found" >&2; exit 1; }
+
+# 1) zero the section so a shorter report cannot leave stale bytes behind
+dd if=/dev/zero of="$SUPER" bs=4096 seek="$MBOX_BLOCK" count="$SECTION_BLOCKS" \
+  conv=notrunc 2>/dev/null || { echo "m1-mailbox: zero failed" >&2; exit 1; }
+
+# 2) write the report at the start of the section
+{
+  printf '### LMI-MAILBOX section=%s written=%s\n' "$SECTION" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+  cat "$SRC"
+  printf '\n### end %s\n' "$SECTION"
+} | dd of="$SUPER" bs=4096 seek="$MBOX_BLOCK" conv=notrunc,fsync 2>/dev/null \
+  || { echo "m1-mailbox: write failed" >&2; exit 1; }
+
+exit 0

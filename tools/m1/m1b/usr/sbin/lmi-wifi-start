@@ -1,0 +1,251 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# lmi-wifi-start — bring up QCA6390 WLAN on the M1b persistent rootfs.
+#
+# Downstream chain proven on this device's D80 baseline
+# (tools/m1/m1b/README.md, docs/m1b-persistent.md §6):
+#
+#   firmware links (bundled in the rootfs overlay)
+#     -> qrtr-ns (static nameservice)
+#     -> mount Android system/vendor/APEX read-only from super extents
+#     -> vendor cnss-daemon (LD_PRELOAD android-property shim)
+#     -> /sys/kernel/cnss/fs_ready=1 -> /dev/wlan=ON
+#     -> wlan0 present -> wpa_supplicant -> udhcpc
+#
+# Every stage logs to /var/log/lmi-wifi.log; the final report (plus dmesg tail
+# on failure) goes to the super mailbox section "wifi" so it can be read from
+# Android without USB/SSH.
+set -u
+
+LOG=/var/log/lmi-wifi.log
+mkdir -p /var/log
+exec >>"$LOG" 2>&1
+
+[ -r /etc/conf.d/lmi-wifi ] && . /etc/conf.d/lmi-wifi
+: "${LMI_SYSTEM_OFFSET:=3652190208}"
+: "${LMI_SYSTEM_SIZE:=1028714496}"
+: "${LMI_VENDOR_OFFSET:=5514461184}"
+: "${LMI_VENDOR_SIZE:=1026244608}"
+: "${LMI_WLAN_PRE_ON_DELAY:=8}"
+: "${LMI_WLAN_POST_ON_DELAY:=45}"
+: "${LMI_WPA_CONF:=/etc/wpa_supplicant/wpa_supplicant.conf}"
+: "${LMI_WPA_WAIT:=60}"
+: "${LMI_DHCP_TRIES:=8}"
+: "${LMI_DHCP_PER_TRY:=5}"
+: "${LMI_FW_DIR:=/lib/firmware/qca6390}"
+: "${LMI_CNSS_DAEMON:=auto}"
+
+SUPER=""
+MNT_SYSTEM=/mnt/android-system
+MNT_VENDOR=/mnt/android-vendor
+APEX_MNT=/apex/com.android.runtime
+APEX_CACHE=/var/lib/lmi-cnss/com.android.runtime.apex_payload.img
+WPA_PIDFILE=/run/wpa_supplicant.wlan0.pid
+
+STAGE=init
+STATUS=starting
+REPORT=""
+
+log() { echo "[$(date -u '+%H:%M:%S')] $*"; }
+add() { REPORT="$REPORT
+$*"; }
+stage() { STAGE=$1; log "stage=$1"; add "stage: $1"; }
+
+mailbox() {
+  { printf 'status: %s\nstage: %s\n\n' "$STATUS" "$STAGE"; printf '%s\n' "$REPORT"; } \
+    | /usr/sbin/m1-mailbox wifi - 2>/dev/null || true
+}
+
+diag() {
+  add ""
+  add "-- /dev/wlan --";  ls -l /dev/wlan 2>&1 | sed 's/^/   /'
+  add "-- cnss sysfs --"; cat /sys/kernel/cnss/*/state 2>/dev/null | sed 's/^/   /'
+  ls /sys/kernel/cnss 2>&1 | sed 's/^/   /'
+  add "-- ip link --";   ip -o link 2>&1 | sed 's/^/   /'
+  add "-- iw dev --";    iw dev 2>&1 | sed 's/^/   /'
+  add "-- mounts --";    grep -E 'android|apex' /proc/mounts 2>/dev/null | sed 's/^/   /'
+  add "-- dmesg tail --"
+  dmesg 2>/dev/null | grep -Ei 'wlan|cnss|qca|mhi|wlfw|firmware|bdwlan|regdb|coex|timeout|failed|error' | tail -n 120 | sed 's/^/   /'
+}
+
+finish() {
+  rc=$?
+  if [ "$rc" = 0 ]; then STATUS=ok; else STATUS="failed(rc=$rc)"; fi
+  add ""
+  add "wpa_supplicant log tail:"
+  tail -n 40 /var/log/wpa_supplicant.log 2>/dev/null | sed 's/^/   /'
+  add "lmi-wifi.log tail:"
+  tail -n 40 "$LOG" 2>/dev/null | sed 's/^/   /'
+  mailbox
+  log "exit rc=$rc status=$STATUS"
+  exit "$rc"
+}
+trap finish EXIT
+
+find_part() {
+  # $1 = GPT partition name; echo device node
+  name=$1
+  for b in /sys/class/block/sd*; do
+    if grep -q "^PARTNAME=$name\$" "$b/uevent" 2>/dev/null; then
+      echo "/dev/${b##*/}"
+      return 0
+    fi
+  done
+  return 1
+}
+
+mount_android() {
+  # $1 = device node, $2 = offset, $3 = size, $4 = mountpoint
+  mkdir -p "$4"
+  if mountpoint -q "$4"; then return 0; fi
+  mount -o "ro,loop,offset=$2,sizelimit=$3" "$1" "$4"
+}
+
+# ---------------------------------------------------------------- stage 1
+stage firmware
+for f in amss20.bin m3.bin bdwlan.elf regdb.bin; do
+  [ -r "$LMI_FW_DIR/$f" ] || { STATUS=failed; log "missing firmware $LMI_FW_DIR/$f"; diag; exit 1; }
+done
+[ -r /lib/firmware/wlan/qca_cld/WCNSS_qcom_cfg.ini ] || log "WARN: WCNSS_qcom_cfg.ini missing"
+[ -r /lib/firmware/wlan/qca_cld/wlan_mac.bin ] || log "WARN: wlan_mac.bin missing"
+add "firmware: $LMI_FW_DIR present ($(ls "$LMI_FW_DIR" | wc -l) files)"
+
+# ---------------------------------------------------------------- stage 2
+stage super
+SUPER=$(find_part super 2>/dev/null || true)
+[ -n "$SUPER" ] || SUPER=/dev/sda32
+[ -b "$SUPER" ] || { STATUS=failed; log "super device $SUPER not found"; diag; exit 1; }
+add "super: $SUPER"
+
+# ---------------------------------------------------------------- stage 3
+stage qrtr
+if ! pgrep -f '^/usr/sbin/lmi-qrtr-ns$' >/dev/null 2>&1; then
+  /usr/sbin/lmi-qrtr-ns >/var/log/lmi-qrtr-ns.log 2>&1 &
+  sleep 1
+fi
+if pgrep -f '^/usr/sbin/lmi-qrtr-ns$' >/dev/null 2>&1; then
+  add "qrtr-ns: running"
+else
+  add "qrtr-ns: NOT running (continuing)"
+fi
+
+# ---------------------------------------------------------------- stage 4
+stage cnss_daemon
+if [ "$LMI_CNSS_DAEMON" != off ]; then
+  if ! mount_android "$SUPER" "$LMI_SYSTEM_OFFSET" "$LMI_SYSTEM_SIZE" "$MNT_SYSTEM"; then
+    log "WARN: system mount failed"
+    add "system mount: FAILED"
+  else
+    mount_android "$SUPER" "$LMI_VENDOR_OFFSET" "$LMI_VENDOR_SIZE" "$MNT_VENDOR" \
+      || { log "WARN: vendor mount failed"; add "vendor mount: FAILED"; }
+    if [ ! -e /system ]; then ln -sfn "$MNT_SYSTEM/system" /system; fi
+    if [ ! -e /vendor ]; then ln -sfn "$MNT_VENDOR" /vendor; fi
+    if [ ! -s "$APEX_CACHE" ]; then
+      mkdir -p "${APEX_CACHE%/*}"
+      unzip -p "$MNT_SYSTEM/system/apex/com.android.runtime.apex" apex_payload.img > "$APEX_CACHE" \
+        || log "WARN: apex payload extraction failed"
+    fi
+    mkdir -p "$APEX_MNT"
+    mountpoint -q "$APEX_MNT" || mount -o ro,loop "$APEX_CACHE" "$APEX_MNT" \
+      || log "WARN: apex mount failed"
+    mkdir -p /data/vendor/wifi/sockets /data/vendor/wifi/wlan_logs
+    chmod 0770 /data /data/vendor /data/vendor/wifi /data/vendor/wifi/sockets 2>/dev/null || true
+    : > /data/vendor/wifi/iotap_ps.bin
+    if ! pgrep -f '^/vendor/bin/cnss-daemon$' >/dev/null 2>&1; then
+      if [ -x /vendor/bin/cnss-daemon ]; then
+        /usr/sbin/lmi-cnss-daemon-wrapper >/var/log/cnss-daemon.log 2>&1 &
+        sleep 2
+      else
+        log "WARN: /vendor/bin/cnss-daemon missing"
+      fi
+    fi
+    if pgrep -f '^/vendor/bin/cnss-daemon$' >/dev/null 2>&1; then
+      add "cnss-daemon: running"
+    else
+      add "cnss-daemon: NOT running (continuing)"
+      tail -n 20 /var/log/cnss-daemon.log 2>/dev/null | sed 's/^/   /'
+    fi
+  fi
+else
+  add "cnss-daemon: disabled by config"
+fi
+
+# ---------------------------------------------------------------- stage 5
+stage fs_ready
+if [ -w /sys/kernel/cnss/fs_ready ]; then
+  printf 1 > /sys/kernel/cnss/fs_ready || log "WARN: fs_ready write failed"
+  add "fs_ready: 1"
+else
+  add "fs_ready: not writable"
+  log "WARN: /sys/kernel/cnss/fs_ready not writable"
+fi
+
+# ---------------------------------------------------------------- stage 6
+stage wlan_on
+log "sleep ${LMI_WLAN_PRE_ON_DELAY}s before WLAN enable"
+sleep "$LMI_WLAN_PRE_ON_DELAY"
+if [ -w /dev/wlan ]; then
+  printf ON > /dev/wlan || log "WARN: /dev/wlan write failed"
+  add "wlan enable: ON"
+else
+  add "wlan enable: /dev/wlan missing"
+fi
+
+# ---------------------------------------------------------------- stage 7
+stage wait_wlan0
+i=0
+while [ "$i" -lt "$LMI_WLAN_POST_ON_DELAY" ]; do
+  [ -e /sys/class/net/wlan0 ] && break
+  i=$((i + 1))
+  sleep 1
+done
+if [ -e /sys/class/net/wlan0 ]; then
+  add "wlan0: present after ${i}s"
+  log "wlan0 present after ${i}s"
+else
+  STATUS=failed
+  add "wlan0: NOT present after ${LMI_WLAN_POST_ON_DELAY}s"
+  diag
+  exit 1
+fi
+
+# ---------------------------------------------------------------- stage 8
+stage wpa_supplicant
+ip link set wlan0 up 2>/dev/null || true
+if ! pgrep -f "^wpa_supplicant .*wlan0" >/dev/null 2>&1; then
+  /sbin/wpa_supplicant -B -P "$WPA_PIDFILE" -i wlan0 -c "$LMI_WPA_CONF" \
+    -D nl80211 -f /var/log/wpa_supplicant.log
+  sleep 2
+fi
+i=0
+state=""
+while [ "$i" -lt "$LMI_WPA_WAIT" ]; do
+  state=$(/sbin/wpa_cli -i wlan0 status 2>/dev/null | sed -n 's/^wpa_state=//p')
+  [ "$state" = COMPLETED ] && break
+  i=$((i + 1))
+  sleep 1
+done
+add "wpa_state: ${state:-unknown} after ${i}s"
+if [ "$state" != COMPLETED ]; then
+  STATUS=failed
+  /sbin/wpa_cli -i wlan0 scan_results 2>/dev/null | head -n 15 | sed 's/^/   /' >> "$LOG"
+  diag
+  exit 1
+fi
+
+# ---------------------------------------------------------------- stage 9
+stage dhcp
+udhcpc -i wlan0 -n -q -t "$LMI_DHCP_TRIES" -T "$LMI_DHCP_PER_TRY" 2>&1 | tail -n 5
+ipaddr=$(ip -4 -o addr show wlan0 2>/dev/null | awk '{print $4}')
+if [ -z "$ipaddr" ]; then
+  STATUS=failed
+  add "dhcp: no IPv4 address"
+  diag
+  exit 1
+fi
+add "wlan0 IPv4: $ipaddr"
+add "default route: $(ip route show default 2>/dev/null | head -n 1)"
+
+STATUS=ok
+log "wifi up: $ipaddr"
+exit 0
