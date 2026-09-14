@@ -60,6 +60,7 @@ Android + 真 Linux（postmarketOS / Mobian）双系统方案。
 - [M2 双向切换器手册与验收流程](docs/m2-runbook.md)
 - [M2 验收记录（2026-09-14）](docs/acceptance/m2-2026-09-14.md)
 - [Linux 适配全面审查（2026-09-14）](docs/linux-ux-audit-2026-09-14.md)
+- [Linux UX 优化实施计划（2026-09-14）](docs/linux-ux-plan-2026-09-14.md)
 - [开发交接（handoff）](docs/handoff.md)
 
 ## 许可证

@@ -78,9 +78,17 @@
      `docs/acceptance/m2-2026-09-14.md`。
   4. 最终状态：手机在 Android（默认）；`recovery` = `boot-m1b-v7.img`（回读
      校验通过）；BCB 空；`boot` 分区 sha256 `8d441fc5…` 全程未变。
-- **下一步（建议）**：标准修订（G2/T2-02 轮数）→ M2 Go/No-Go → M3 评估；
-  遗留：T2-01（30 次重启）、T1-04（100 次重启回归）、Magisk 模块实机安装、
-  Linux 启动耗时波动观察。
+- **下一阶段：Linux UX 优化（2026-09-14 起，追踪 issue #17）**：
+  审查 `docs/linux-ux-audit-2026-09-14.md`；计划 `docs/linux-ux-plan-2026-09-14.md`；
+  5 份调研报告 `docs/research/ux-2026-09-14/`。
+  已完成（live 验证，待入 overlay）：weston 面板终端启动器 + 自绘图标（文件已入仓）。
+  Phase 1（配置级）：时间（NTP/RTC/时区）、CJK 字体（wqy-zenhei）、黑化桌面 +
+  24h 时钟、m1-weston/init 重启修复 → overlay `m1b-ux-v3` → 重建 `boot-m1b-v8.img`。
+  Phase 2（源码级）：补丁 weston-keyboard 布局（符号/Esc/Ctrl）与 weston-terminal
+  text-input（当前 OSK 打不进终端）。
+- **下一步（建议）**：标准修订（G2/T2-02 轮数）→ M2 Go/No-Go → 执行 UX
+  Phase 1（需负责人确认）；遗留：T2-01（30 次重启）、T1-04（100 次重启回归）、
+  Magisk 模块实机安装、Linux 启动耗时波动观察。
 
 ## 三、M2 设计要点（照 `docs/adr/0001-boot-switch-mechanism.md`；追踪 issue #15）
 
