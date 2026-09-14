@@ -1,0 +1,15 @@
+--- clients/meson.build.orig	2026-09-15 01:32:35.696505293 +0800
++++ clients/meson.build	2026-09-15 01:32:35.701101306 +0800
+@@ -237,7 +237,11 @@
+ 	},
+ 	{
+ 		'name': 'terminal',
+-		'sources': [ 'terminal.c' ],
++		'sources': [
++			'terminal.c',
++			text_input_unstable_v1_client_protocol_h,
++			text_input_unstable_v1_protocol_c,
++		],
+ 		'deps': [ dep_toytoolkit ],
+ 	},
+ 	{

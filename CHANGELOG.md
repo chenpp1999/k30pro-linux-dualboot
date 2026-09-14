@@ -55,6 +55,15 @@
   `build-m1b-image.sh` 新增 `--recovery-dtbo`；记录
   `docs/acceptance/m2-2026-09-14.md`（T1-03/T2-03/T2-04/救援/TWRP 演练全过；
   T2-02 5 轮零失败）。
+- Linux UX Phase 1（overlay `m1b-ux-v4`）：时钟（NTP + swclock + 时区）、
+  CJK 字体（wqy-zenhei）、黑化桌面/启动器/24h 时钟、`m1-weston`/init 健壮性
+  修复；`docs/linux-ux-audit-2026-09-14.md` §6 记录 weston 合成卡死规避
+  （不用 `background-color`/`panel-color`/`background-image`）与 RTC 只读结论。
+- Linux UX Phase 2（overlay `m1b-ux-v5`）：`tools/m1/weston-patches/`（5 个补丁）
+  + `tools/m1/build-weston-clients.sh` + overlay 二进制：
+  `weston-terminal` 支持 text-input v1（OSK 可输入终端）、`weston-keyboard`
+  补 `_ . ,` 符号、宽度适配 540 逻辑像素、普通键逐键立即提交。
+  关键坑：meson 必须 `-Dprefix=/usr`，否则客户端主题加载失败启动段错误。
 
 ### Changed
 - `recovery-swap.sh to-linux` 默认启用部署预检：SHA-256 清单 + attestation +

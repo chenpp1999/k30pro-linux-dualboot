@@ -1,0 +1,22 @@
+--- clients/keyboard.c.orig	2026-09-15 01:02:41.774117887 +0800
++++ clients/keyboard.c	2026-09-15 01:02:41.775858028 +0800
+@@ -122,7 +122,7 @@
+ 	{ keytype_default, "h", "H", ";", 1},
+ 	{ keytype_default, "j", "J", "(", 1},
+ 	{ keytype_default, "k", "K", ")", 1},
+-	{ keytype_default, "l", "L", "~", 1},
++	{ keytype_default, "l", "L", ",", 1},
+ 	{ keytype_enter, "Enter", "Enter", "Enter", 2},
+ 
+ 	{ keytype_switch, "ABC", "abc", "ABC", 2},
+@@ -133,8 +133,8 @@
+ 	{ keytype_default, "b", "B", "=", 1},
+ 	{ keytype_default, "n", "N", "?", 1},
+ 	{ keytype_default, "m", "M", "!", 1},
+-	{ keytype_default, ",", ",", "\\", 1},
+-	{ keytype_default, ".", ".", "|", 1},
++	{ keytype_default, ",", ",", "_", 1},
++	{ keytype_default, ".", ".", ".", 1},
+ 	{ keytype_switch, "ABC", "abc", "ABC", 1},
+ 
+ 	{ keytype_symbols, "?123", "?123", "abc", 1},

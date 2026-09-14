@@ -141,3 +141,21 @@
   弃用 hwclock 写回，改 **swclock 时间戳 + 每次开机 NTP 校正**：
   `lmi-time-save` 先试 RTC，失败则 `touch /var/lib/misc/openrc-shutdowntime`；
   runlevel 改 `hwclock boot` → `swclock boot`（已修）。
+
+### 6.3 OSK/终端源码补丁（Phase 2，2026-09-15 完成）
+
+- 补丁集 `tools/m1/weston-patches/`（weston 14.0.2 客户端）：
+  1. `0001` weston-terminal 实现 `zwp_text_input_v1` → **OSK 可以输入终端**
+     （Weston 14 只有 text-input v1；此前 OSK 只能输入编辑器）；
+  2. `0002` OSK 符号层补 `_ . ,`（`?123` 层显示每键的第三字段）；
+  3. `0003` terminal 目标加入 text-input 协议源码（meson）；
+  4. `0004` 键盘宽度 60→45（12 键 ×45 = 540 逻辑宽，消除右侧裁边）；
+  5. `0005` 普通键立即 `commit_string`（去掉 preedit 缓冲，敲键即上屏）。
+- 构建：`tools/m1/build-weston-clients.sh`（设备内原生编译；产物入 overlay 树
+  `tools/m1/m1b/usr/bin/weston-terminal`、`tools/m1/m1b/usr/libexec/weston-keyboard`）。
+- **构建坑（务必遵守）**：meson 必须 `-Dprefix=/usr`——默认 `/usr/local` 会让客户端
+  去 `/usr/local/share/weston` 找主题图（background.png 等），加载失败 →
+  `window_frame_create` 返回 NULL → 启动即段错误（gdb 回溯已确认）。
+  另：补丁需 `patch -p0` 应用；跨环境（WSL 与手机 rootfs 的库版本不同）编译的二进制
+  不可互换，务必在设备内构建。
+- 验证：终端聚焦时 OSK 自动弹出；字母/符号逐键上屏；`Enter`/`Backspace`/方向键可用。

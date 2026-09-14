@@ -11,3 +11,5 @@ tools/m1/m1b/** text eol=lf
 *.png binary
 *.ttc binary
 tools/m1/m1b/etc/localtime binary
+tools/m1/m1b/usr/bin/* binary
+tools/m1/m1b/usr/libexec/* binary

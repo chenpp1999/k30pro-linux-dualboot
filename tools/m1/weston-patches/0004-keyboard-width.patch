@@ -1,0 +1,11 @@
+--- clients/keyboard.c.p2	2026-09-15 01:58:13.619609751 +0800
++++ clients/keyboard.c	2026-09-15 01:58:13.656763487 +0800
+@@ -255,7 +255,7 @@
+ 	"incorrect"
+ };
+ 
+-static const double key_width = 60;
++static const double key_width = 45;  /* 12 keys * 45 = 540 logical px (lmi panel at scale 2) */
+ static const double key_height = 50;
+ 
+ enum keyboard_state {

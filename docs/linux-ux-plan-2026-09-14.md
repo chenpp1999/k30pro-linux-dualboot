@@ -44,7 +44,12 @@
 `boot-m1b-v8.img`（核/DTB/dtbo 沿用 v7）→ 方法 A RAM 启动验证 → 部署
 recovery + attestation → 首启应用 overlay → 验收。
 
-### Phase 2（P1，源码级；让触摸打字可用）
+### Phase 2（P1，源码级；让触摸打字可用）✅ 2026-09-15 完成
+> 已实现：`tools/m1/weston-patches/0001-0005` + `tools/m1/build-weston-clients.sh`；
+> 补丁版 `weston-terminal`（text-input v1：OSK 可输入终端）与 `weston-keyboard`
+> （符号 `_ . ,`、宽度适配 540、逐键立即提交）已在设备内原生编译、安装并验证，
+> 二进制随 overlay 树入仓。关键坑：meson 必须 `-Dprefix=/usr`（否则主题加载失败
+> 启动段错误）；跨环境编译的二进制不可互换。详见 audit §6.3。
 1. 在设备 Linux 内装 build-base + dev 头（约 209 MB，临时）或 proot/chroot 构建；
 2. 补丁 `clients/keyboard.c`（布局：symbol 行 + Esc/Ctrl；宽度 45）→ 产出
    `weston-keyboard`；

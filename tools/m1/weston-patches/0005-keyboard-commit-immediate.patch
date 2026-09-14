@@ -1,0 +1,19 @@
+--- clients/keyboard.c.p3	2026-09-15 02:00:19.254099853 +0800
++++ clients/keyboard.c	2026-09-15 02:00:19.283020432 +0800
+@@ -559,10 +559,12 @@
+ 			if (state != WL_POINTER_BUTTON_STATE_PRESSED)
+ 				break;
+ 
+-			keyboard->keyboard->preedit_string =
+-				append(keyboard->keyboard->preedit_string,
+-				       label);
+-			virtual_keyboard_send_preedit(keyboard->keyboard, -1);
++			/* Commit immediately (no preedit buffering): terminals
++			 * echo each key as it is pressed. */
++			zwp_input_method_context_v1_commit_string(
++				keyboard->keyboard->context,
++				keyboard->keyboard->serial,
++				label);
+ 			break;
+ 		case keytype_backspace:
+ 			if (state != WL_POINTER_BUTTON_STATE_PRESSED)

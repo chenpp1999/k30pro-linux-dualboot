@@ -1,0 +1,228 @@
+--- clients/terminal.c.orig	2026-09-15 01:02:41.774005954 +0800
++++ clients/terminal.c	2026-09-15 01:35:19.942667056 +0800
+@@ -49,6 +49,7 @@
+ #include "shared/helpers.h"
+ #include "shared/xalloc.h"
+ #include "window.h"
++#include "text-input-unstable-v1-client-protocol.h"
+ 
+ static bool option_fullscreen;
+ static bool option_maximize;
+@@ -476,6 +477,10 @@
+ 	int size_in_title;
+ 
+ 	struct wl_data_source *selection;
++	/* text-input v1: lets the Weston on-screen keyboard type here */
++	struct zwp_text_input_manager_v1 *text_input_manager;
++	struct zwp_text_input_v1 *text_input;
++	struct wl_seat *text_input_seat;
+ 	uint32_t click_time;
+ 	int dragging, click_count;
+ 	int selection_start_x, selection_start_y;
+@@ -2601,12 +2606,197 @@
+ 	}
+ }
+ 
++
++/* --- text-input v1 (on-screen keyboard support) ------------------------- */
++static void
++text_input_commit_string(void *data, struct zwp_text_input_v1 *text_input,
++			 uint32_t serial, const char *text)
++{
++	struct terminal *terminal = data;
++
++	terminal_write(terminal, text, strlen(text));
++}
++
++static void
++text_input_keysym(void *data, struct zwp_text_input_v1 *text_input,
++		  uint32_t serial, uint32_t time, uint32_t sym,
++		  uint32_t state, uint32_t modifiers)
++{
++	struct terminal *terminal = data;
++	char buf[MAX_RESPONSE];
++	size_t len = 0;
++
++	if (state != WL_KEYBOARD_KEY_STATE_PRESSED)
++		return;
++
++	switch (sym) {
++	case XKB_KEY_BackSpace:
++		buf[len++] = 0x7f;
++		break;
++	case XKB_KEY_Tab:
++	case XKB_KEY_Linefeed:
++	case XKB_KEY_Escape:
++		buf[len++] = sym & 0x7f;
++		break;
++	case XKB_KEY_Return:
++		buf[len++] = 0x0d;
++		if (terminal->mode & MODE_LF_NEWLINE)
++			buf[len++] = 0x0a;
++		break;
++	case XKB_KEY_Delete:
++		len = function_key_response('[', 3, modifiers, '~', buf);
++		break;
++	case XKB_KEY_Page_Up:
++		len = function_key_response('[', 5, modifiers, '~', buf);
++		break;
++	case XKB_KEY_Page_Down:
++		len = function_key_response('[', 6, modifiers, '~', buf);
++		break;
++	case XKB_KEY_Left:
++		len = function_key_response('[', 1, modifiers, 'D', buf);
++		break;
++	case XKB_KEY_Up:
++		len = function_key_response('[', 1, modifiers, 'A', buf);
++		break;
++	case XKB_KEY_Right:
++		len = function_key_response('[', 1, modifiers, 'C', buf);
++		break;
++	case XKB_KEY_Down:
++		len = function_key_response('[', 1, modifiers, 'B', buf);
++		break;
++	case XKB_KEY_Home:
++		len = function_key_response('[', 1, modifiers, 'H', buf);
++		break;
++	case XKB_KEY_End:
++		len = function_key_response('[', 1, modifiers, 'F', buf);
++		break;
++	default:
++		return;
++	}
++	if (len > 0)
++		terminal_write(terminal, buf, len);
++}
++
++static void
++text_input_enter(void *data, struct zwp_text_input_v1 *text_input,
++		 struct wl_surface *surface)
++{
++}
++
++static void
++text_input_leave(void *data, struct zwp_text_input_v1 *text_input)
++{
++}
++
++static void
++text_input_modifiers_map(void *data, struct zwp_text_input_v1 *text_input,
++			 struct wl_array *map)
++{
++}
++
++static void
++text_input_input_panel_state(void *data, struct zwp_text_input_v1 *text_input,
++			     uint32_t state)
++{
++}
++
++static void
++text_input_preedit_string(void *data, struct zwp_text_input_v1 *text_input,
++			  uint32_t serial, const char *text,
++			  const char *commit)
++{
++}
++
++static void
++text_input_preedit_styling(void *data, struct zwp_text_input_v1 *text_input,
++			   uint32_t index, uint32_t length, uint32_t style)
++{
++}
++
++static void
++text_input_preedit_cursor(void *data, struct zwp_text_input_v1 *text_input,
++			  int32_t index)
++{
++}
++
++static void
++text_input_cursor_position(void *data, struct zwp_text_input_v1 *text_input,
++			   int32_t index, int32_t anchor)
++{
++}
++
++static void
++text_input_delete_surrounding_text(void *data,
++				   struct zwp_text_input_v1 *text_input,
++				   int32_t index, uint32_t length)
++{
++}
++
++static void
++text_input_language(void *data, struct zwp_text_input_v1 *text_input,
++		    uint32_t serial, const char *language)
++{
++}
++
++static void
++text_input_text_direction(void *data, struct zwp_text_input_v1 *text_input,
++			  uint32_t serial, uint32_t direction)
++{
++}
++
++static const struct zwp_text_input_v1_listener text_input_listener = {
++	text_input_enter,
++	text_input_leave,
++	text_input_modifiers_map,
++	text_input_input_panel_state,
++	text_input_preedit_string,
++	text_input_preedit_styling,
++	text_input_preedit_cursor,
++	text_input_commit_string,
++	text_input_cursor_position,
++	text_input_delete_surrounding_text,
++	text_input_keysym,
++	text_input_language,
++	text_input_text_direction,
++};
++
++static void
++terminal_global_handler(struct display *display, uint32_t name,
++			const char *interface, uint32_t version, void *data)
++{
++	struct terminal *terminal = data;
++
++	if (strcmp(interface, "zwp_text_input_manager_v1") != 0)
++		return;
++
++	terminal->text_input_manager =
++		display_bind(display, name,
++			     &zwp_text_input_manager_v1_interface, 1);
++	terminal->text_input =
++		zwp_text_input_manager_v1_create_text_input(terminal->text_input_manager);
++	zwp_text_input_v1_add_listener(terminal->text_input,
++				       &text_input_listener, terminal);
++}
++
+ static void
+ keyboard_focus_handler(struct window *window,
+ 		       struct input *device, void *data)
+ {
+ 	struct terminal *terminal = data;
+ 
++	if (terminal->text_input) {
++		if (device) {
++			terminal->text_input_seat = input_get_seat(device);
++			zwp_text_input_v1_activate(terminal->text_input,
++						   terminal->text_input_seat,
++						   window_get_wl_surface(terminal->window));
++			zwp_text_input_v1_show_input_panel(terminal->text_input);
++		} else if (terminal->text_input_seat) {
++			zwp_text_input_v1_deactivate(terminal->text_input,
++						     terminal->text_input_seat);
++		}
++	}
++
+ 	window_schedule_redraw(terminal->window);
+ }
+ 
+@@ -3189,6 +3379,8 @@
+ 
+ 	wl_list_init(&terminal_list);
+ 	terminal = terminal_create(d);
++	display_set_user_data(d, terminal);
++	display_set_global_handler(d, terminal_global_handler);
+ 	if (terminal_run(terminal, option_shell))
+ 		exit(EXIT_FAILURE);
+ 
