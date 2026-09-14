@@ -16,6 +16,9 @@
 #     persistence evidence;
 #   - reports to the super mailbox (init/persist sections) so the state can be
 #     read from Android after a reboot without USB or SSH.
+#
+# v6: logic unchanged; overlay version bumped to m1b-wifi-v2 so the overlay
+#     tree carries the device-verified dropbear/wpa fixes (boot-m1b-v6).
 
 BB=/bin/busybox
 
@@ -30,7 +33,7 @@ done
 ROOT_SIZE_BLOCKS=393216
 MBOX_GAP_BLOCKS=256
 MBOX_SECTION_BLOCKS=16
-OVERLAY_VERSION=m1b-wifi-v1
+OVERLAY_VERSION=m1b-wifi-v2
 
 $BB mount -t proc none /proc
 $BB mount -t sysfs none /sys
