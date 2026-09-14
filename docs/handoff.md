@@ -22,6 +22,12 @@
 > （sha256 `7658da6a…b937`）+ super 内 rootfs（修补后 sha256 `0734a5de…`）。
 > 验收记录 `docs/acceptance/m1b-2026-09-14.md`；试飞手册
 > `docs/m1b-wifi-runbook.md`（§0.1 结果摘要）。
+>
+> **收工快照（2026-09-14）**：手机已重启回 Android（adb `REDACTED` 正常，已解锁授权）；
+> super 空闲区内容 = 修补后 rootfs（`0734a5de…`）；sdcard `lmi-m1b/` 新增
+> `rootfs-fixed2.img`（= 当前部署）与 `rootfs-live2.img`（boot=3 现场，含运行日志）；
+> 测试网：<SSID>（手机 `192.168.1.x`、电脑 `192.168.1.x`，均 DHCP）；
+> Linux 登录：root / `<your-password>`（USB 侧固定 `172.16.42.1`）。
 
 - **存储**：1.5 GiB ext4 rootfs 镜像写入 `super`（`/dev/block/sda32`）空闲区：
   - 偏移 6,540,705,792 B（= 4K 单元 1,596,852，cmdline `lmi_root_off=1596852`）
@@ -49,7 +55,12 @@
 - **下一步（M1b 收官 → M2 准备，建议顺序）**：
   1. 重建 overlay v2 / `boot-m1b-v6`：把修补后的三个文件放入 overlay 树，
      使"镜像 + overlay"链路与仓库一致（v5 内嵌 overlay v1 仍含旧
-     `lmi-wifi-start`，仅首启应用、不影响已部署设备）
+     `lmi-wifi-start`，仅首启应用、不影响已部署设备）。现成输入在手机 Debian
+     `/root/work/`：`m1b-v5-initramfs/`（initramfs 目录）、`m1b-v5-out/`
+     （产物 + buildinfo，重建前先对照）、`m1b2/`（staged 树）、`secrets/`
+     （真实 wpa PSK，勿入库）、`rootfs-live2.img`（修补后镜像）；
+     构建脚本 `tools/m1/build-m1b-image.sh` + `tools/m1/mk-overlay.py`，
+     仓库树内已含修复后的三个文件。
   2. M2 双向切换器 v0.1（见 §三）
 
 ## 三、M2 设计要点（照 `docs/adr/0001-boot-switch-mechanism.md`；追踪 issue #15）
@@ -92,3 +103,26 @@
 开机优化（dtbo 禁用 aw8697、关闭 traced、keymaster sleep 调查）已完成并记录于
 `/root/SERVER_NOTES.md` 第 15 节与 `/sdcard/Download/phone-server/lmi-bootdiag/`。
 与双系统项目相互独立，**勿重做**。
+
+## 七、新会话开工清单（换会话时照此交接）
+
+本仓库刻意不依赖会话记忆：新会话拿到仓库 + 下列三步即可完整接手。
+
+1. **同步**：电脑侧 `git pull --ff-only`；手机侧仓库（`/root/work/k30pro-linux-dualboot/`）
+   同样先 pull。当前 tip ≥ `6359c42`（M1b 验收）。
+2. **阅读顺序**：`AGENTS.md` → `docs/ai-protocol.md` → 本文 → 按任务进
+   `docs/m1b-wifi-runbook.md` / `docs/m1b-persistent.md` /
+   `docs/acceptance/m1b-2026-09-14.md`。
+3. **开工前检查**：open issues（`[VFY]` 开头 = 独立验证者产出，按协议评论
+   `Resolved-by:`）；`git log --oneline -10` 对照本文"下一步"。
+
+可直接粘贴给新会话的交接提示词：
+
+> 你在开发仓库 `k30pro-linux-dualboot`（Redmi K30 Pro 双系统）。
+> 先读 `AGENTS.md` → `docs/ai-protocol.md` → `docs/handoff.md`，然后 `git pull`
+> 并确认 HEAD 与 `origin/main` 一致（≥ `6359c42`）。
+> 当前状态：M1b 已实机验收（`docs/acceptance/m1b-2026-09-14.md`），部署 =
+> `boot-m1b-v5.img` + super 内修补后 rootfs（`0734a5de…`）；手机当前在 Android、
+> adb 可用。
+> 任务：按 handoff §二末完成 overlay v2 / `boot-m1b-v6` 重建，随后进入 M2
+> （handoff §三、issue #15）。收到后先复述计划再动手。
