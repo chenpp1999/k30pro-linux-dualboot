@@ -1,0 +1,14 @@
+== clear BCB first
+BCB cleared and verified
+== start to-linux --no-reboot in background, SIGKILL after 0.5s
+preflight: image sha256 verified: 754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81
+preflight: RAM-boot attestation verified (754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81)
+preflight: image fits recovery partition (55029760 <= 134217728 bytes)
+writing /data/local/lmi-dualboot/boot-m1b-v7.img -> recovery
+kill issued (rc=137)
+== BCB after (must be empty)
+bcb hex : 0000000000000000000000000000000000000000000000000000000000000000
+bcb text: 
+== recovery first bytes
+ANDROID!
+T2-04B-DONE

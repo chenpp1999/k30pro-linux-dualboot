@@ -1,0 +1,20 @@
+2026-09-14T11:01:56Z attest-ramboot img=/data/local/lmi-dualboot/boot-m1b-v6.img sha256=346343b3d658dc3a9b66f1eb54f9f71701d6bc16f80c001507188362336a4b87
+2026-09-14T11:02:39Z to-linux img=/data/local/lmi-dualboot/boot-m1b-v6.img sha256=346343b3d658dc3a9b66f1eb54f9f71701d6bc16f80c001507188362336a4b87 recovery_verified=yes bcb=boot-recovery reboot=none
+2026-09-14T11:51:17Z to-linux img=/sdcard/Download/phone-server/lmi-m1b/boot-m1b-v6-recdtbo-candidate.img sha256=11c0b30cd7ff2349207aa5d888cbf090d01b48907011a9cc76e204772ddf39e3 recovery_verified=yes bcb=boot-recovery reboot=none
+2026-09-14T12:42:13Z attest-ramboot img=/data/local/lmi-dualboot/boot-m1b-v7.img sha256=754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81
+2026-09-14T12:43:51Z to-linux img=/data/local/lmi-dualboot/boot-m1b-v7.img sha256=754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81 recovery_verified=yes bcb=boot-recovery reboot=recovery
+2026-09-14T12:47:00Z to-linux img=/data/local/lmi-dualboot/boot-m1b-v7.img sha256=754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81 recovery_verified=yes bcb=boot-recovery reboot=recovery
+2026-09-14T12:50:52Z to-linux img=/data/local/lmi-dualboot/boot-m1b-v7.img sha256=754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81 recovery_verified=yes bcb=boot-recovery reboot=recovery
+2026-09-14T12:54:00Z to-linux img=/data/local/lmi-dualboot/boot-m1b-v7.img sha256=754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81 recovery_verified=yes bcb=boot-recovery reboot=recovery
+2026-09-14T12:57:09Z to-linux img=/data/local/lmi-dualboot/boot-m1b-v7.img sha256=754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81 recovery_verified=yes bcb=boot-recovery reboot=recovery
+2026-09-14T13:01:44Z to-linux img=/data/local/lmi-dualboot/boot-m1b-v7.img sha256=754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81 recovery_verified=yes bcb=boot-recovery reboot=none
+2026-09-14T13:03:10Z bcb clear
+2026-09-14T13:04:35Z to-linux img=/data/local/lmi-dualboot/boot-m1b-v7.img sha256=754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81 recovery_verified=yes bcb=boot-recovery reboot=recovery
+2026-09-14T13:32:33Z bcb boot-recovery
+2026-09-14T13:36:23Z restore-twrp sha256=86e4bf8d40ca9ddadd22def259922115c7934e7a78743abce81d9efd45c1987b
+2026-09-14T13:48:52Z to-linux img=/data/local/lmi-dualboot/boot-m1b-v7.img sha256=754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81 recovery_verified=yes bcb=boot-recovery reboot=none
+2026-09-14T13:48:52Z bcb clear
+===BOOT_SHA
+8d441fc5107e96a64f309017eaafdfe4d743169beea97026df7ea1ac0e484585  /dev/block/by-name/boot
+===RECOVERY_SHA_FIRST_55MB
+754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81  -

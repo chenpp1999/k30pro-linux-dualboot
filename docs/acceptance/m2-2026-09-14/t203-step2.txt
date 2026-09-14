@@ -1,0 +1,18 @@
+python : [lssh] host=172.16.42.1
+所在位置 行:1 字符: 106
++ ... \opencode"; python lssh.py -- "cat /root/m1b-boot-count; tail -n 2 /r ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([lssh] host=172.16.42.1:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+32+0 records in
+32+0 records out
+32 bytes (32B) copied, 0.000825 seconds, 37.9KB/s
+[lssh] rc=0
+16
+1970-02-05T07:41:23Z boot=15 kernel=4.19.325-cip128-st12-perf bcb=626f6f742d7265636f7665727900000000000000000000000000000000000000 overlay=skipped
+1970-02-05T07:47:00Z boot=16 kernel=4.19.325-cip128-st12-perf bcb=626f6f742d7265636f7665727900000000000000000000000000000000000000 overlay=skipped
+ 07:53:47 up 6 min,  0 users,  load average: 0.02, 0.33, 0.24
+===BCB_NOW
+ 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+ 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00

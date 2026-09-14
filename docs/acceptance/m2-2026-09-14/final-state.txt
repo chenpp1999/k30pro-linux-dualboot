@@ -1,0 +1,16 @@
+preflight: image sha256 verified: 754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81
+preflight: RAM-boot attestation verified (754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81)
+preflight: image fits recovery partition (55029760 <= 134217728 bytes)
+writing /data/local/lmi-dualboot/boot-m1b-v7.img -> recovery
+verifying recovery readback (sha256)
+post-write verify OK (754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81)
+setting one-shot BCB 'boot-recovery' on /dev/block/by-name/misc
+BCB set and verified: boot-recovery
+not rebooting (--no-reboot). BCB is set: the next boot enters Linux.
+run 'reboot recovery' when ready, or 'recovery-swap.sh bcb clear' to cancel.
+===CLEAR_BCB
+BCB cleared and verified
+===STATE
+bcb hex : 0000000000000000000000000000000000000000000000000000000000000000
+bcb text: 
+ANDROID!

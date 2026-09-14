@@ -1,0 +1,20 @@
+python : [lssh] host=172.16.42.1
+所在位置 行:1 字符: 106
++ ... \opencode"; python lssh.py -- "dd if=/dev/zero of=/dev/sda11 bs=32 co ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ([lssh] host=172.16.42.1:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+1+0 records in
+1+0 records out
+32 bytes (32B) copied, 0.003469 seconds, 9.0KB/s
+13+0 records in
+13+0 records out
+13 bytes (13B) copied, 0.000764 seconds, 16.6KB/s
+32+0 records in
+32+0 records out
+32 bytes (32B) copied, 0.000685 seconds, 45.6KB/s
+[lssh] rc=0
+===BCB_SET
+ 62 6f 6f 74 2d 72 65 63 6f 76 65 72 79 00 00 00
+ 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00

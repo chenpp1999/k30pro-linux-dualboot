@@ -1,0 +1,20 @@
+2026-09-14T20:43:50 === round 1 start
+2026-09-14T20:43:52 round 1: switch out: 'preflight: image sha256 verified: 754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81\npreflight: RAM-boot attestation verified (754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81)\npreflight: image fits recovery partition (55029760 <= 134217728 bytes)\nwriting /data/local/lm'
+2026-09-14T20:46:12 round 1: linux ready in 140s; ledger: '10\n1970-02-05T07:20:36Z boot=10 kernel=4.19.325-cip128-st12-perf bcb=626f6f742d7265636f7665727900000000000000000000000000000000000000 overlay=skipped'
+2026-09-14T20:46:58 round 1: OK linux_boot=140s android_boot=45s total=188s
+2026-09-14T20:46:58 === round 2 start
+2026-09-14T20:47:01 round 2: switch out: 'preflight: image sha256 verified: 754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81\npreflight: RAM-boot attestation verified (754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81)\npreflight: image fits recovery partition (55029760 <= 134217728 bytes)\nwriting /data/local/lm'
+2026-09-14T20:49:21 round 2: linux ready in 140s; ledger: '11\n1970-02-05T07:23:44Z boot=11 kernel=4.19.325-cip128-st12-perf bcb=626f6f742d7265636f7665727900000000000000000000000000000000000000 overlay=skipped'
+2026-09-14T20:50:06 round 2: OK linux_boot=140s android_boot=45s total=189s
+2026-09-14T20:50:06 === done: fails=0
+2026-09-14T20:50:50 === round 3 start
+2026-09-14T20:50:52 round 3: switch out: 'preflight: image sha256 verified: 754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81\npreflight: RAM-boot attestation verified (754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81)\npreflight: image fits recovery partition (55029760 <= 134217728 bytes)\nwriting /data/local/lm'
+2026-09-14T20:53:12 round 3: linux ready in 140s; ledger: '12\n1970-02-05T07:27:39Z boot=12 kernel=4.19.325-cip128-st12-perf bcb=626f6f742d7265636f7665727900000000000000000000000000000000000000 overlay=skipped'
+2026-09-14T20:53:58 round 3: OK linux_boot=140s android_boot=45s total=188s
+2026-09-14T20:53:58 === round 4 start
+2026-09-14T20:54:01 round 4: switch out: 'preflight: image sha256 verified: 754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81\npreflight: RAM-boot attestation verified (754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81)\npreflight: image fits recovery partition (55029760 <= 134217728 bytes)\nwriting /data/local/lm'
+2026-09-14T20:56:21 round 4: linux ready in 140s; ledger: '13\n1970-02-05T07:30:44Z boot=13 kernel=4.19.325-cip128-st12-perf bcb=626f6f742d7265636f7665727900000000000000000000000000000000000000 overlay=skipped'
+2026-09-14T20:57:06 round 4: OK linux_boot=140s android_boot=45s total=189s
+2026-09-14T20:57:06 === round 5 start
+2026-09-14T20:57:10 round 5: switch out: 'preflight: image sha256 verified: 754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81\npreflight: RAM-boot attestation verified (754b63b4ba3789791255d414673db0a7a1fe91e66220abcfb399ffa14529cd81)\npreflight: image fits recovery partition (55029760 <= 134217728 bytes)\nwriting /data/local/lm'
+2026-09-14T20:59:30 round 5: linux ready in 140s; ledger: '14\n1970-02-05T07:33:54Z boot=14 kernel=4.19.325-cip128-st12-perf bcb=626f6f742d7265636f7665727900000000000000000000000000000000000000 overlay=skipped'

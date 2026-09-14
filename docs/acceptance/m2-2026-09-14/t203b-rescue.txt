@@ -1,0 +1,16 @@
+fastboot.exe : Erasing 'misc'                                     OKAY [  0.012s]
+所在位置 行:1 字符: 204
++ ... Data\Local\Temp\opencode\m2acc"; $out = & $fb erase misc 2>&1; $out + ...
++                                             ~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Erasing 'misc' ...OKAY [  0.012s]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Finished. Total time: 0.019s
+fastboot.exe : Rebooting                                          OKAY [  0.000s]
+所在位置 行:1 字符: 235
++ ... acc"; $out = & $fb erase misc 2>&1; $out += & $fb reboot 2>&1; $out | ...
++                                                 ~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Rebooting      ...OKAY [  0.000s]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+Finished. Total time: 0.000s

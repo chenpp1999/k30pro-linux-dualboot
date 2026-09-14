@@ -1,0 +1,4 @@
+preflight: backup sha256 verified: 86e4bf8d40ca9ddadd22def259922115c7934e7a78743abce81d9efd45c1987b
+restoring TWRP -> recovery
+post-write verify OK (86e4bf8d40ca9ddadd22def259922115c7934e7a78743abce81d9efd45c1987b)
+TWRP restored. Run 'reboot recovery' to enter TWRP.

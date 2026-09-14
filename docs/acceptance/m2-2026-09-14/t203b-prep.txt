@@ -1,0 +1,15 @@
+== write known-broken v6 image (no recovery_dtbo) to recovery
+adb.exe : 52+1 records in
+所在位置 行:1 字符: 328
++ ... ode\m2acc"; & $adb shell 'run-as com.termux /debug_ramdisk/su -c "sh  ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (52+1 records in:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+52+1 records out
+54546432 bytes (52 M) copied, 0.210 s, 248 M/s
+== set BCB boot-recovery (simulates residue before a failing recovery boot)
+BCB set and verified: boot-recovery
+bcb hex : 626f6f742d7265636f7665727900000000000000000000000000000000000000
+bcb text: boot-recovery
+T2-03B-PREP-DONE
