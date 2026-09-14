@@ -4,3 +4,6 @@
 * text=auto
 *.sh text eol=lf
 tools/m0/* text eol=lf
+# M1b overlay payload is copied into the rootfs byte-for-byte (CRLF would break
+# OpenRC init scripts / conf.d on the device).
+tools/m1/m1b/** text eol=lf

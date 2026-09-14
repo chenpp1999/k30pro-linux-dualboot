@@ -214,7 +214,7 @@ stage wpa_supplicant
 ip link set wlan0 up 2>/dev/null || true
 if ! pgrep -f "^wpa_supplicant .*wlan0" >/dev/null 2>&1; then
   /sbin/wpa_supplicant -B -P "$WPA_PIDFILE" -i wlan0 -c "$LMI_WPA_CONF" \
-    -D nl80211 -f /var/log/wpa_supplicant.log
+    -D nl80211 2>>/var/log/wpa_supplicant.log
   sleep 2
 fi
 i=0
