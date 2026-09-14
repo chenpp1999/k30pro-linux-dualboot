@@ -21,13 +21,17 @@
   DSI 模式 + 色条 + 背光，常驻持有 DRM master；issue #4）；init 后台拉起。
 - `docs/acceptance/m0-2026-09-13.md`：M0 方式 A 真机验收记录与证据
   （A1–A5 全过；完整 UI 推迟 M1）。
-- M1a：全量 Alpine + Weston RAM 引导（issue #12）——
-  `tools/m1/m1-init.sh`、`tools/m1/m1-weston.sh`（RAM 引导 init 与
+- M1a：全量 Alpine + Weston RAM 引导（issue #12）——  `tools/m1/m1-init.sh`、`tools/m1/m1-weston.sh`（RAM 引导 init 与
   Weston/OSK 接管：splash 释放 + pixman + DSI-1 + 手机键盘布局）、
   `tools/m1/utouch.c`（uinput 触摸注入，无头 UI 验证）、
   `tools/m1/patch-libweston.sh`（msm 重复 IN_FORMATS 断言修补）、
   `docs/m1a-ramboot.md` 复现手册、
   `docs/acceptance/m1a-2026-09-14.md` 验收记录（含屏幕截图证据）。
+- M1b：持久化 rootfs（issue #13）——
+  `tools/m1/m1b-init.sh`（小 initramfs：清 BCB/NCM → `losetup -o` 挂载
+  super 空闲区内的 ext4 rootfs → `switch_root` 进 OpenRC；救援 SSH 仅在
+  挂载失败时启动）、`tools/m1/kernel-cmdline-m1b.txt`（`lmi_root_off=1596852`）、
+  `docs/m1b-persistent.md`（布局/引导/回滚实录）。
 
 ### Changed
 - `recovery-swap.sh to-linux` 默认启用部署预检：SHA-256 清单 + attestation +
@@ -41,6 +45,10 @@
   注明退出方式 A 用 `reboot -f`（普通 `reboot` 对 PID1=busybox sh 无效）。
 
 ### Fixed
+- M1b 实测（issue #13）：`baseband_guard` 禁止 Android 用户态写入 `super`
+  （root/SELinux/RO 均无关）→ 镜像写入改在 TWRP 执行；RAM initramfs 的救援
+  dropbear 会在 `switch_root` 后存活并占用 22 端口 → v4 起救援 SSH 仅在
+  挂载失败时启动。
 - 验证者 issue #5–#11 修复：
   - #5 `eventdump` 改为 `poll(2)` 多设备监听（原实现只轮询第一个设备）；
   - #6 `attest-ramboot` 同步刷新 `<img>.sha256` 清单（`to-linux` 预检依赖）；
