@@ -104,3 +104,22 @@ applies `apply-keyboard-pinyin.py`, diffs).
   punctuation when no composition is active)
 * 半/全角 and 简/繁 switches, emoji page, and any learning are future work;
   the engine can later be swapped for librime/fcitx5 behind the same UI
+
+## Backspace behaviour (2026-09-15 fix)
+
+* The keyboard **does not fabricate surrounding text** when the client never
+  provided one (`keyboard_commit_text()`): weston-terminal therefore keeps
+  taking the `XKB_KEY_BackSpace` keysym path, which deletes terminal content
+  without limit.  Before this fix, committing text made the keyboard believe
+  it owned the surrounding text and every later backspace went through
+  `delete_surrounding_text`, which the terminal ignored (nothing deleted).
+* Patch 0008 implements `delete_surrounding_text` in weston-terminal as a
+  fallback for clients/keys that do use it (one character per request, byte
+  length approximated), so both paths work.
+
+## Build environment (important)
+
+`weston-keyboard` / `weston-terminal` must be **built natively on the device**
+(`tools/m1/build-weston-clients.sh`).  Binaries built in the WSL/alpine proot
+hobble toward a different musl/userland and can SIGSEGV on the phone (the
+terminal did exactly that on 2026-09-15); only device builds are shipped.

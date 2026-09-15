@@ -421,10 +421,10 @@ keyboard_commit_text(struct keyboard *keyboard, const char *text)
 		free(vk->surrounding_text);
 		vk->surrounding_text = surrounding_text;
 		vk->surrounding_cursor += strlen(text);
-	} else {
-		vk->surrounding_text = strdup(text);
-		vk->surrounding_cursor = strlen(text);
 	}
+	/* Don't fabricate surrounding text when the client never provided
+	 * one (weston-terminal): leave it NULL so Backspace keeps using the
+	 * keysym path, which works for unbounded terminal edits. */
 }
 
 static void

@@ -24,12 +24,14 @@ echo "baseline ready: $(basename "$BASE")"
 
 cp clients/keyboard.c "$W/clients/keyboard.c"
 cp clients/meson.build "$W/clients/meson.build"
+cp clients/terminal.c "$W/clients/terminal.c"
 rm -f "$W/clients/pinyin.c" "$W/clients/pinyin.h"
 python3 "$P/apply-keyboard-pinyin.py" "$W"
+python3 "$P/apply-terminal-delete.py" "$W"
 
 WORK=$(mktemp -d /tmp/ime-diff.XXXXXX)
 mkdir -p "$WORK/before/clients" "$WORK/after/clients"
-for f in keyboard.c meson.build; do
+for f in keyboard.c meson.build terminal.c; do
 	cp clients/$f "$WORK/before/clients/$f"
 	cp "$W/clients/$f" "$WORK/after/clients/$f"
 done
@@ -51,6 +53,12 @@ cd "$WORK"
 } > 0007-keyboard-pinyin.patch || true
 cp 0007-keyboard-pinyin.patch "$PATCHES/0007-keyboard-pinyin.patch"
 wc -l "$PATCHES/0007-keyboard-pinyin.patch"
+{
+	diff -u --label clients/terminal.c --label clients/terminal.c \
+	     before/clients/terminal.c after/clients/terminal.c
+} > 0008-terminal-delete.patch || true
+cp 0008-terminal-delete.patch "$PATCHES/0008-terminal-delete.patch"
+wc -l "$PATCHES/0008-terminal-delete.patch"
 
 echo "build with: tools/m1/build-weston-clients.sh (on device)"
 rm -rf "$BASE" "$WORK"
