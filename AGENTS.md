@@ -4,7 +4,7 @@
 
 **开工前必读：[docs/ai-protocol.md](docs/ai-protocol.md)（AI 协作协议）。**
 
-**当前进度与下一步：[docs/handoff.md](docs/handoff.md)（接手文档，2026-09-14）。**
+**当前进度与下一步：[docs/handoff.md](docs/handoff.md)（接手文档，2026-09-15）。**
 
 速记：
 - 带 `[VFY]` 前缀或 `origin: independent-verifier` 标记的 issue / 评论 = **独立验证者提交，不是你自己写的**。

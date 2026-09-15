@@ -1,4 +1,4 @@
-# 开发交接（Handoff）— 2026-09-15（M4 开工前快照）
+# 开发交接（Handoff）— 2026-09-15（v1.0 已发布；M5 地基落地）
 
 > 给接手本项目的 AI 会话/开发者：阅读顺序 = `AGENTS.md` → `docs/ai-protocol.md` → 本文，
 > 再按需深入 `docs/`。所有结论以**仓库 + 设备实测**为准，不依赖任何会话记忆。
@@ -177,13 +177,19 @@ recovery 内容与目标 sha256 一致 → 只写 BCB 重启（**FAST**），否
 
 ## 八、下一步
 
-1. **M5 一键安装（已定方案，未开工）**：目标是"别人也能装"。已确认的约束与设计：
-   - Android 用户态**无法**写 `super`（`baseband_guard`，issue #13）→ 纯 App 一键不可行；
-     选定形态 = **PC 一键脚本 + TWRP 写入** + **通用镜像**。
-   - **通用镜像不得含任何固定口令/凭据**：root 口令首次启动随机生成并显示、SSH 仅公钥、
-     不预置 WiFi 网络、首次启动重生成主机密钥与 machine-id。
-   - 安装器要自动做：备份 → 校验 → 写 super 空闲区（需先解析 `super` 的 LP 元数据找到空闲区）
-     → 写 recovery → 写 BCB → 回滚；**不自动重分区**（M3 永远保持可选、手动）。
+1. **M5 一键安装（地基已落地，PC 编排未实现）**：目标是"别人也能装"。设计见
+   `docs/installer-design.md`；约束：Android 用户态写不了 `super`（`baseband_guard`，
+   issue #13）→ 纯 App 不可行，形态 = **PC 一键脚本 + TWRP 写入 + 通用镜像**；安装器自动
+   备份 → 解析 super LP 元数据找空闲区 → 写 rootfs → 写 recovery → 写 BCB → 回滚；
+   **不自动重分区**（M3 永远可选、手动）。**已完成**：
+   - `tools/install/lp-metadata.py`（只读 LP 解析/空闲区选择；真机 `super` 核对：
+     最大空闲区 offset 12,774,816 扇区 / ≈2.41 GiB，与 issue #13 一致；checksum 与 AOSP 一致）；
+   - `tools/tests/m5-lp-parse-test.sh`、`tools/tests/m5-firstboot-test.sh`（合成镜像/沙箱，CI 运行）；
+   - `tools/install/build-generic-image.sh`（零凭据门禁 fail-closed + 注入 firstboot + 调用
+     `build-m1b-image.sh`；`--dry-run`）；
+   - `tools/install/firstboot/`（随机 root 口令/主机密钥/machine-id、SSH 仅公钥、幂等）。
+   **下一步**：`tools/install/lmi-install.sh`（PC 编排）、TWRP 集成与安装时公钥注入；
+   注意 super 空闲区只有 ~2.41 GiB（大 rootfs 需用户自行 M3）。
 2. **G5 外部复现**：`docs/reproduce.md` 已就绪，需要一位**外部用户**跑通并回报（仓库无法自证）。
 3. **回馈上游**：`saved_start` 锚点缺陷、以及 ini `shell=` 不生效，都是 weston-terminal 的真实问题，
    值得整理成上游 patch（我们的 0018/0019/0015 可作素材）。

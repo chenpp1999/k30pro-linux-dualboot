@@ -32,6 +32,7 @@ Android + 真 Linux（Alpine/OpenRC + Weston）双系统方案。
 | Linux UX | 桌面可用性 + 中文输入法 + 快捷键栏 + 电源温控监控 | ✅ 实机验证（[UX 验收](docs/acceptance/ux-2026-09-15.md)、[温控充电](docs/m1b-thermal-charging.md)） |
 | M3 | 可选扩容工具 `lmi-repart`（userdata 缩容 + `lnx` 新建） | ✅ **已在本机执行**：userdata 107→91 GiB + `lnx` 16 GiB，rootfs 迁入并启动（[M3 验收](docs/acceptance/m3-2026-09-15.md)） |
 | M4 | v1.0 公开发布 | 🚧 进行中（[发布说明](docs/release-v1.0.0.md)、[复现指南](docs/reproduce.md)） |
+| M5 | 一键安装（PC 脚本 + 通用镜像） | 🚧 设计 + 地基（[设计](docs/installer-design.md)：LP 解析器 / 通用镜像构建 / 首次启动初始化） |
 
 ## 现在能做什么
 
@@ -79,7 +80,8 @@ Android + 真 Linux（Alpine/OpenRC + Weston）双系统方案。
 **分阶段手册**
 - [M0 操作手册](docs/m0-runbook.md) · [M1a 复现手册](docs/m1a-ramboot.md) ·
   [M1b 持久化设计](docs/m1b-persistent.md) · [M1b WiFi 试飞](docs/m1b-wifi-runbook.md) ·
-  [M2 切换器手册](docs/m2-runbook.md) · [M3 扩容方案](docs/m3-repart-plan.md)
+  [M2 切换器手册](docs/m2-runbook.md) · [M3 扩容方案](docs/m3-repart-plan.md) ·
+  [M5 一键安装设计](docs/installer-design.md)
 - [设备侧镜像重建（不需 Android/fastboot）](docs/m1b-rebuild-on-device.md) ·
   [温控/充电/长期监控](docs/m1b-thermal-charging.md)
 

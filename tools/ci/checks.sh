@@ -140,14 +140,17 @@ echo "== 5. payload integrity (exec bits + line endings) =="
 # LF in the index or the device ends up with a broken bring-up (2026-09-15:
 # 0644 scripts + CRLF blobs each bit us).
 pbad=0
+# tools/install/firstboot/* is the M5 instantiation of the same rule: those
+# files are copied into the rootfs and executed on first boot.
 for f in $(git ls-files 'tools/m1/m1b/usr/sbin/*' 'tools/m1/m1b/etc/init.d/*' \
-	'tools/m1/m1b/usr/bin/*' 'tools/m1/m1b/usr/libexec/*'); do
+	'tools/m1/m1b/usr/bin/*' 'tools/m1/m1b/usr/libexec/*' \
+	'tools/install/firstboot/*'); do
 	mode=$(git ls-files -s "$f" | awk '{print $1}')
 	if [ "$mode" != "100755" ]; then
 		echo "NOT EXECUTABLE ($mode): $f"; pbad=1
 	fi
 done
-for f in $(git ls-files 'tools/m1/m1b/*'); do
+for f in $(git ls-files 'tools/m1/m1b/*' 'tools/install/firstboot/*'); do
 	eol=$(git ls-files --eol "$f" | awk '{print $1}')
 	case "$eol" in
 	i/lf|i/-text|i/none) ;;

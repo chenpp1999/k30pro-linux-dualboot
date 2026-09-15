@@ -1,0 +1,27 @@
+#!/sbin/openrc-run
+# shellcheck shell=sh
+# shellcheck disable=SC2034  # values are consumed by OpenRC, not by this file
+# SPDX-License-Identifier: MIT
+# Runs the one-time credential/identity setup before any network service or
+# desktop session can start (docs/installer-design.md, M5 generic image).
+description="one-time generic-image credential/identity initialization"
+
+command="/usr/sbin/lmi-firstboot"
+
+start() {
+	ebegin "Initializing device credentials and identity (first boot)"
+	"$command" "$@" || {
+		eend 1
+		return 1
+	}
+	eend 0
+}
+
+stop() {
+	return 0
+}
+
+depend() {
+	need localmount
+	before dropbear lmi-wifi m1-weston
+}

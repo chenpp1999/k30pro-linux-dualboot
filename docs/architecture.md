@@ -54,6 +54,16 @@ Linux 侧 init 挂载 rootfs 的策略：**优先 GPT `PARTNAME=lnx`**，回退 
   偏移是相对 super 的）。验收 `docs/acceptance/m3-2026-09-15.md`。
   遗留：super 内旧 rootfs 区回收（观察期后）、风险台账 R1/R2 关闭。
 
+### 阶段 D（M5，未实现）— 一键安装
+- **形态**：PC 一键脚本 + 通用镜像（Android 用户态写不了 `super`，纯 App 不可行，
+  issue #13）；安装阶段经 TWRP 写入。
+- **通用镜像零凭据**：root 口令/主机密钥/machine-id 首次启动生成，SSH 仅公钥，
+  不预置 WiFi；**不自动重分区**（M3 永远可选、手动）。
+- 地基已落地：`tools/install/lp-metadata.py`（解析 super 的 LP 元数据找空闲区）、
+  `tools/install/build-generic-image.sh`（零凭据门禁 + 组装）、
+  `tools/install/firstboot/`（首次启动初始化）。
+- 设计/流程/威胁模型/验收：`docs/installer-design.md`。
+
 ## 4. 启动切换协议（核心）
 
 ```
@@ -111,6 +121,10 @@ BCB 残留，设备可能循环进入 recovery→fastboot，须按 runbook §5 �
 
 - `tools/m3/lmi-repart.sh` — M3 扩容规划器 v0.1（dry-run/备份/回滚；
   设计 `docs/m3-repart-plan.md`，测试 `tools/tests/m3-repart-test.sh`）
+- `tools/install/` — M5 一键安装地基：`lp-metadata.py`（super 的 LP 元数据解析/空闲区
+  选择，只读）、`build-generic-image.sh`（零凭据通用镜像组装 + 门禁）、
+  `firstboot/`（首次启动随机口令/主机密钥/machine-id）；设计 `docs/installer-design.md`，
+  测试 `tools/tests/m5-{lp-parse,firstboot}-test.sh`
 - `tools/m1/recovery-swap.sh` — Android 端切换器 v0.1（`tooling/switch` 落地；
   Linux 侧清 BCB 在 `tools/m1/m1b-init.sh`）
 - `tools/m1/rebuild-image-from-device.sh` — **设备内镜像重建**（不需 Android/fastboot/USB 主机；

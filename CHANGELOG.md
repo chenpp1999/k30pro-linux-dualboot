@@ -6,6 +6,21 @@
 ## [Unreleased]
 
 ### Added
+- **M5 一键安装地基**（设计 `docs/installer-design.md`）：
+  - `tools/install/lp-metadata.py`：只读解析 `super` 的 liblp 元数据（geometry/header/
+    tables，AOSP 校验和），计算未分配空闲区并支持 `select --size/--align`；已在真机
+    `super` 上核对（最大空闲区 offset 12,774,816 扇区、≈2.41 GiB，与 issue #13 一致），
+    纯标准库、可对镜像或块设备工作；
+  - `tools/tests/m5-lp-parse-test.sh`：合成 super 镜像的离线测试（CI 运行）；
+  - `tools/install/build-generic-image.sh`：**零固定凭据**的通用镜像组装（fail-closed 门禁：
+    WiFi 网络/可用 root 口令/非空 machine-id/预置主机密钥或 authorized_keys/凭据正则一律拒绝），
+    注入 firstboot 载荷后调用 `tools/m1/build-m1b-image.sh`，支持 `--dry-run`；
+  - `tools/install/firstboot/`（`lmi-firstboot` + OpenRC 服务）：首次启动随机生成 root 口令
+    （显示到控制台、存 `/root/lmi-root-password.txt` 0600）、重生成 dropbear 主机密钥与
+    machine-id、SSH 仅公钥、准备 `/root/.ssh`；幂等、支持 `--dry-run`/`--root` 沙箱/
+    `--force`，离线测试 `tools/tests/m5-firstboot-test.sh`（CI 运行）；
+  - `tools/ci/checks.sh` 第 5 项与 `.gitattributes` 纳入 `tools/install/firstboot/*`
+    （必须 755 + LF）。
 - **使用说明书 `docs/usage.md`**：切换系统（Magisk 一键 / 命令行 / 救援）、WiFi 连接与排障、
   SSH 与改口令/公钥、监测台（`lmi-status` + 网页面板 + CSV 指标解读）、充电温控策略与调参、
   CPU 降温、桌面/中文输入/按键、服务与日志速查、FAQ、安全提醒；README 索引已挂。
