@@ -9,7 +9,6 @@
 # this script writes /etc/wpa_supplicant/wpa_supplicant.conf with the requested
 # network first, so a phone hotspot can be added without rebuilding the image.
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-IF=${LMI_WIFI_IF:-wlan0}
 CONF=/etc/wpa_supplicant/wpa_supplicant.conf
 TEMPLATE=/etc/wpa_supplicant/wpa_supplicant.conf.template
 SSID=$1
@@ -26,7 +25,7 @@ fi
 {
 	echo "ctrl_interface=/var/run/wpa_supplicant"
 	echo "update_config=1"
-	printf "$NET\n"
+	printf '%b\n' "$NET"
 	[ -f "$TEMPLATE" ] && sed -n '/^network=/,$p' "$TEMPLATE"
 } > "$CONF"
 chmod 600 "$CONF"

@@ -1,4 +1,6 @@
 #!/sbin/openrc-run
+# shellcheck shell=sh
+# shellcheck disable=SC2034  # values are consumed by OpenRC, not by this file
 # Volume keys -> panel backlight (no audio stack on lmi yet).
 description="Map hardware volume keys to backlight brightness"
 

@@ -110,11 +110,12 @@ userdata_row() {
 		}'
 }
 
-userdata_fields() { # sets UP_INDEX UP_START UP_END UP_SIZE UP_TYPE
+userdata_fields() { # sets UP_INDEX UP_START UP_END UP_TYPE
 	row=$(userdata_row | head -n1)
 	[ -n "$row" ] || die "no 'userdata' partition found on $DISK"
+	# shellcheck disable=SC2086  # intentional: split the row into its fields
 	set -- $row
-	UP_INDEX=$1 UP_START=$2 UP_END=$3 UP_SIZE=$4 UP_TYPE=$5
+	UP_INDEX=$1 UP_START=$2 UP_END=$3 UP_TYPE=$4
 	# sgdisk prints Start/End in sectors and Size like "107.4 GiB"
 	case "$UP_START" in *[!0-9]*) die "unexpected userdata start: $UP_START";; esac
 	case "$UP_END" in *[!0-9]*) die "unexpected userdata end: $UP_END";; esac
@@ -257,6 +258,7 @@ cmd_backup() {
 	# region dumps: 1 MiB at the userdata start (superblock) and 1 MiB at the
 	# planned lnx start (the tail region that disappears after the shrink)
 	lnx_start=
+	# shellcheck source=/dev/null
 	[ -f "$DIR/plan.env" ] && . "$DIR/plan.env" && lnx_start=${PLAN_LNX_START:-}
 	sgdisk --backup="$GPT_BACKUP" "$DISK" >/dev/null 2>&1 ||
 		die "sgdisk --backup failed"

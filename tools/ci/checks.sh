@@ -35,17 +35,35 @@ fi
 rm -f "$broken"
 
 echo "== 2. destructive scripts must offer --dry-run =="
+# Scanned set: every *.sh plus every extension-less shell/openrc script under
+# tools/ (the payload scripts live in tools/m1/m1b/{usr/sbin,etc/init.d}).
+# etc/conf.d/* are sourced config fragments and are not scripts.
+scanned_scripts() {
+  git ls-files '*.sh'
+  for f in $(git ls-files tools); do
+    case "$f" in
+      *.sh) continue ;;
+      */etc/conf.d/*) continue ;;
+    esac
+    head -n1 "$f" 2>/dev/null |
+      grep -qE '^#!.*(/sh$|/sh |/ash|openrc-run|env sh|busybox sh)' && echo "$f"
+  done
+}
 # Exemptions (each with a written justification):
 #   ramboot init scripts : only write is the one-shot BCB clear (ADR-0001)
 #   tools/m3/lmi-repart.sh : default action IS the dry-run planner; `apply` refuses
-DRY_EXEMPT="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh tools/m3/lmi-repart.sh"
-for f in $(git ls-files '*.sh' 'tools/m0/init'); do
+#   lmi-chargectl : the only write is the one-shot BCB in the stuck-charge
+#                   recovery path (same class as the init scripts)
+#   m1-mailbox    : device-side mailbox writer (super read/write region)
+DRY_EXEMPT="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh tools/m3/lmi-repart.sh
+tools/m1/m1b/usr/sbin/lmi-chargectl tools/m1/m1b/usr/sbin/m1-mailbox"
+for f in $(scanned_scripts); do
   case "$f" in
     tools/ci/checks.sh) continue ;;   # the scanner itself contains these patterns
     tools/tests/*) continue ;;        # test harnesses write only into mktemp dirs
   esac
   if grep -qE 'dd .*of=' "$f" 2>/dev/null; then
-    case " $DRY_EXEMPT " in
+    case " $(echo $DRY_EXEMPT) " in
       *" $f "*) echo "exempt: $f" ;;
       *)
         if grep -q -- '--dry-run' "$f"; then
@@ -60,15 +78,22 @@ done
 
 echo "== 3. hardcoded device nodes =="
 # by-name symlinks (/dev/block/by-name/...) are stable and allowed; raw /dev/sd*
-# partition nodes are only allowed in the documented whitelist files.
-# rebuild-image-from-device.sh: device-side tool, /dev/sda28 default with --dev override.
-NODE_ALLOWED="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh tools/m1/rebuild-image-from-device.sh"
-for f in $(git ls-files '*.sh' 'tools/m0/init'); do
+# partition nodes are only allowed in the documented whitelist files (the Linux
+# side has no /dev/block/by-name, so /dev/sdXN with an env override is the
+# legitimate form there).
+#   rebuild-image-from-device.sh : device-side tool, /dev/sda28 default, --dev override
+#   lmi-repart.sh                : planner for the disk it is asked to plan; prints commands
+#   lmi-chargectl / m1-mailbox / lmi-wifi-start : misc/super defaults, overridable
+NODE_ALLOWED="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh
+tools/m1/rebuild-image-from-device.sh tools/m3/lmi-repart.sh
+tools/m1/m1b/usr/sbin/lmi-chargectl tools/m1/m1b/usr/sbin/m1-mailbox
+tools/m1/m1b/usr/sbin/lmi-wifi-start"
+for f in $(scanned_scripts); do
   case "$f" in
     tools/ci/checks.sh) continue ;;   # the scanner itself contains this pattern
   esac
   if grep -qE '/dev/sd[a-z][0-9]*' "$f" 2>/dev/null; then
-    case " $NODE_ALLOWED " in
+    case " $(echo $NODE_ALLOWED) " in
       *" $f "*) echo "whitelisted: $f" ;;
       *) echo "NEW hardcoded device node: $f"; status=1 ;;
     esac

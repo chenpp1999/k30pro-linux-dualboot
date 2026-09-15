@@ -19,6 +19,7 @@ if [ -r "$RUN/latest" ]; then
 		exit 0
 	fi
 	if [ "${1:-}" = "-w" ]; then
+		# shellcheck disable=SC2046  # intentional: expand into $1..$3
 		set -- $(grep -E '^(soc|temp_c|status)=' "$RUN/latest" | cut -d= -f2 | tr '\n' ' ')
 		printf 'lmi: up %s  soc %s%%  %s  batt %s C\n' \
 			"$(cut -d' ' -f1 /proc/uptime | cut -d. -f1)s" "${2:-?}" "${1:-?}" "${3:-?}"

@@ -34,15 +34,27 @@
 | T2-02 | 双向切换 | 各 20 次无失败。**2026-09-14 实机：5 轮零失败后由负责人决定提前结束（时间成本）；标准修订待定**（见 `acceptance/m2-2026-09-14.md`） |
 | T2-03 | Linux 未清 BCB 时断电 | 重启能回到 Android 或自愈 |
 | T2-04 | 切换命令执行中断电 | 重启回 Android |
-| T2-05 | M3 扩容 dry-run | 输出与预期分区表一致；`tools/m3/lmi-repart.sh plan` + 离线测试 `tools/tests/m3-repart-test.sh`（CI 运行，2026-09-15 全绿） |
-| T2-06 | M3 扩容实做 + 回滚 | 回滚后数据完好、镜像一致（测试机先行；`backup/verify/restore`，`apply` 拒绝自动执行） |
-| T2-07 | 全量备份恢复演练 | TWRP 全量恢复后系统与数据可用（`docs/m3-repart-plan.md` §7） |
+| T2-05 | M3 扩容 dry-run | 输出与预期分区表一致；`tools/m3/lmi-repart.sh plan` + 离线测试 `tools/tests/m3-repart-test.sh`（CI 运行，2026-09-15 全绿）✅ |
+| T2-06 | M3 扩容实做 + 回滚 | 回滚后数据完好、镜像一致。**2026-09-15 已在本机实做**：userdata 107→91 GiB、新建 `lnx` 16 GiB、rootfs 迁入并启动（`root=/dev/sda35`）；回滚路径 = super 内旧 rootfs 区保留 + `recovery` 可 dd 回旧镜像。证据 `acceptance/m3-2026-09-15.md` ✅ |
+| T2-07 | 全量备份恢复演练 | TWRP 全量恢复后系统与数据可用（`docs/m3-repart-plan.md` §7）；M2 时已演练 TWRP 3.7.1 可恢复，M3 后 Android 侧已验证 `/data` 挂载与数据完整 ✅ |
 
 ## T3 — 发布回归（每个 Release）
 
 - T1 全量
 - T2 在至少一台已完成安装的设备上抽样（T2-01/02/04/07）
 - 验收记录归档到 `docs/acceptance/`
+
+## T4 — Linux 长期运行（电源/温控/监控，M4 新增）
+
+| ID | 项目 | 通过标准 | 状态 |
+|---|---|---|---|
+| T4-01 | CPU 降温 | 开机后三簇 governor = `schedutil`；空闲频率 < 1 GHz | ✅ 2026-09-15（实测 844 MHz） |
+| T4-02 | 充电 SOC 门限 | SOC ≥ 80 % 自动停充、≤ 70 % 自动恢复；USB 数据不受影响 | ✅ 2026-09-15（`input_suspend` 实测；状态从 100→99 % 下降） |
+| T4-03 | 温度门限 | ≥42 °C 停充、≤38 °C 恢复（读数以 `battery/temp`/thermal zone 交叉校验） | ✅ 代码路径验证（当前 33–34 °C，未触门限） |
+| T4-04 | 卡死保护 | SOC 持续下滑告警；≤ RECOVER_SOC 时写 BCB 并重启**回 Linux**（绝不去 Android） | ✅ 离线路径验证 + 24 h 安全阀 |
+| T4-05 | 监控采样 | `lmi-monitor` 60 s 更新 `/run/lmi-monitor/latest`，10 min 落 CSV，累计高压 SOC 与 >40 °C 时长 | ✅ 2026-09-15（`lmi-status` 与 CSV 正常） |
+| T4-06 | 内网面板 | 回退链可用，`:8080` 返回 200 且显示实时状态 | ✅ 2026-09-15（python3 回退，HTTP 200） |
+| T4-07 | 长稳观察 | 连续运行 ≥72 h 无异常，充电锯齿与温度曲线符合预期 | ⬜ 观察中（M4 发布后回填） |
 
 ## 验收记录模板
 

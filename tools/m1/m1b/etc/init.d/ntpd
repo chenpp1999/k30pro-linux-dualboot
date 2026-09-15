@@ -1,4 +1,6 @@
 #!/sbin/openrc-run
+# shellcheck shell=sh
+# shellcheck disable=SC2034  # values are consumed by OpenRC, not by this file
 # ntpd override for the lmi rootfs: the stock busybox-openrc script declares
 # `need net`, but this rootfs runs no `networking` service and lmi-wifi owns
 # connectivity (same pitfall as dropbear, see tools/m1/m1b/README.md).

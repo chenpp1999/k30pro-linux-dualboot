@@ -1,4 +1,6 @@
 #!/sbin/openrc-run
+# shellcheck shell=sh
+# shellcheck disable=SC2034  # values are consumed by OpenRC, not by this file
 # m1-weston — OpenRC service for the Weston compositor on the DSI panel.
 #
 # start uses the stock command_background+pidfile machinery; stop() escalates

@@ -3,77 +3,7 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
-- M3 规划器 v0.1：`tools/m3/lmi-repart.sh`（`status`/`plan`/`backup`/`verify`/
-  `restore`；`apply` 故意拒绝自动执行）+ `docs/m3-repart-plan.md`
-  + 离线测试 `tools/tests/m3-repart-test.sh`（合成 GPT 镜像，CI 运行，
-  2026-09-15 全绿）；风险台账 R1/R2 与测试计划 T2-05..07 同步更新。
-  破坏性步骤仍需测试机演练 + 负责人批准（charter M3 门禁）。
-
-- 设备侧镜像重建（2026-09-15）：`tools/m1/rebuild-image-from-device.sh`
-  ——从 `recovery` 分区的当前镜像解包 kernel/DTB/cmdline/DTBO 与
-  initramfs 底座，重新打包全量 overlay，并自检（各段 sha256 与源
-  镜像一致）；无 Android/fastboot/USB 主机。首次产出
-  `boot-m1b-v9.img`（`f7fb3167…`，58,634,240 B，overlay `m1b-ux-v5`），
-  流程与部署/回滚说明：`docs/m1b-rebuild-on-device.md`。未部署。
-
-- 设备侧重建已部署验收（2026-09-15）：`boot-m1b-v9b.img`
-  （`bb7f4d4d…`，58,638,336 B）写入 recovery（回读一致）并引导验证
-  （overlay `m1b-ux-v5` applied、服务正常）；修复并记录 payload CRLF 坑
-  （OpenRC shebang 受损导致 WiFi 起不来）：库内两个脚本规范化，
-  重建脚本新增 payload 自动去 CR 步骤。
-
-- M3 规划器修正（2026-09-15，独立子代理审计）：
-  `resize.f2fs` 缩容必须 `-s`（否则不执行且会形成 fs>分区的
-  危险状态）、PARTUUID 改从 `sgdisk -i` 取、userdata 缩小与 `lnx`
-  新建合并为一条 `sgdisk`、rootfs 迁移偏移修正为整盘
-  扇区 2244020（`lmi_root_off` 是相对 super 分区的，已实测 ext4 魔数）；
-  新增回归断言与 `docs/m3-repart-plan.md` §4b。
-
-- M3 扩容实施完成（2026-09-15，本机）：userdata 107→91 GiB（PARTUUID/名字
-  保留）+ 新建 `lnx` 16 GiB；rootfs 迁移到 `lnx` 并从该分区启动
-  （账本 `root=/dev/sda35`）。init 改为按 GPT PARTNAME 优先挂 `lnx`（保留
-  super 偏移回退）；新镜像 `boot-m1b-v10.img`（`4cd59700…`）已部署。
-  审计避免了一次数据丢失（`resize.f2fs` 必须 `-s`；`lmi_root_off` 是
-  相对 super 的偏移；`-t` 单位是设备扇区）。验收：
-  `docs/acceptance/m3-2026-09-15.md`。Android 侧待确认。
-
-- 修复与加固（2026-09-15 晚）：
-  1. **字体白框根因**：冷启动早期 fontconfig 重建缓存的窗口
-     + weston 一次 SIGABRT 后 wrapper 自弃退出；现在 weston 启动前
-     刷 `fc-cache -f`，且重试策略改为永不自弃（退避 3 s / 30 s）。
-  2. **仓库事故修正**：之前用 `tr -d "\r"` 时反斜杠被 shell 吃掉，
-     把 `m1-weston`/`lmi-wifi-start` 里的字母 r 全删了（已提交）；现以设备
-     上的正确文件回填，并做了 payload 逐文件 sha256 对比（已 100%
-     一致）。
-  3. **payload 缺口**：该 payload 之前没有 `usr/sbin/lmi-keys`（新装会缺音量键/
-     息屏功能），现已入包。
-  4. 新镜像 `boot-m1b-v11.img`（`dd56ff2e…`，58,855,424 B）已部署 recovery（回读校验）。
-
-- UX 增强（overlay `m1b-ux-v6`，已应用并验证）：
-  ① **面板电量**：clients/desktop-shell.c 补丁（0011）把电量跟到面板时钟那行
-  （读 /sys/class/power_supply/battery/），实测显示 `Tue Sep 15, 15:44  100%*`；
-  ② **24 小时制修复**：clock-format 在本机未生效 → 默认格式改为
-  `CLOCK_FORMAT_MINUTES_24H`（同一补丁）；
-  ③ **终端配色/TERM**（/etc/profile.d/10-lmi-term.sh）、
-  **WiFi CLI**（lmi-wifi-status|scan|join）、**kiosk 开关**（/etc/conf.d/m1-weston KIOSK=1）；
-  ④ 光标主题未入包（Adwaita 约 12 MB 且全是符号链接，触屏设备价值低）。
-  新镜像 oot-m1b-v12.img（30346c12…）已部署 recovery（回读校验）；
-  账本 oot=23 … overlay=applied root=/dev/sda35（v6 已应用）。
-
-- 温控/充电/监控（overlay `m1b-ux-v7`，已实机验证）：
-  ① lmi-power+init：开机 governor 从 performance 改为 schedutil
-  （三簇不再长期钉最高频）；
-  ② lmi-chargectl+init：停充 80% / 恢复 70%（迟滞 10%）、停充 42°C /
-  恢复 38°C、最小驻留 300s，用 input_suspend（实测不影响 USB
-  数据），含卡死保护（→ BCB+reboot 回 Linux）与 24h 安全阀；
-  ③ lmi-monitor+init：60s 采样、tmpfs 最新快照 + 静态面板页、
-  10min 落盘 CSV（保留 60 天）、累计高压 SOC 时长与 >40°C 时长；
-  ④ lmi-status 一屏摘要 + LAN 面板（darkhttpd→busybox httpd→python3 回退）；
-  ⑤ 实测：充电挂起后 status=Discharging、usb0/adb 正常、温度读数
-  修正（attery/temp 是 0.1°C）。设计/风险见 docs/m1b-thermal-charging.md。
-  新镜像 oot-m1b-v13.img（e4684d05…）已部署 recovery。
-
-## [Unreleased]
+## [1.0.0] - 2026-09-15
 
 ### Added
 - Phase 0 立项文档：立项书、可行性研究、系统架构、风险台账、测试计划、ADR-0001。
@@ -145,6 +75,34 @@
   显示豆腐块）；端到端实机验证（nihao→你好 上屏终端）。
   调研：`docs/research/ux-ime-2026-09-15.md`（路线与协议约束）。
 
+- M3 扩容（可选、受控风险）：
+  - 规划器 v0.1 `tools/m3/lmi-repart.sh`（`status`/`plan`/`backup`/`verify`/`restore`，
+    `apply` 故意拒绝自动执行）+ 方案 `docs/m3-repart-plan.md`（§4b 独立子代理审计）
+    + 离线测试 `tools/tests/m3-repart-test.sh`（合成 GPT 镜像，CI 运行）。
+  - **2026-09-15 本机实做**：userdata 107→91 GiB（PARTUUID/名字保留、数据完好）、
+    新建 `lnx` 16 GiB、rootfs 迁移并自 `lnx` 启动；init 改为按 GPT `PARTNAME=lnx`
+    优先挂载（保留 super 固定偏移回退）。验收 `docs/acceptance/m3-2026-09-15.md`。
+- 设备侧镜像重建 `tools/m1/rebuild-image-from-device.sh`：从 `recovery` 分区解包
+  kernel/DTB/cmdline/DTBO 与 initramfs 底座 → 重打全量 overlay → 自检（各段 sha256
+  与源镜像一致）→ `dd` 回写，**无需 Android/fastboot/USB 主机**；
+  手册 `docs/m1b-rebuild-on-device.md`；CRLF 自动规范化。
+- Magisk 一键切换模块 v0.2（`packages/magisk-module/`）：内置 `recovery-swap.sh`、
+  跨目录选最新 `boot-m1b-vNN.img`、hash 一致时只写 BCB（FAST）否则走带 attestation
+  门禁的完整流程（FULL）、`LMI_SWITCH_DRY=1` 预演、`build.py` 跨平台打包（强制 LF）。
+- Linux UX（overlay `m1b-ux-v6`）：终端配色/`TERM=xterm-256color`/PS1
+  （`etc/profile.d/10-lmi-term.sh`）、WiFi CLI（`lmi-wifi-status|scan|join`）、
+  kiosk 开关（`/etc/conf.d/m1-weston KIOSK=1`）；面板 24 小时制 + **电量**（补丁 0011）；
+  光标主题未入包（12 MB 且全为符号链接，触屏价值低）。
+- 电源/温控/长期监控（overlay `m1b-ux-v7`，`docs/m1b-thermal-charging.md`）：
+  `lmi-power`（开机 governor → `schedutil`）、`lmi-chargectl`（停充 80 %/恢复 70 %、
+  停充 42 °C/恢复 38 °C、最小驻留 300 s、卡死保护 → 写 BCB 重启回 Linux、24 h 安全阀）、
+  `lmi-monitor`（60 s 采样 → tmpfs 快照 + 静态面板页、10 min 落 CSV 保留 60 天、
+  累计高压 SOC 与 >40 °C 时长）、`lmi-status`（一屏/JSON/单行）、内网面板
+  （`darkhttpd` → `busybox httpd` → `python3 -m http.server` 回退链）。
+- 发布资产：`VERSION`、`docs/reproduce.md`（G5 外部复现指南）、
+  `docs/release-v1.0.0.md`（发布说明）、handoff 全文重写（设备当前状态/存储布局/
+  操作流程/14 条已知坑）。
+
 ### Changed
 - `recovery-swap.sh to-linux` 默认启用部署预检：SHA-256 清单 + attestation +
   `ANDROID!` 头 + 分区大小，任一缺失/不符即拒绝写入（issue #1）。
@@ -169,6 +127,17 @@
 - test-plan/handoff/README：T1-03 标记完成（结论：ABL 不清 BCB、Linux init 清；
   recovery 引导需 `recovery_dtbo`）；T2-02 记录"5 轮零失败 + 负责人提前结束
   （时间成本），标准修订待定"。
+
+- 存储布局（M3 之后）：`recovery`=Linux 引导镜像槽位、`userdata`=91 GiB、
+  新增 `lnx` 16 GiB = 当前 rootfs；`super` 内旧 rootfs 区保留（回滚）；
+  `docs/architecture.md` §2/§3 同步。
+- 引导镜像演进：v8（UX Phase 1）→ v9b（设备内重建，overlay v5）→ v10（`lnx` 启动）
+  → v11（CRLF 修复 + `lmi-keys` 入包）→ v12（overlay v6）→ **v13（overlay v7，当前）**；
+  `boot` 分区 sha256 `8d441fc5…` 全程未变。
+- `tools/m1/m1b-init.sh`：新增 `lmi-power`/`lmi-chargectl`/`lmi-monitor` 的 runlevel；
+  `OVERLAY_VERSION` 与重建脚本默认版本同步升到 `m1b-ux-v7`。
+- 风险台账：R1/R2（M3 数据丢失）**关闭**（已执行并双向验收）；R4/R5/R8 更新为
+  已缓解/已落地；测试计划新增 **T4 长期运行**（电源/温控/监控）。
 
 ### Fixed
 - **T1-03 根因（2026-09-14 实机）**：写入 `recovery` 的镜像缺 `recovery_dtbo`
@@ -228,6 +197,17 @@
 - ramboot init 关键步骤改用 `/bin/busybox` 绝对路径，并增加 misc 分区兜底
   路径，保证 BCB 一定被清除。
 - recovery-swap 写入后校验 `ANDROID!` 头，防止不完整写入。
+
+- **payload CRLF 事故**（2026-09-15）：`tr -d "\r"` 中反斜杠被 shell 吃掉，
+  删掉了 `m1-weston`/`lmi-wifi-start` 里的字母 `r`（WiFi 起不来）；以设备上的正确
+  文件回填 + payload 逐文件 sha256 与设备比对（100% 一致）；重建脚本新增自动去 CR。
+- **payload 缺口**：此前 payload 缺 `usr/sbin/lmi-keys`（新装会丢音量键/息屏），已入包。
+- **字体白框根因**：冷启动早期 fontconfig 重建缓存的窗口 + weston 一次 SIGABRT 后
+  wrapper 自弃退出；现启动前 `fc-cache -f`，重试策略改为永不自弃（退避 3 s/30 s）。
+- **文档控制字符**：CHANGELOG 中三处被终端 backspace 控制符（0x08）吃掉首字母
+  （`boot-m1b-v12/v13`、`battery/temp`），已修复并全仓扫描确认无同类残留。
+- M2 遗留（2026-09-14/15）：recovery 引导镜像必须带 `recovery_dtbo`（否则落 fastboot）；
+  ABL 不清 BCB、由 Linux init 清；Debian 版 `mkbootimg` 整除 bug（`/`→`//`）。
 
 ## [0.0.1] - 2026-09-13
 

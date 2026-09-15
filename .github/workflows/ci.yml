@@ -21,16 +21,26 @@ jobs:
       - name: ShellCheck
         run: |
           set -e
-          files=$(git ls-files '*.sh'; echo tools/m0/init; \
-                  echo tools/m1/m1b/usr/sbin/m1-weston; \
-                  echo tools/m1/m1b/usr/sbin/lmi-time-save; \
-                  echo tools/m1/m1b/etc/init.d/m1-weston; \
-                  echo tools/m1/m1b/etc/init.d/ntpd)
+          # Every *.sh, plus every extension-less script under tools/ whose first
+          # line is a shell/openrc shebang (the payload ships ELF binaries too,
+          # and etc/conf.d/* are sourced config fragments, not scripts).
+          files=$(git ls-files '*.sh')
+          for f in $(git ls-files tools); do
+            case "$f" in
+              *.sh) continue ;;
+              */etc/conf.d/*) continue ;;
+            esac
+            head -n1 "$f" 2>/dev/null | grep -qE '^#!.*(/sh$|/sh |/ash|openrc-run|env sh|busybox sh)' || continue
+            files="$files $f"
+          done
           if [ -n "$files" ]; then
             sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
-            # SC2187: tools/m0/init has a busybox shebang; it is intentionally
-            # POSIX/dash-compatible and must stay byte-identical to the built artifact.
-            echo "$files" | xargs shellcheck -e SC2187
+            # -S warning: notes/stylistic hints (e.g. SC2015 "A && B || C") are
+            # not failures.  SC2187: tools/m0/init has a busybox shebang; it is
+            # intentionally POSIX/dash-compatible and must stay byte-identical to
+            # the built artifact.  OpenRC init scripts carry a `shell=sh`
+            # directive; their service variables are consumed by OpenRC.
+            echo "$files" | xargs shellcheck -S warning -e SC2187
           else
             echo "no shell scripts yet"
           fi

@@ -11,7 +11,6 @@ CONF=/etc/xdg/weston/weston.ini
 FALLBACK=/etc/xdg/weston/weston.ini.fallback
 RUNDIR=/run/lmi-weston
 SOCK=wayland-0
-RETRIES=3
 BACKOFF=3
 SEAT_WAIT=15
 # CRTC-off timeout for inactivity; lmi-keys turns the backlight off at the

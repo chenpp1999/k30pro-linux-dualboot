@@ -6,23 +6,26 @@
 
 1. `boot` 分区内容永远保持 Android 引导镜像，除非用户显式选择"切换"、
    且切换协议保证失败可回退。
-2. Android 既有分区（super、userdata、vendor 等）的内容不被修改；
-   扩容阶段仅允许调整 userdata 尾部大小。
+2. Android 既有分区（super、userdata、vendor 等）**内容**不被修改；
+   扩容阶段仅允许缩小 userdata 尾部，并在腾出的磁盘尾部**新增**独立分区。
 3. 每个写操作都有对应备份，且恢复路径事先验证过。
 4. 任何时刻断电，重启后必须能进入 Android，或进入 fastboot/TWRP 等可救援状态
    （救援流程见 docs/m0-runbook.md §5）。
 
 ## 2. 现状（实测）
 
-| 分区 | 设备节点 | 大小 | 用途 |
+| 分区 | 设备节点（Android / Linux） | 大小 | 用途 |
 |---|---|---|---|
-| boot | /dev/block/sde50 | 128 MB | Android 内核+ramdisk（**永不改动**） |
-| recovery | /dev/block/sda28 | 128 MB | 当前为 TWRP；计划作为 Linux 引导镜像槽位 |
-| misc | /dev/block/sda11 | 4 MB | BCB 一次性引导指令 |
-| super | /dev/block/sda32 | 8.5 GiB | 动态分区；实测有 **~2.4 GiB 未分配空间** |
-| userdata | /dev/block/sda34 | 107 GiB | Android 用户数据（83 GiB 空闲），位于磁盘末尾 |
+| boot | /dev/block/sde50 | 128 MB | Android 内核+ramdisk（**永不改动**，sha256 `8d441fc5…` 全程未变） |
+| recovery | /dev/block/sda28 / /dev/sda28 | 128 MB | **Linux 引导镜像槽位**（当前 `boot-m1b-v13.img`；原 TWRP 镜像已备份成文件） |
+| misc | /dev/block/sda11 / /dev/sda11 | 4 MB | BCB 一次性引导指令（ABL **不**清，由 Linux init 清） |
+| super | /dev/block/sda32 / /dev/sda32 | 8.5 GiB | Android 动态分区；**内部旧 rootfs 区（偏移 4K 单元 1,596,852，1.5 GiB）保留未回收**，供回滚 |
+| userdata | /dev/block/sda34 / /dev/sda34 | **91 GiB**（原 107） | Android 用户数据；M3 缩容（PARTUUID 保留），数据完好 |
+| lnx | /dev/block/sda35 / /dev/sda35 | 16 GiB | **Linux rootfs（ext4，当前所在）**；M3 新建的 GPT 条目 |
 
-设备为 **A-only 单槽**（无 A/B 槽位可用），GPT 分区表。
+设备为 **A-only 单槽**（无 A/B 槽位可用），GPT 分区表；磁盘逻辑扇区 4096 B。
+Linux 侧 init 挂载 rootfs 的策略：**优先 GPT `PARTNAME=lnx`**，回退 super 固定偏移
+（`lmi_root_off=1596852`），因此 M3 之前的部署仍可启动。
 
 ## 3. 三级演进路径
 
@@ -45,6 +48,11 @@
   设计/步骤/回滚/演练清单见 `docs/m3-repart-plan.md`；
   离线测试 `tools/tests/m3-repart-test.sh`（CI 运行）。破坏性步骤须经
   负责人批准并在测试机演练通过后执行（charter M3 门禁）。
+- **已在本机执行完成**（2026-09-15，负责人批准）：userdata 107→91 GiB、
+  新建 `lnx` 16 GiB、rootfs 迁移并自 `lnx` 启动；审计修正了三个会导致
+  数据丢失的坑（`resize.f2fs -s` 必需、PARTUUID 取自 `sgdisk -i`、rootfs
+  偏移是相对 super 的）。验收 `docs/acceptance/m3-2026-09-15.md`。
+  遗留：super 内旧 rootfs 区回收（观察期后）、风险台账 R1/R2 关闭。
 
 ## 4. 启动切换协议（核心）
 
@@ -105,7 +113,17 @@ BCB 残留，设备可能循环进入 recovery→fastboot，须按 runbook §5 �
   设计 `docs/m3-repart-plan.md`，测试 `tools/tests/m3-repart-test.sh`）
 - `tools/m1/recovery-swap.sh` — Android 端切换器 v0.1（`tooling/switch` 落地；
   Linux 侧清 BCB 在 `tools/m1/m1b-init.sh`）
-- `packages/magisk-module` — Android 端一键切换入口
+- `tools/m1/rebuild-image-from-device.sh` — **设备内镜像重建**（不需 Android/fastboot/USB 主机；
+  自检 kernel/dtb/dtbo/cmdline 字节一致；见 `docs/m1b-rebuild-on-device.md`）
+- `tools/m1/build-weston-clients.sh` + `tools/m1/weston-patches/0001-0011` —
+  打过补丁的 weston 客户端（终端 text-input、中文输入法、快捷键栏、面板电量）；
+  **必须在设备内原生编译**
+- `tools/m1/ime/` — 拼音引擎与词典生成管线（数据源与许可见其 README）
+- `tools/m1/m1b/etc/{init.d,conf.d}` + `usr/sbin/` — Linux 侧服务：`lmi-power`（governor）、
+  `lmi-chargectl`（充电/温度门限）、`lmi-monitor`（采样/面板/CSV）、`lmi-status`
+- `tools/m1/m1b/` 其余 — overlay 载荷（Weston 配置、字体、按键守护、WiFi CLI、终端配色）
+- `tools/m1/dev/` — 测试注入工具（`lmi-inject.py`、`kbd-tap.py`，uinput）
+- `packages/magisk-module` — Android 端一键切换入口（v0.2：最新镜像选择 + hash 校验快路径）
 - `packages/android-app` — 可选图形入口
 - `packages/pmaports` — 设备包贡献（上游）
 - `kernel/` — 必要的 DTS / 补丁（GPL-2.0-only）

@@ -1,4 +1,6 @@
 #!/sbin/openrc-run
+# shellcheck shell=sh
+# shellcheck disable=SC2034  # values are consumed by OpenRC, not by this file
 # SPDX-License-Identifier: MIT
 # Charge/thermal control for a permanently-plugged lmi (see lmi-chargectl).
 description="lmi battery charge limit and temperature guard"

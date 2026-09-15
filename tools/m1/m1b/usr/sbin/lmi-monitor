@@ -40,7 +40,9 @@ mread_temp_c() { # battery temperature in Celsius
 
 # stress counters (accumulated, persisted across flushes)
 soc_high_s=0; temp_high_s=0; last_ts=0
+# shellcheck source=/dev/null
 [ -r "$STATS" ] && . "$STATS"
+# shellcheck source=/dev/null
 [ -r "$LOGDIR/stress.env" ] && . "$LOGDIR/stress.env"
 last_ts=$(date +%s)
 
