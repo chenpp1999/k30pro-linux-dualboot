@@ -40,6 +40,11 @@
 - `lmi-repart`：离线 `resize.f2fs` 缩小 userdata 尾部 + `sgdisk` 新增 `lnx`
   GPT 分区，Linux rootfs 迁移到该分区。
 - 必须带 dry-run、GPT 备份、校验与一键回滚；先在测试机演练。
+- **v0.1 已实现**（2026-09-15）：`tools/m3/lmi-repart.sh` 为**规划器**
+  （`status`/`plan`/`backup`/`verify`/`restore`，`apply` 故意不实现），
+  设计/步骤/回滚/演练清单见 `docs/m3-repart-plan.md`；
+  离线测试 `tools/tests/m3-repart-test.sh`（CI 运行）。破坏性步骤须经
+  负责人批准并在测试机演练通过后执行（charter M3 门禁）。
 
 ## 4. 启动切换协议（核心）
 
@@ -96,7 +101,8 @@ BCB 残留，设备可能循环进入 recovery→fastboot，须按 runbook §5 �
 
 ## 6. 组件划分
 
-- `tooling/repart` — M3 扩容工具（dry-run/回滚）
+- `tools/m3/lmi-repart.sh` — M3 扩容规划器 v0.1（dry-run/备份/回滚；
+  设计 `docs/m3-repart-plan.md`，测试 `tools/tests/m3-repart-test.sh`）
 - `tools/m1/recovery-swap.sh` — Android 端切换器 v0.1（`tooling/switch` 落地；
   Linux 侧清 BCB 在 `tools/m1/m1b-init.sh`）
 - `packages/magisk-module` — Android 端一键切换入口

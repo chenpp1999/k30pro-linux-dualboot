@@ -3,6 +3,12 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+- M3 规划器 v0.1：`tools/m3/lmi-repart.sh`（`status`/`plan`/`backup`/`verify`/
+  `restore`；`apply` 故意拒绝自动执行）+ `docs/m3-repart-plan.md`
+  + 离线测试 `tools/tests/m3-repart-test.sh`（合成 GPT 镜像，CI 运行，
+  2026-09-15 全绿）；风险台账 R1/R2 与测试计划 T2-05..07 同步更新。
+  破坏性步骤仍需测试机演练 + 负责人批准（charter M3 门禁）。
+
 ## [Unreleased]
 
 ### Added

@@ -35,6 +35,11 @@ jobs:
       - name: M2 switch tests (offline, no partitions touched)
         run: sh tools/tests/m2-switch-test.sh
 
+      - name: M3 repart planner tests (offline, synthetic disk image)
+        run: |
+          sudo apt-get install -y -qq gdisk
+          sh tools/tests/m3-repart-test.sh
+
       - name: Markdown link check (basic)
         run: |
           set -e

@@ -107,6 +107,16 @@
   3. **P1** M2 遗留：T2-01/T1-04 重启回归、G2 标准修订（20 轮 vs 已做 5 轮）、
      M2 Go/No-Go 评审。
   4. **P2** M3（`lmi-repart` 扩容，需测试机 + 备份恢复演练）→ M4 v1.0。
+     进展（2026-09-15）：规划器 v0.1 已完成并入仓（见 CHANGELOG）。
+- **P0 现场调查（2026-09-15）**：重建 `boot-m1b-v9` 不强制需要 Android——
+  手机的 Linux 侧可直接读到 recovery 分区（`/dev/sda28`，128 MB，
+  首字节 `ANDROID!` = 当前 v8），并具备 `cpio`/`gzip`/`python3`；
+  所需的构建输入（kernel/dtb/cmdline/initramfs 基底/dtbo 表）均可从
+  该镜像 unpack 得到；`mkbootimg` 可从电脑侧 push（30 KB）。
+  WSL 也可（需跨 NCM 传 v8 镜像 58 MB + alpine proot 内 cpio + 从网上取
+  mkbootimg）；两者都不需重拔 USB。发布到 recovery 可从 Linux侧 `dd`
+  （无需 fastboot），但跳过方式 A 的 RAM 引导门禁 → 需负责人决定；
+  也可仅作为构建产物保留。
 - **2026-09-15 设备当前状态**：手机在 **Linux**（`boot-m1b-v8` 从 recovery 启动，
   overlay v4 已应用）；rootfs 内已 live 安装最新 `weston-keyboard`/`weston-terminal`
   （含 IME + 快捷键栏）与 `/usr/share/lmi/ime/pinyin.dict`；`lmi-keys`/`ntpd` 开机自启；
