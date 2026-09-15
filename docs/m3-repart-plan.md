@@ -57,6 +57,49 @@
 > 第 2 步之后 userdata 的逻辑容量变小；若此时发现异常，先做第 3 步的
 > GPT 还原再 `resize.f2fs` 扩回原大小（见 §6）。
 
+## 4b. 独立审计结论与修正（2026-09-15，子代理审计）
+
+审计发现两处**会导致数据丢失**的错误，已修正：
+
+1. **`resize.f2fs` 缩容必须带 `-s`**：不带该 flag 时 f2fs-tools 直接拒绝
+   （`Nothing to resize, now only supports resizing with safe resize flag`），
+   缩容不会发生；而 GPT 若照缩，就会留下 **fs > 分区** 的状态 → Android 挂载
+   userdata 失败 → 可能触发"恢复出厂" → 数据丢失。现在工具输出的步骤含
+   `resize.f2fs -s -t <512B 扇区数>`，并在测试里加了回归断言。
+   `-t` 的单位是 **512 字节扇区**（f2fs 内部固定 512B/扇区），且含义是**新总大小**
+   （非增量）。`f2fs_resize_check()` 会在写入新超级块前校验
+   `valid_block_count ≤ user_block_count`，所以"装不下"的缩容会安全失败。
+2. **rootfs 的 `lmi_root_off` 是相对 `super` 分区的偏移**（init 用
+   `losetup -o $((ROOT_OFF_BLOCKS*4096)) /dev/sda32`），**不是整盘偏移**。
+   迁移时按整盘 skip 会搬错区域。实测校正：`super` 起始扇区 647168（4096B/扇区）
+   + 1596852 = **整盘扇区 2244020**，该处 +1080 处有 ext4 魔数 `53 ef`（已实测）。
+   因此迁移命令为：
+   `dd if=/dev/sda bs=4096 skip=2244020 count=393216 of=/dev/sda35 conv=fsync`
+   （或 `dd if=/dev/sda32 bs=4096 skip=1596852 count=393216 ...`）。
+3. **PARTUUID 必须从 `sgdisk -i 34` 取**（`sgdisk -p` 不打印唯一 GUID）；name、
+   PARTUUID、type 三者都要保留，否则 Android 找不到 userdata（`by-name`/`by-partuuid`）。
+4. **userdata 缩小与 `lnx` 新建必须合并为一条 `sgdisk` 调用**（sgdisk 按参数顺序
+   解释），避免出现"userdata 已缩、lnx 未建"的中间表状态。
+5. 收紧执行纪律：`set -e` + 每步后校验；`blockdev --rereadpt` 在 rootfs 循环设备
+   占用磁盘时可能 `EBUSY`，此时**重启**（旧镜像仍指向未动的 super 区，照常启动）。
+6. 提交前抓取（回滚需要）：`sgdisk --backup`、`sgdisk -i` 全量、userdata 首 1 MiB、
+   f2fs SB0@1024/SB1@5120、`dump.f2fs -s 0` 的 block_count、`s_uuid`。
+
+审计建议的最终顺序（每步后校验）：
+
+```
+1. fsck.f2fs -f /dev/sda34        # 连续两次干净
+2. resize.f2fs -s -t <sectors> /dev/sda34
+   verify: dump.f2fs -s 0 /dev/sda34 | grep -i block_count；fsck 干净
+3. sgdisk -d 34 -n 34:<s>:<e> -c 34:userdata -u 34:<PARTUUID> -t 34:A03A \
+          -n 35:<s>:<e> -c 35:lnx -t 35:8300 /dev/sda      # 一条命令
+   verify: sgdisk -v（仅既有无害 gap 警告）；sgdisk -i 34 GUID 不变
+4. blockdev --rereadpt /dev/sda（或重启）→ /proc/partitions 出现 sda35
+5. dd ... of=/dev/sda35 conv=fsync → 源/目标双 sha256 比对
+6. e2fsck -fn /dev/sda35（或只读挂载）→ UUID 与源一致
+7. 改 init（改为挂载 lnx，偏移 0）→ 重建镜像 → 部署 → 重启验证 → 再回收 super 内旧区
+```
+
 ## 5. v0.1 的范围（为什么 `apply` 被拒绝）
 
 - `plan`/`status`/`backup`/`verify`/`restore` 已实现；**`apply` 故意不实现**：

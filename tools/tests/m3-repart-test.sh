@@ -41,8 +41,9 @@ if run plan --lnx-size 256M >"$TMP/plan.out" 2>&1; then
 else
 	fail "plan failed: $(cat "$TMP/plan.out")"
 fi
-grep -q "resize.f2fs" "$TMP/plan.out" && ok "plan mentions resize.f2fs" || fail "plan steps"
-grep -q "sgdisk -n" "$TMP/plan.out" && ok "plan mentions the new GPT entry" || fail "plan steps"
+grep -q "resize.f2fs -s" "$TMP/plan.out" && ok "plan uses safe shrink (-s)" || fail "plan missing resize.f2fs -s"
+grep -q "sgdisk -d" "$TMP/plan.out" && ok "plan mentions the GPT rewrite" || fail "plan steps"
+grep -q "PARTUUID" "$TMP/plan.out" && ok "plan shows the userdata PARTUUID" || fail "plan steps"
 [ -f "$LMI_DB_DIR/plan.json" ] && ok "plan.json written" || fail "plan.json missing"
 sed 's/^/    /' "$TMP/plan.out"
 

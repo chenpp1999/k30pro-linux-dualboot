@@ -34,8 +34,8 @@ GPT_BACKUP=$DIR/gpt-backup.bin
 GPT_TEXT=$DIR/gpt-table.txt
 MANIFEST=$DIR/manifest.txt
 PLAN_JSON=$DIR/plan.json
-LOGICAL_SECTOR=512
-ALIGN_SECTORS=2048            # 1 MiB
+SECTOR=512                    # logical sector size (probed on device)
+ALIGN_BYTES=1048576           # 1 MiB
 
 die() { echo "FATAL: $*" >&2; exit 1; }
 info() { echo "$*"; }
@@ -56,11 +56,35 @@ part_size() { # bytes
 
 disk_sectors() {
 	size=$(part_size)
-	echo $((size / LOGICAL_SECTOR))
+	echo $((size / SECTOR))
 }
 
 align_up() { # sectors -> aligned sectors (1 MiB)
-	echo $(( (($1 + ALIGN_SECTORS - 1) / ALIGN_SECTORS) * ALIGN_SECTORS ))
+	align=$((ALIGN_BYTES / SECTOR))
+	echo $(( (($1 + align - 1) / align) * align ))
+}
+
+align_down() { # sectors -> aligned sectors (1 MiB, towards zero)
+	align=$((ALIGN_BYTES / SECTOR))
+	echo $(( ($1 / align) * align ))
+}
+
+last_usable_sector() { # authoritative value: parse sgdisk -p (exotic GPT)
+	out=$(gpt_table | awk -F'is ' '/last usable sector/{print $NF}' | tr -dc '0-9')
+	[ -n "$out" ] || out=$(( $(disk_sectors) - 34 ))
+	echo "$out"
+}
+
+probe_sector_size() {
+	if [ "${LMI_REPART_OFFLINE:-0}" = 1 ]; then
+		SECTOR=512
+		return
+	fi
+	ss=$(blockdev --getss "$DISK" 2>/dev/null || echo 512)
+	case "$ss" in
+	''|*[!0-9]*) SECTOR=512 ;;
+	*) SECTOR=$ss ;;
+	esac
 }
 
 parse_size() { # 16G/512M/123456 -> bytes
@@ -98,22 +122,24 @@ userdata_fields() { # sets UP_INDEX UP_START UP_END UP_SIZE UP_TYPE
 
 f2fs_magic_ok() { # check the f2fs superblock magic at userdata_start + 1024
 	disk=$1 start=$2
-	bytes=$(dd if="$disk" bs=1 skip=$((start * LOGICAL_SECTOR + 1024)) count=4 2>/dev/null |
+	bytes=$(dd if="$disk" bs=1 skip=$((start * SECTOR + 1024)) count=4 2>/dev/null |
 		od -An -v -tx1 | tr -d ' \n')
 	[ "$bytes" = "1020f5f2" ]
 }
 
 cmd_status() {
 	need_sgdisk
+	probe_sector_size
 	total=$(disk_sectors)
 	info "disk: $DISK ($((total / 2048)) MiB, $total sectors)"
 	gpt_table | sed 's/^/  /'
 	userdata_fields
 	info ""
 	info "userdata: index=$UP_INDEX start=$UP_START end=$UP_END type=$UP_TYPE"
-	info "tail gap: $((total - UP_END - 1 - 33)) sectors (minus the secondary GPT)"
+	info "last usable sector: $(last_usable_sector)"
+	info "tail gap after userdata: $(( $(last_usable_sector) - UP_END )) sectors"
 	if [ "${LMI_REPART_OFFLINE:-0}" != 1 ]; then
-		info "current size: $(( (UP_END - UP_START + 1) * LOGICAL_SECTOR / 1024 / 1024 )) MiB"
+		info "current size: $(( (UP_END - UP_START + 1) * SECTOR / 1024 / 1024 )) MiB"
 	fi
 }
 
@@ -129,60 +155,71 @@ cmd_plan() {
 	done
 	need_sgdisk
 	[ -b "$DISK" ] || [ -f "$DISK" ] || die "no such disk: $DISK"
+	probe_sector_size
 	userdata_fields
 	f2fs_magic_ok "$DISK" "$UP_START" ||
 		die "userdata does not start with an f2fs superblock (magic missing) - refusing"
 	cur_sectors=$((UP_END - UP_START + 1))
 	lnx_bytes=$(parse_size "$lnx_size")
 	[ "$lnx_bytes" -ge 268435456 ] || die "--lnx-size must be >= 256M"
-	lnx_sectors=$(( (lnx_bytes + LOGICAL_SECTOR - 1) / LOGICAL_SECTOR ))
+	lnx_sectors=$(( (lnx_bytes + SECTOR - 1) / SECTOR ))
 	lnx_sectors=$(align_up "$lnx_sectors")
 
+	# userdata occupies the disk tail with no gap: place `lnx` at the very
+	# end (reusing the original end sector) and shrink userdata below it.
+	lnx_end=$UP_END
+	lnx_start=$(align_down $((lnx_end + 1 - lnx_sectors)))
+	[ "$lnx_start" -gt "$UP_START" ] || die "lnx does not fit inside userdata"
+	new_end=$(align_down $((lnx_start - 1)))
+	[ "$new_end" -gt "$UP_START" ] || die "no room left for userdata"
+	new_sectors=$((new_end - UP_START + 1))
 	if [ -n "$shrink" ]; then
 		shrink_bytes=$(parse_size "$shrink")
-		new_sectors=$((cur_sectors - (shrink_bytes + LOGICAL_SECTOR - 1) / LOGICAL_SECTOR))
-		[ "$new_sectors" -ge "$lnx_sectors" ] ||
-			die "shrink leaves fewer sectors than the lnx size"
-	else
-		new_sectors=$((cur_sectors - lnx_sectors))
-		[ "$new_sectors" -gt 0 ] || die "lnx does not fit inside userdata"
-		new_sectors=$(align_up "$new_sectors")
+		want=$((cur_sectors - (shrink_bytes + SECTOR - 1) / SECTOR))
+		[ "$new_sectors" -le "$want" ] ||
+			info "NOTE: alignment moved the split: userdata keeps $(awk "BEGIN{printf \"%.2f\", $new_sectors * $SECTOR / 1073741824}") GiB (requested shrink $shrink)"
 	fi
-
-	new_end=$((UP_START + new_sectors - 1))
-	lnx_start=$(align_up $((new_end + 1)))
-	lnx_end=$((lnx_start + lnx_sectors - 1))
 	total=$(disk_sectors)
-	last_usable=$((total - 34))   # 33 secondary GPT sectors + 1
+	last_usable=$(last_usable_sector)
 	[ "$lnx_end" -le "$last_usable" ] ||
-		die "no room at the tail: lnx_end=$lnx_end > last usable=$last_usable"
+		die "lnx_end=$lnx_end > last usable=$last_usable"
 	next_idx=$(gpt_table | awk '/^Number/{f=1;next} f && /^[ \t]*[0-9]+/{i=$1} END{print i+1}')
-	new_userdata_gib=$(awk "BEGIN {printf \"%.2f\", $new_sectors * $LOGICAL_SECTOR / 1073741824}")
-	lnx_gib=$(awk "BEGIN {printf \"%.2f\", $lnx_sectors * $LOGICAL_SECTOR / 1073741824}")
+	new_userdata_gib=$(awk "BEGIN {printf \"%.2f\", $new_sectors * $SECTOR / 1073741824}")
+	lnx_gib=$(awk "BEGIN {printf \"%.2f\", $lnx_sectors * $SECTOR / 1073741824}")
 
 	info "=== lmi-repart plan (dry-run, nothing is written) ==="
 	info "userdata: $UP_START..$UP_END -> $UP_START..$new_end (${new_userdata_gib} GiB)"
 	info "lnx:      index $next_idx, $lnx_start..$lnx_end (${lnx_gib} GiB)"
 	info ""
+	partuuid=$(sgdisk -i "$UP_INDEX" "$DISK" 2>/dev/null |
+		awk -F': ' '/Partition unique GUID/{print $2}')
+	[ -n "$partuuid" ] || die "cannot read the userdata PARTUUID (sgdisk -i)"
+	info "userdata PARTUUID: $partuuid  (KEEP IT: Android finds userdata by name/PARTUUID)"
+	info ""
 	info "reviewed manual steps (docs/m3-repart-plan.md §4):"
-	info "  0. full TWRP backup of userdata + 'lmi-repart.sh backup'"
-	info "  1. fsck.f2fs -f /dev/block/by-name/userdata"
-	info "  2. resize.f2fs -s $new_sectors /dev/block/by-name/userdata"
-	info "  3. sgdisk -d $UP_INDEX \\"
-	info "       -n $UP_INDEX:$UP_START:$new_end -c $UP_INDEX:userdata \\"
-	info "       -u $UP_INDEX:<uuid from gpt-table.txt> \\"
-	info "       -t $UP_INDEX:<type from gpt-table.txt> $DISK"
-	info "  4. sgdisk -n $next_idx:$lnx_start:$lnx_end -c $next_idx:lnx -t $next_idx:8300 $DISK"
-	info "  5. sgdisk -v $DISK && blockdev --rereadpt $DISK"
-	info "  6. mkfs.ext4 -L lnx /dev/block/by-name/lnx"
-	info "  7. migrate the rootfs, update the Linux cmdline (by-name) and rebuild the image"
+	info "  0. full backup + 'lmi-repart.sh backup'"
+	info "  1. fsck.f2fs -f /dev/sda34            # must be clean TWICE"
+	info "  2. resize.f2fs -s -t $((new_sectors * SECTOR / 512)) /dev/sda34"
+	info "     # -s is REQUIRED to shrink; without it resize.f2fs does nothing and"
+	info "     # the shrunken GPT would leave fs > partition (Android cannot mount)"
+	info "     verify: dump.f2fs -s 0 /dev/sda34 | grep -i block_count"
+	info "  3. sgdisk -d $UP_INDEX -n $UP_INDEX:$UP_START:$new_end -c $UP_INDEX:userdata \\"
+	info "       -u $UP_INDEX:$partuuid -t $UP_INDEX:$UP_TYPE \\"
+	info "       -n $next_idx:$lnx_start:$lnx_end -c $next_idx:lnx -t $next_idx:8300 $DISK"
+	info "     # ONE invocation: no intermediate table with a shrunken userdata"
+	info "  4. sgdisk -v $DISK   # only the pre-existing benign gap warnings"
+	info "  5. blockdev --rereadpt $DISK   (EBUSY expected: the rootfs loop holds"
+	info "     the disk open -> reboot instead; the old image still boots)"
+	info "  6. dd if=$DISK bs=4096 skip=<rootfs block offset> count=393216 \\"
+	info "       of=/dev/sda$next_idx conv=fsync && verify both sha256"
+	info "  7. rebuild the image so the init mounts the new partition, deploy, reboot"
 	info ""
 
 	mkdir -p "$DIR"
 	cat > "$PLAN_JSON" <<EOF
 {
   "disk": "$DISK",
-  "sector_size": $LOGICAL_SECTOR,
+  "sector_size": $SECTOR,
   "userdata": { "index": $UP_INDEX, "old_start": $UP_START, "old_end": $UP_END,
                 "new_end": $new_end, "new_sectors": $new_sectors },
   "lnx": { "index": $next_idx, "start": $lnx_start, "end": $lnx_end,
@@ -200,6 +237,9 @@ PLAN_LNX_INDEX=$next_idx
 PLAN_LNX_START=$lnx_start
 PLAN_LNX_END=$lnx_end
 PLAN_LNX_SECTORS=$lnx_sectors
+PLAN_UD_TYPE=$UP_TYPE
+PLAN_UD_NAME=userdata
+PLAN_UD_PARTUUID=$partuuid
 EOF
 	log "plan written: userdata_end=$new_end lnx=$lnx_start..$lnx_end"
 	info "plan written to $PLAN_JSON (and plan.env)"

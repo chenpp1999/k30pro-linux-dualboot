@@ -22,6 +22,13 @@
   （OpenRC shebang 受损导致 WiFi 起不来）：库内两个脚本规范化，
   重建脚本新增 payload 自动去 CR 步骤。
 
+- M3 规划器修正（2026-09-15，独立子代理审计）：
+  `resize.f2fs` 缩容必须 `-s`（否则不执行且会形成 fs>分区的
+  危险状态）、PARTUUID 改从 `sgdisk -i` 取、userdata 缩小与 `lnx`
+  新建合并为一条 `sgdisk`、rootfs 迁移偏移修正为整盘
+  扇区 2244020（`lmi_root_off` 是相对 super 分区的，已实测 ext4 魔数）；
+  新增回归断言与 `docs/m3-repart-plan.md` §4b。
+
 ## [Unreleased]
 
 ### Added
