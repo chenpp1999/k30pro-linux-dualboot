@@ -1,4 +1,24 @@
-# m1-weston tunables (sourced by /usr/sbin/m1-weston)
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# /etc/conf.d/m1-weston - tunables for the weston launcher.
+# Sourced by /usr/sbin/m1-weston (see its header for details).
+
+# Weston start attempts, backoff seconds, seat wait.
 RETRIES=3
 BACKOFF=3
 SEAT_WAIT=15
+
+# CRTC-off timeout (seconds) when idle; lmi-keys turns the backlight off at the
+# same time. 0 = never idle. Passed on the command line because --idle-time
+# overrides the [core] idle-time from weston.ini.
+IDLE_TIME=300
+
+# 1 = kiosk shell (single fullscreen client, no panel/launchers)
+# 0 = desktop shell with the panel and launchers (default)
+KIOSK=0
+
+# Client cursor theme/size. No cursor theme is shipped (touch-only device; the
+# stock cursor theme is ~12 MB of symlink-heavy files) - leave empty unless a
+# theme is installed into /usr/share/icons.
+XCURSOR_THEME=
+XCURSOR_SIZE=24

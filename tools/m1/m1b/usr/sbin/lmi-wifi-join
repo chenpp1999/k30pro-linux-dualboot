@@ -1,0 +1,36 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# lmi-wifi-join - join a WiFi network at runtime (rewrites the wpa_supplicant
+# config from the template and restarts the service).
+#
+# usage: lmi-wifi-join <SSID> <PASSWORD|->    ("-" = open network)
+#
+# The build-time PSKs live in /etc/wpa_supplicant/wpa_supplicant.conf.template;
+# this script writes /etc/wpa_supplicant/wpa_supplicant.conf with the requested
+# network first, so a phone hotspot can be added without rebuilding the image.
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+IF=${LMI_WIFI_IF:-wlan0}
+CONF=/etc/wpa_supplicant/wpa_supplicant.conf
+TEMPLATE=/etc/wpa_supplicant/wpa_supplicant.conf.template
+SSID=$1
+PSK=$2
+if [ -z "$SSID" ]; then
+	echo "usage: $0 <SSID> <PASSWORD|->" >&2
+	exit 2
+fi
+if [ "$PSK" = "-" ] || [ -z "$PSK" ]; then
+	NET="network={\n\tssid=\"$SSID\"\n\tkey_mgmt=NONE\n}"
+else
+	NET="network={\n\tssid=\"$SSID\"\n\tpsk=\"$PSK\"\n\tkey_mgmt=WPA-PSK\n}"
+fi
+{
+	echo "ctrl_interface=/var/run/wpa_supplicant"
+	echo "update_config=1"
+	printf "$NET\n"
+	[ -f "$TEMPLATE" ] && sed -n '/^network=/,$p' "$TEMPLATE"
+} > "$CONF"
+chmod 600 "$CONF"
+echo "wrote $CONF for SSID '$SSID'; restarting lmi-wifi"
+/etc/init.d/lmi-wifi restart 2>&1 | tail -2
+sleep 12
+"$(dirname "$0")/lmi-wifi-status"

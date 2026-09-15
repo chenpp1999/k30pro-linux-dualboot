@@ -18,8 +18,18 @@ SEAT_WAIT=15
 # same time. This is passed on the command line because --idle-time
 # overrides the [core] idle-time from weston.ini. 0 = never idle.
 IDLE_TIME=300
+# 1 = kiosk shell (one fullscreen client, no panel/launchers) for a
+# single-purpose setup; 0 = desktop shell (default).
+KIOSK=0
+# cursor theme for the clients. The stock rootfs ships no cursor theme, so the
+# clients log 'could not load cursor ...' (cosmetic: lmi is touch-only and the
+# Adwaita theme is ~12 MB of symlink-heavy files - not worth shipping). Point
+# these at a theme if one gets installed later.
+XCURSOR_THEME=${XCURSOR_THEME:-}
+XCURSOR_SIZE=${XCURSOR_SIZE:-24}
 # shellcheck source=/dev/null
 [ -r /etc/conf.d/m1-weston ] && . /etc/conf.d/m1-weston
+export XCURSOR_THEME XCURSOR_SIZE
 
 log() { printf '%s [%s] %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$$" "$*"; }
 
@@ -87,8 +97,12 @@ splash_release() { # D80-proven modetest sequence, bounded
 }
 
 start_weston() { # $1=config file
+  shell_args=""
+  [ "${KIOSK:-0}" = 1 ] && shell_args="--shell=kiosk-shell.so"
+  # shellcheck disable=SC2086
   weston --config="$1" --backend=drm-backend.so --drm-device=card0 \
     --renderer=pixman --socket="$SOCK" --idle-time="$IDLE_TIME" \
+    $shell_args \
     --continue-without-input --debug --log=/var/log/weston.log &
   WPID=$!
   i=0

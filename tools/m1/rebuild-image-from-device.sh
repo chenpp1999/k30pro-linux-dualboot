@@ -34,7 +34,7 @@ REPO=$(CDPATH='' cd -- "$HERE/../.." && pwd)
 DEV=/dev/sda28
 IMAGE=
 TREE=
-VERSION=m1b-ux-v5
+VERSION=m1b-ux-v6
 OUT=boot-m1b-v9.img
 WORK=/root/m1b-rebuild
 MKBOOTIMG=
