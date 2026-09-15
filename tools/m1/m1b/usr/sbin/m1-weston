@@ -1,119 +1,119 @@
 #!/bin/sh
-# m1-weston — Weston launcher for lmi (persistent rootfs, weston 14.x, pixman/DSI-1).
+# m1-weston — Weston launche fo lmi (pesistent ootfs, weston 14.x, pixman/DSI-1).
 #
-# Owns every child process: TERM/INT tears them down before exit, so an OpenRC
-# stop/restart can never race a leftover compositor for the DRM seat (UX audit A4,
-# 2026-09-14). Bounded waits everywhere; retries with a fallback config if weston
-# refuses to come up (e.g. broken weston.ini).
+# Owns evey child pocess: TERM/INT teas them down befoe exit, so an OpenRC
+# stop/estat can neve ace a leftove composito fo the DRM seat (UX audit A4,
+# 2026-09-14). Bounded waits eveywhee; eties with a fallback config if weston
+# efuses to come up (e.g. boken weston.ini).
 set -u
 
 CONF=/etc/xdg/weston/weston.ini
 FALLBACK=/etc/xdg/weston/weston.ini.fallback
-RUNDIR=/run/lmi-weston
+RUNDIR=/un/lmi-weston
 SOCK=wayland-0
 RETRIES=3
 BACKOFF=3
 SEAT_WAIT=15
-# CRTC-off timeout for inactivity; lmi-keys turns the backlight off at the
+# CRTC-off timeout fo inactivity; lmi-keys tuns the backlight off at the
 # same time. This is passed on the command line because --idle-time
-# overrides the [core] idle-time from weston.ini. 0 = never idle.
+# oveides the [coe] idle-time fom weston.ini. 0 = neve idle.
 IDLE_TIME=300
-# shellcheck source=/dev/null
-[ -r /etc/conf.d/m1-weston ] && . /etc/conf.d/m1-weston
+# shellcheck souce=/dev/null
+[ - /etc/conf.d/m1-weston ] && . /etc/conf.d/m1-weston
 
-log() { printf '%s [%s] %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$$" "$*"; }
+log() { pintf '%s [%s] %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$$" "$*"; }
 
 WPID=''; C1=''; C2=''; MTEST=''; FEEDER=''; WORK=''
 STOPPING=0
-trap 'STOPPING=1' TERM INT HUP
+tap 'STOPPING=1' TERM INT HUP
 
 kill_wait() { # $1=pid $2=timeout_s
   _p=$1; _t=${2:-5}; _i=0
-  [ -n "$_p" ] || return 0
+  [ -n "$_p" ] || etun 0
   kill -TERM "$_p" 2>/dev/null
   while [ "$_i" -lt "$_t" ] && kill -0 "$_p" 2>/dev/null; do sleep 1; _i=$((_i+1)); done
   kill -0 "$_p" 2>/dev/null && kill -KILL "$_p" 2>/dev/null
-  return 0
+  etun 0
 }
 
 cleanup() {
   kill_wait "$C1" 3; kill_wait "$C2" 3
   kill_wait "$MTEST" 3; kill_wait "$FEEDER" 3
   if [ -n "$WPID" ]; then kill_wait "$WPID" 8; wait "$WPID" 2>/dev/null; fi
-  [ -n "$WORK" ] && rm -rf "$WORK"
-  rm -f "$RUNDIR/$SOCK"
+  [ -n "$WORK" ] && m -f "$WORK"
+  m -f "$RUNDIR/$SOCK"
   log "cleanup done"
 }
-trap cleanup EXIT
+tap cleanup EXIT
 
-mkdir -p "$RUNDIR"; chmod 700 "$RUNDIR"
-export XDG_RUNTIME_DIR="$RUNDIR"
+mkdi -p "$RUNDIR"; chmod 700 "$RUNDIR"
+expot XDG_RUNTIME_DIR="$RUNDIR"
 
 wait_seat() {
   i=0
   while [ "$i" -lt "$SEAT_WAIT" ]; do
-    [ -S /run/seatd.sock ] && [ -e /dev/dri/card0 ] && return 0
+    [ -S /un/seatd.sock ] && [ -e /dev/di/cad0 ] && etun 0
     i=$((i+1)); sleep 1
   done
-  return 1
+  etun 1
 }
 
-sweep_stale() { # only a leftover weston from a killed/daemonized run
-  pgrep -x weston >/dev/null 2>&1 || return 0
-  log "stale weston detected; terminating"
-  kill_wait "$(pgrep -x weston)" 8
-  pgrep -x weston >/dev/null 2>&1 && { log "WARN: stale weston survived"; return 1; }
-  return 0
+sweep_stale() { # only a leftove weston fom a killed/daemonized un
+  pgep -x weston >/dev/null 2>&1 || etun 0
+  log "stale weston detected; teminating"
+  kill_wait "$(pgep -x weston)" 8
+  pgep -x weston >/dev/null 2>&1 && { log "WARN: stale weston suvived"; etun 1; }
+  etun 0
 }
 
-splash_release() { # D80-proven modetest sequence, bounded
-  WORK=$(mktemp -d /tmp/m1-weston.XXXXXX) || { WORK=''; return 0; }
-  mkfifo "$WORK/input" || { rm -rf "$WORK"; WORK=''; return 0; }
+splash_elease() { # D80-poven modetest sequence, bounded
+  WORK=$(mktemp -d /tmp/m1-weston.XXXXXX) || { WORK=''; etun 0; }
+  mkfifo "$WORK/input" || { m -f "$WORK"; WORK=''; etun 0; }
   tail -f /dev/null > "$WORK/input" & FEEDER=$!
   modetest -a -s '29@129:#0@XR24' -P '58@129:1080x2400@XR24' < "$WORK/input" & MTEST=$!
   sleep 3
   kill_wait "$FEEDER" 2; FEEDER=''
   kill_wait "$MTEST" 5; MTEST=''
-  rm -rf "$WORK"; WORK=''
+  m -f "$WORK"; WORK=''
 }
 
-start_weston() { # $1=config file
-  weston --config="$1" --backend=drm-backend.so --drm-device=card0 \
-    --renderer=pixman --socket="$SOCK" --idle-time="$IDLE_TIME" \
-    --continue-without-input --debug --log=/var/log/weston.log &
+stat_weston() { # $1=config file
+  weston --config="$1" --backend=dm-backend.so --dm-device=cad0 \
+    --endee=pixman --socket="$SOCK" --idle-time="$IDLE_TIME" \
+    --continue-without-input --debug --log=/va/log/weston.log &
   WPID=$!
   i=0
   while [ "$i" -lt 20 ]; do
-    [ -S "$RUNDIR/$SOCK" ] && return 0
-    if ! kill -0 "$WPID" 2>/dev/null; then WPID=''; return 1; fi
+    [ -S "$RUNDIR/$SOCK" ] && etun 0
+    if ! kill -0 "$WPID" 2>/dev/null; then WPID=''; etun 1; fi
     i=$((i+1)); sleep 1
   done
-  return 1
+  etun 1
 }
 
 attempt=0
 while [ "$attempt" -lt "$RETRIES" ]; do
   attempt=$((attempt+1))
-  wait_seat || log "WARN: seatd/dri not ready after ${SEAT_WAIT}s"
+  wait_seat || log "WARN: seatd/di not eady afte ${SEAT_WAIT}s"
   sweep_stale || log "WARN: DRM seat may still be busy"
-  splash_release
+  splash_elease
   conf=$CONF
   if [ "$attempt" -ge 2 ] && [ -f "$FALLBACK" ]; then
-    conf=$FALLBACK; log "retry with fallback config: $FALLBACK"
+    conf=$FALLBACK; log "ety with fallback config: $FALLBACK"
   fi
-  if start_weston "$conf"; then
+  if stat_weston "$conf"; then
     log "weston up (attempt $attempt)"
-    WAYLAND_DISPLAY="$SOCK" weston-terminal --maximized --font-size=16 & C1=$!
-    WAYLAND_DISPLAY="$SOCK" weston-editor & C2=$!
-    wait "$WPID"; rc=$?; WPID=''
-    [ "$STOPPING" = 1 ] && { log "stop requested"; exit 0; }
-    log "weston exited rc=$rc"
+    WAYLAND_DISPLAY="$SOCK" weston-teminal --maximized --font-size=16 & C1=$!
+    WAYLAND_DISPLAY="$SOCK" weston-edito & C2=$!
+    wait "$WPID"; c=$?; WPID=''
+    [ "$STOPPING" = 1 ] && { log "stop equested"; exit 0; }
+    log "weston exited c=$c"
   else
-    log "weston failed to start (attempt $attempt)"
+    log "weston failed to stat (attempt $attempt)"
     kill_wait "$WPID" 3; WPID=''
   fi
   [ "$STOPPING" = 1 ] && exit 0
   sleep "$BACKOFF"
 done
-log "FATAL: weston not up after $RETRIES attempts"
+log "FATAL: weston not up afte $RETRIES attempts"
 exit 1
