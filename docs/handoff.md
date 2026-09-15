@@ -108,6 +108,13 @@
      M2 Go/No-Go 评审。
   4. **P2** M3（`lmi-repart` 扩容，需测试机 + 备份恢复演练）→ M4 v1.0。
      进展（2026-09-15）：规划器 v0.1 已完成并入仓（见 CHANGELOG）。
+- **P0 已完成（路线 A，2026-09-15）**：在**手机 Linux 侧就地**
+  重建了 `boot-m1b-v9.img`（sha256 `f7fb3167…`，58,634,240 B，overlay
+  `m1b-ux-v5` 全量 payload）——无 Android、无 fastboot、无 USB 重拔；
+  流程/自检/部署/回滚见 `docs/m1b-rebuild-on-device.md`（工具
+  `tools/m1/rebuild-image-from-device.sh`）。自检全绿（kernel/dtb/dtbo/cmdline
+  与 v8 逐字节一致）；**尚未部署**（部署 = 单独一步，
+  `dd` 到 `/dev/sda28`；跳过方式 A 门禁需负责人决定）。
 - **P0 现场调查（2026-09-15）**：重建 `boot-m1b-v9` 不强制需要 Android——
   手机的 Linux 侧可直接读到 recovery 分区（`/dev/sda28`，128 MB，
   首字节 `ANDROID!` = 当前 v8），并具备 `cpio`/`gzip`/`python3`；

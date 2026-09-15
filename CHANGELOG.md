@@ -9,6 +9,13 @@
   2026-09-15 全绿）；风险台账 R1/R2 与测试计划 T2-05..07 同步更新。
   破坏性步骤仍需测试机演练 + 负责人批准（charter M3 门禁）。
 
+- 设备侧镜像重建（2026-09-15）：`tools/m1/rebuild-image-from-device.sh`
+  ——从 `recovery` 分区的当前镜像解包 kernel/DTB/cmdline/DTBO 与
+  initramfs 底座，重新打包全量 overlay，并自检（各段 sha256 与源
+  镜像一致）；无 Android/fastboot/USB 主机。首次产出
+  `boot-m1b-v9.img`（`f7fb3167…`，58,634,240 B，overlay `m1b-ux-v5`），
+  流程与部署/回滚说明：`docs/m1b-rebuild-on-device.md`。未部署。
+
 ## [Unreleased]
 
 ### Added
