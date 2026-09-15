@@ -11,3 +11,6 @@ __pycache__/
 *.pyc
 # IME data downloads (re-fetch with tools/m1/ime/fetch-data.sh)
 tools/m1/ime/data/
+
+# local, author-specific forbidden-token list (never commit real identifiers)
+tools/ci/forbidden-local.txt

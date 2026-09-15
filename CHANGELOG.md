@@ -5,6 +5,11 @@
 
 ## [Unreleased]
 
+### Added
+- **使用说明书 `docs/usage.md`**：切换系统（Magisk 一键 / 命令行 / 救援）、WiFi 连接与排障、
+  SSH 与改口令/公钥、监测台（`lmi-status` + 网页面板 + CSV 指标解读）、充电温控策略与调参、
+  CPU 降温、桌面/中文输入/按键、服务与日志速查、FAQ、安全提醒；README 索引已挂。
+
 ### Security
 - **个人信息与凭据清理**（2026-09-15）：仓库不再包含设备序列号/CPUID/证书、
   Wi-Fi SSID 与内网 IP、任何口令或口令哈希、主机路径。

@@ -35,6 +35,9 @@ Android + 真 Linux（Alpine/OpenRC + Weston）双系统方案。
 
 ## 现在能做什么
 
+> 日常怎么用（切系统、连 WiFi、看监测台、充电保护、中文输入…）见
+> **[使用说明书 docs/usage.md](docs/usage.md)**。
+
 - **Android 一键切 Linux**：Magisk 模块 `lmi-dualboot-switch`（[包与说明](packages/magisk-module/)），
   自动挑最新镜像、校验后写 BCB 重启；不一致时走带 attestation 门禁的完整流程。
 - **Linux 正常桌面**：Weston 面板（时间 + 电量）、启动器、终端、WiFi 扫描/连接 CLI。
@@ -69,6 +72,7 @@ Android + 真 Linux（Alpine/OpenRC + Weston）双系统方案。
   [系统架构](docs/architecture.md) · [风险台账](docs/risk-register.md) ·
   [测试计划](docs/test-plan.md) · [ADR-0001 启动切换机制](docs/adr/0001-boot-switch-mechanism.md)
 - [开发交接（Handoff）](docs/handoff.md) ← **新会话从这里开始**
+- [使用说明书（日常操作）](docs/usage.md) ← **装好之后看这份**
 - [复现指南（G5）](docs/reproduce.md) · [v1.0 发布说明](docs/release-v1.0.0.md) ·
   [AI 协作协议](docs/ai-protocol.md)
 

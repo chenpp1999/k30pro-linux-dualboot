@@ -140,6 +140,8 @@ recovery 内容与目标 sha256 一致 → 只写 BCB 重启（**FAST**），否
 5. **可选收尾**：观察数日后回收 super 内旧 rootfs 区、rootfs 清理 ~450 MB 构建依赖、
    电池 LED 提示、IME 第二页。
 
+> 面向使用者的日常操作手册在 [`docs/usage.md`](usage.md)（切系统/WiFi/监测台/充电/输入法）。
+
 ## 九、新会话开工清单
 
 1. `git pull --ff-only`，确认 HEAD = `origin/main`（≥ `522e42b`）。

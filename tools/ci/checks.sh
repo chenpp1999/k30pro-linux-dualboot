@@ -100,17 +100,34 @@ for f in $(scanned_scripts); do
   fi
 done
 
-echo "== 4. personal identifiers / credentials =="
-# The tree must never contain the author's device identifiers, network names or
-# credentials (SECURITY.md "凭据与隐私").  These patterns are the regression
-# guard for the 2026-09-15 scrub: extend the list instead of deleting entries.
-#   <your-password> is a *directory* name in some paths (phone-server/lmi-m0/), so it is
-#   only flagged when it appears as a credential (password context).
-FORBIDDEN='REDACTED|REDACTED|REDACTED|CMCC-[0-9]|(密码|口令|password)[^:]{0,12}<your-password>'
-hits=$(git grep -n -E "$FORBIDDEN" -- . ':(exclude)tools/ci/checks.sh' 2>/dev/null || true)
+echo "== 4. credential / identifier hygiene =="
+# Generic patterns that must never enter the tree (see SECURITY.md).  The
+# repository deliberately does NOT hard-code the author's own identifiers
+# (device serial, SSID, ...): repeating them here would re-publish them.  Put
+# yours in the untracked, gitignored tools/ci/forbidden-local.txt instead
+# (one extended-regex per line) and they are enforced locally.
+GEN='psk="[^"<$]|passphrase="[^"<$]|wpa_passphrase=[^"$]|BEGIN [A-Z ]*PRIVATE KEY|[A-Z]:\\Users\\|androidboot\.serialno=[0-9a-f]{6,}|androidboot\.cpuid=0x[0-9a-f]{4}|androidboot\.cert=[A-Z][0-9]{3}[A-Z0-9]{4}|ssid="[^"<$]'
+PAT="$GEN"
+if [ -r tools/ci/forbidden-local.txt ]; then
+	local_extra=$(grep -vE '^[[:space:]]*(#|$)' tools/ci/forbidden-local.txt | tr '\n' '|' | sed 's/|$//')
+	[ -n "$local_extra" ] && PAT="$PAT|$local_extra"
+	echo "(local forbidden list: $(grep -cvE '^[[:space:]]*(#|$)' tools/ci/forbidden-local.txt) patterns)"
+fi
+hits=$(git grep -n -E "$PAT" -- . ':(exclude)tools/ci/checks.sh' ':(exclude)tools/ci/forbidden-local.txt' 2>/dev/null || true)
+# Also scan not-yet-committed (untracked, non-ignored) files: a leak must be
+# caught before the commit, not only by CI after the push.
+for f in $(git ls-files --others --exclude-standard); do
+	case "$f" in
+	tools/ci/forbidden-local.txt|*.png|*.ttc|*.dict|*.zip|*.gz|*.img|*.bin) continue ;;
+	esac
+	if grep -a -q -E "$PAT" "$f" 2>/dev/null; then
+		hits="$hits
+$(grep -a -n -E "$PAT" "$f" 2>/dev/null | head -3 | sed "s|^|$f:|")"
+	fi
+done
 if [ -n "$hits" ]; then
 	echo "$hits"
-	echo "FOUND personal identifiers/credentials"; status=1
+	echo "FOUND credentials/identifiers"; status=1
 else
 	echo "clean"
 fi

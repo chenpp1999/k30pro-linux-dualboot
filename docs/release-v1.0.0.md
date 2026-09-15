@@ -31,7 +31,8 @@
 - Linux 侧服务与载荷：`tools/m1/m1b/**`（Weston/字体/键盘/终端/按键/WiFi/电源温控/监控）
 - weston 客户端补丁：`tools/m1/weston-patches/0001-0011` + `tools/m1/build-weston-clients.sh`
 - 中文输入法引擎与词典管线：`tools/m1/ime/**`
-- 文档：见 [README](../README.md) 文档索引；复现见 [`docs/reproduce.md`](reproduce.md)
+- 文档：见 [README](../README.md) 文档索引；复现见 [`docs/reproduce.md`](reproduce.md)；
+  **日常使用见 [`docs/usage.md`](usage.md)**（切系统 / WiFi / 监测台 / 充电温控 / 输入法）
 
 **不发布**：设备引导镜像与 rootfs（内含按设备注入的 WiFi 凭据等私有内容）。
 发布物 = 本仓库源码与文档。
