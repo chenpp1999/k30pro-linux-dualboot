@@ -87,6 +87,14 @@
   - CI 新增第 4 道防线（`tools/ci/checks.sh`）：命中已知个人信息特征即失败。
   - 政策见 `SECURITY.md` §凭据与隐私。
 
+### Fixed
+- **M1b WiFi 手册 §4 与 §0 自相矛盾**（独立验证者 issue #20）：§4 曾指示把缺
+  `recovery_dtbo` 的 `boot-m1b-v6.img` 用 `--force` 写入 recovery（必然落 fastboot）。
+  已标注为历史、指向 `docs/m2-runbook.md`，并明确 `--force` 仅限救援。
+- **隐私清理遗漏**：`docs/handoff.md` 的真实 SSID/内网 IP、M1b WiFi 证据里的
+  BSSID/本机 WiFi MAC/uuid、UX 审查里的 SSID 均已移除或占位化
+  （CI 第 4 项未覆盖这些形式；政策见 `SECURITY.md`）。
+
 ## [1.0.0] - 2026-09-15
 
 ### Added

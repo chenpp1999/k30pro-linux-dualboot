@@ -93,27 +93,33 @@ cat /var/log/cnss-daemon.log 2>/dev/null
 
 ## 3. 验收：局域网 SSH 直连（已通过）
 
-1. 记下 Linux 的 wlan0 IP：`ip -4 addr show wlan0`（DHCP；MAC 与 Android 相同
-   `7c:2a:db:01:95:59`，路由器可能复用旧租约）。
+1. 记下 Linux 的 wlan0 IP：`ip -4 addr show wlan0`（DHCP；MAC 与 Android 相同，
+   路由器可能复用旧租约）。
 2. 同网段主机 `ssh root@<wlan0 IP>`（用户 root，密码 = 构建时设置/生成的 `LMI_ROOT_PASSWORD`）。
 3. 成功后 `uname -a` 应显示 `4.19.325…aarch64 Linux`（不是 Android）。
 
 > 实测（2026-09-14）：电脑（`192.168.1.x`，同一 <SSID>）直连
 > `ssh root@192.168.1.x` 成功；USB 通道（`172.16.42.1`）同时可用。
 
-## 4. 方法 B：纯手机 recovery 引导（无需电脑）
+## 4. 方法 B：纯手机 recovery 引导（**历史：v5/v6 时代，勿再照做**）
+
+> ⚠️ 本节保留为历史记录。**`boot-m1b-v6.img` 缺 `recovery_dtbo`，写入 recovery
+> 引导必然落 fastboot（T1-03）**，见本手册 §0 与 `docs/acceptance/m2-2026-09-14.md`。
+> 当前部署请改用 [`docs/m2-runbook.md`](m2-runbook.md)：镜像必须带 `recovery_dtbo`，
+> 并且 `to-linux` 默认要求 sha256 清单 + 方式 A attestation（**不要**用 `--force`）。
 
 ```sh
-# Termux 内以 root 运行（本仓库 tools/m1/recovery-swap.sh 已部署到 Termux home）
+# 仅作历史参考（v5/v6 时代）。现请用 docs/m2-runbook.md 的流程：
+#   sh recovery-swap.sh to-linux <当前 boot-m1b-vNN.img>     # 带门禁，不带 --force
 sh recovery-swap.sh status
-sh recovery-swap.sh to-linux --force /data/local/lmi-dualboot/boot-m1b-v6.img
 ```
 
-- 该命令把 v6 写入 recovery 分区并 `reboot recovery`；回 Android 只需任意重启
-  （v6 init 在挂载 rootfs 前先清 BCB）。
+- 该命令把镜像写入 recovery 分区并 `reboot recovery`；回 Android 只需任意重启
+  （Linux init 在挂载 rootfs 前先清 BCB）。
 - **残余风险**：若镜像在清 BCB 前就崩（内核 panic），设备会反复进 recovery，
-  需要 USB 主机 `fastboot erase misc` 救援；`--force` 绕过的是"方式 A 已验证"
-  的门禁，本手册记录这一风险由操作者确认。
+  需要 USB 主机 `fastboot erase misc` 救援。
+- `--force` 只应出现在**救援**场景（跳过 sha256/attestation 门禁，会放大上述风险），
+  绝不用于常规或首次部署；见 `docs/m2-runbook.md` §3/§5。
 - 回滚：`sh recovery-swap.sh restore-twrp`（把 TWRP 写回 recovery）。
 
 ## 5. 从 Android 读 mailbox（无 USB 也能拿报告）

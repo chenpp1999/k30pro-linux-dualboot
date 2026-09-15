@@ -1,4 +1,4 @@
-bssid=a8:02:db:d3:00:d6
+bssid=<bssid>
 freq=2462
 ssid=<SSID>
 id=2
@@ -9,14 +9,14 @@ group_cipher=CCMP
 key_mgmt=WPA2-PSK
 wpa_state=COMPLETED
 ip_address=192.168.1.x
-p2p_device_address=7c:2a:db:01:95:59
-address=7c:2a:db:01:95:59
-uuid=e4d118ee-5c9e-50b5-bb7e-ef0e1ea4757b
+p2p_device_address=<wifi-mac>
+address=<wifi-mac>
+uuid=<uuid>
 ieee80211ac=1
 ---
 9: wlan0    inet 192.168.1.x/24 scope global wlan0\       valid_lft forever preferred_lft forever
 ---
-Connected to a8:02:db:d3:00:d6 (on wlan0)
+Connected to <bssid> (on wlan0)
 	SSID: <SSID>
 	freq: 2462.0
 	RX: 4592 bytes (65 packets)

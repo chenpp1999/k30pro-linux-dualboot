@@ -24,7 +24,7 @@
   （`9064c43b…`，**overlay `m1b-ux-v14`**，回读校验通过）；rootfs 在 **`/dev/sda35`（`lnx`）**。
   引导账本仍是 `boot=23`（账本只在**启动**时写），所以**下一次 Linux 启动才会把 v14 overlay 落盘**；
   当前运行态是我今天逐文件同步并验证过的（见 §六之二）。
-- **WiFi 正常**：`wlan0 up`，SSID `CX8`，`10.84.40.112/24`；`lmi-netwatch`（看门狗）在跑，
+- **WiFi 正常**：`wlan0 up`，SSID/IP 属于按机信息（**不入仓**）；`lmi-netwatch`（看门狗）在跑，
   `/run/lmi-netwatch.state` = `status=ok`。
 - **充电/温控在生效**：`lmi-chargectl` 把 SOC 控制在 70–80 % 锯齿（`/run/lmi-chargectl.state`），
   governor = `schedutil`；监控 `lmi-monitor` + 面板 `http://172.16.42.1:8080/` 正常。
