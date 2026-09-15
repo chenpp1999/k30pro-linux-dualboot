@@ -1,0 +1,111 @@
+--- clients/terminal.c
++++ clients/terminal.c
+@@ -481,6 +481,7 @@
+ 	struct zwp_text_input_manager_v1 *text_input_manager;
+ 	struct zwp_text_input_v1 *text_input;
+ 	struct wl_seat *text_input_seat;
++	xkb_mod_mask_t ti_shift_mask, ti_ctrl_mask, ti_alt_mask;
+ 	uint32_t click_time;
+ 	int dragging, click_count;
+ 	int selection_start_x, selection_start_y;
+@@ -2625,10 +2626,20 @@
+ 	struct terminal *terminal = data;
+ 	char buf[MAX_RESPONSE];
+ 	size_t len = 0;
++	xkb_mod_mask_t mods = 0;
+ 
+ 	if (state != WL_KEYBOARD_KEY_STATE_PRESSED)
+ 		return;
+ 
++	/* The protocol carries the IM's own modifiers_map bitmask; translate
++	 * it into the toytoolkit masks the rest of this file expects. */
++	if (modifiers & terminal->ti_shift_mask)
++		mods |= MOD_SHIFT_MASK;
++	if (modifiers & terminal->ti_ctrl_mask)
++		mods |= MOD_CONTROL_MASK;
++	if (modifiers & terminal->ti_alt_mask)
++		mods |= MOD_ALT_MASK;
++
+ 	switch (sym) {
+ 	case XKB_KEY_BackSpace:
+ 		buf[len++] = 0x7f;
+@@ -2644,34 +2655,57 @@
+ 			buf[len++] = 0x0a;
+ 		break;
+ 	case XKB_KEY_Delete:
+-		len = function_key_response('[', 3, modifiers, '~', buf);
++		len = function_key_response('[', 3, mods, '~', buf);
+ 		break;
+ 	case XKB_KEY_Page_Up:
+-		len = function_key_response('[', 5, modifiers, '~', buf);
++		len = function_key_response('[', 5, mods, '~', buf);
+ 		break;
+ 	case XKB_KEY_Page_Down:
+-		len = function_key_response('[', 6, modifiers, '~', buf);
++		len = function_key_response('[', 6, mods, '~', buf);
+ 		break;
+ 	case XKB_KEY_Left:
+-		len = function_key_response('[', 1, modifiers, 'D', buf);
++		len = function_key_response('[', 1, mods, 'D', buf);
+ 		break;
+ 	case XKB_KEY_Up:
+-		len = function_key_response('[', 1, modifiers, 'A', buf);
++		len = function_key_response('[', 1, mods, 'A', buf);
+ 		break;
+ 	case XKB_KEY_Right:
+-		len = function_key_response('[', 1, modifiers, 'C', buf);
++		len = function_key_response('[', 1, mods, 'C', buf);
+ 		break;
+ 	case XKB_KEY_Down:
+-		len = function_key_response('[', 1, modifiers, 'B', buf);
++		len = function_key_response('[', 1, mods, 'B', buf);
+ 		break;
+ 	case XKB_KEY_Home:
+-		len = function_key_response('[', 1, modifiers, 'H', buf);
++		len = function_key_response('[', 1, mods, 'H', buf);
+ 		break;
+ 	case XKB_KEY_End:
+-		len = function_key_response('[', 1, modifiers, 'F', buf);
++		len = function_key_response('[', 1, mods, 'F', buf);
+ 		break;
+ 	default:
+-		return;
++		/* printable keys from the OSK with a latched modifier:
++		 * Ctrl+<key> -> control bytes, Alt+<key> -> ESC prefix */
++		if (sym >= 0x20 && sym < 0x7f && (mods & MOD_CONTROL_MASK)) {
++			unsigned int c = sym;
++
++			if (c >= 'a' && c <= 'z')
++				c = c - 'a' + 1;
++			else if (c >= 'A' && c <= 'Z')
++				c = c - 'A' + 1;
++			else if (c >= '@' && c <= '_')
++				c = c - '@';
++			else if (c == '?' || c == '8')
++				c = 0x7f;
++			else
++				return;
++			buf[len++] = (char)c;
++		} else if (sym >= 0x20 && sym < 0x7f && (mods & MOD_ALT_MASK)) {
++			if (terminal->mode & MODE_ALT_SENDS_ESC)
++				buf[len++] = 0x1b;
++			buf[len++] = (char)sym;
++		} else {
++			return;
++		}
++		break;
+ 	}
+ 	if (len > 0)
+ 		terminal_write(terminal, buf, len);
+@@ -2692,6 +2726,11 @@
+ text_input_modifiers_map(void *data, struct zwp_text_input_v1 *text_input,
+ 			 struct wl_array *map)
+ {
++	struct terminal *terminal = data;
++
++	terminal->ti_shift_mask = keysym_modifiers_get_mask(map, "Shift");
++	terminal->ti_ctrl_mask = keysym_modifiers_get_mask(map, "Control");
++	terminal->ti_alt_mask = keysym_modifiers_get_mask(map, "Mod1");
+ }
+ 
+ static void

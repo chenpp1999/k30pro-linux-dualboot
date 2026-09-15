@@ -222,3 +222,24 @@
 - 另：本次曾用 WSL/alpine 环境编译终端 → 手机段错误（与之前同样的库不匹配
   问题）→ 已在 `tools/m1/ime/README.md` 明确：**必须手机原生编译**，WSL 产物
   不可用；仓库内二进制已全部换成手机原生构建。
+
+### 6.7 OSK 快捷键栏（2026-09-15）
+
+- **需求**：无硬件键盘时 Esc/Ctrl/Tab 不可达；用户要求"一栏快捷键 + Ctrl/Alt 可锁定",
+  按下修饰键再按英文键即可发快捷键（如 Ctrl+C）。
+- **实现**（补丁 0009 keyboard + 0010 terminal）：
+  - 每个布局底部加一行 12 键（不用滚动，正好 540）：`Esc Tab Ctrl Alt ← ↑ ↓ → Home End PgUp PgDn`；
+  - Ctrl/Alt 为**latch**：点按=one-shot（下一个键生效后自动释放并清除高亮）、
+    再点=取消、300ms 内双击=锁定（深蓝高亮）、锁定后点按=解锁（锁定时高亮浅蓝）；
+  - 有 latch 时按字母/符号 → 走 `zwp_input_method_context_v1_keysym(..., modifiers)`
+    而不是 commit_string（拼音页同样生效，Ctrl+字母可直接发控制键）；
+  - 终端侧解析 IM 的 `modifiers_map`（修掉一处真实掩码错位：协议 Ctrl=0x2/Alt=0x4
+    与 toytoolkit MOD_* 相反），并把 (keysym, mods) 翻译成 pty 字节：Ctrl+字母=0x01-0x1A、
+    Ctrl+符号、Alt+字母=ESC 前缀、方向/Home/End/PgUp/PgDn 的 CSI 带修饰序列。
+- **调研**：`docs/research/ux-osk-shortcuts-2026-09-15.md`（键位优先级、latch 语义、
+  滚动取舍、xterm 字节表、协议能力边界）。
+- **边界**：IM 注入不经过 compositor 的 `notify_key`，因此 Alt+Tab、Super+Tab、
+  Ctrl+Alt+F1 这类**合成器绑定不可实现**（只对聚焦客户端生效）；首版不含滚动
+  （12 键正好放下）、不含长按连发。
+- **验证**：快捷键栏在拼音/英文布局都渲染正常；Ctrl 高亮 latch；终端里
+  Ctrl+C 中断前台进程（截图见 `^C` 与提示符恢复）。

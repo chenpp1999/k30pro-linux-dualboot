@@ -34,6 +34,31 @@ ROWS = {
     "lang": (1, 0.5), "sym": (1, 10.5),
     "num": (2, 0.5), "back": (2, 8.5), "enter": (2, 10.5),
     "comma": (3, 0.5), "space": (3, 4.5), "dot": (3, 8.5), "dun": (3, 10.5),
+    # shortcut bar (row 4 = below the key grid, one key per column)
+    "esc": (4, 0.5), "tab": (4, 1.5), "ctrl": (4, 2.5), "alt": (4, 3.5),
+    "left": (4, 4.5), "up": (4, 5.5), "down": (4, 6.5), "right": (4, 7.5),
+    "home": (4, 8.5), "end": (4, 9.5), "pgup": (4, 10.5), "pgdn": (4, 11.5),
+}
+
+# the stock latin layout has a different grid (tab/Enter on the a-row,
+# symbols/space/arrows/language on the last row, ABC switch keys)
+ROWS_LATIN = {
+    "q": (0, 0.5), "w": (0, 1.5), "e": (0, 2.5), "r": (0, 3.5), "t": (0, 4.5),
+    "y": (0, 5.5), "u": (0, 6.5), "i": (0, 7.5), "o": (0, 8.5), "p": (0, 9.5),
+    "back": (0, 10.5),
+    "tab": (1, 0.5),
+    "a": (1, 1.5), "s": (1, 2.5), "d": (1, 3.5), "f": (1, 4.5), "g": (1, 5.5),
+    "h": (1, 6.5), "j": (1, 7.5), "k": (1, 8.5), "l": (1, 9.5),
+    "enter": (1, 10.5),
+    "z": (2, 2.5), "x": (2, 3.5), "c": (2, 4.5), "v": (2, 5.5), "b": (2, 6.5),
+    "n": (2, 7.5), "m": (2, 8.5), "comma": (2, 9.5), "dot": (2, 10.5),
+    "sym": (3, 0.5), "space": (3, 3.5),
+    "al": (3, 6.5), "au": (3, 7.5), "ar": (3, 8.5), "ad": (3, 9.5),
+    "lang": (3, 10.5),
+    # the shortcut bar is identical in every layout
+    "esc": (4, 0.5), "tab": (4, 1.5), "ctrl": (4, 2.5), "alt": (4, 3.5),
+    "left": (4, 4.5), "up": (4, 5.5), "down": (4, 6.5), "right": (4, 7.5),
+    "home": (4, 8.5), "end": (4, 9.5), "pgup": (4, 10.5), "pgdn": (4, 11.5),
 }
 STRIP_Y = 0.5
 OUTPUT_SCALE = 2.0  # lmi panel: 540x1200 logical at scale 2
@@ -56,6 +81,11 @@ def scene_geometry():
 
 def main():
     keys = sys.argv[1:]
+    rows = ROWS
+    if keys and keys[0] in ("--latin", "--pinyin"):
+        if keys[0] == "--latin":
+            rows = ROWS_LATIN
+        keys = keys[1:]
     if not keys:
         print(__doc__)
         return 2
@@ -66,7 +96,8 @@ def main():
     x1, y1, w_logical, h_logical = geom
     if w_logical != 540:
         print(f"kbd-tap: unexpected panel width {w_logical}")
-    strip = 50 if h_logical >= 240 else 0
+    # pinyin page = 300 (50 strip + 5 rows), latin page = 250 (5 rows)
+    strip = 50 if h_logical >= 290 else 0
     taps = []
     for key in keys:
         if key.startswith("cand"):
@@ -76,8 +107,8 @@ def main():
             lx, ly = 495, STRIP_Y
         elif key == "next":
             lx, ly = 525, STRIP_Y
-        elif key in ROWS:
-            row, col = ROWS[key]
+        elif key in rows:
+            row, col = rows[key]
             lx, ly = col * 45, strip + (row + 0.5) * 50
         else:
             print(f"kbd-tap: unknown key {key}")

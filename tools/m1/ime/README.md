@@ -123,3 +123,30 @@ applies `apply-keyboard-pinyin.py`, diffs).
 (`tools/m1/build-weston-clients.sh`).  Binaries built in the WSL/alpine proot
 hobble toward a different musl/userland and can SIGSEGV on the phone (the
 terminal did exactly that on 2026-09-15); only device builds are shipped.
+
+## Shortcut bar (patch 0009 + 0010)
+
+One extra row at the bottom of every layout (12 keys, no scrolling):
+
+    Esc  Tab  Ctrl  Alt  <- up down ->  Home  End  PgUp  PgDn
+
+* `Ctrl`/`Alt` latch: tap = one-shot (released after the next key), tap again =
+  cancel, double tap (300 ms) = lock (dark highlight), tap when locked =
+  unlock (light highlight while latched)
+* with a latched modifier, letter/symbol keys are sent as
+  `zwp_input_method_context_v1_keysym(..., modifiers)` instead of
+  `commit_string` (works on the pinyin page too, e.g. Ctrl+C while composing)
+* the terminal parses the IM's `modifiers_map` (fixes a real Ctrl/Alt mask
+  swap: protocol Control=0x2/Mod1=0x4 vs toytoolkit MOD_*) and maps
+  (keysym, mods) to pty bytes: Ctrl+letter = 0x01-0x1A, Alt+letter = ESC
+  prefix, arrows/Home/End/PgUp/PgDn = CSI with the xterm modifier parameter
+* compositor bindings (Alt+Tab, Super+Tab, Ctrl+Alt+F1) are **not**
+  deliverable: IM keysym injection bypasses `notify_key`
+* no swipe/scroll and no key repeat in v1 (12 keys fit exactly); see
+  `docs/research/ux-osk-shortcuts-2026-09-15.md` for the design space
+
+Dev tool note: `tools/m1/dev/kbd-tap.py` maps keys for both pages
+(`--pinyin` default, `--latin`); its coordinates come from the live scene
+graph, but the keyboard *state* (layout, upper/lower case, sticky ABC) must
+match the flags you pass - mismatched state is the usual reason a scripted
+"typing" test looks wrong.
