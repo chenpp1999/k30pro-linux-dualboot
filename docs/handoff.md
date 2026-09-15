@@ -106,7 +106,11 @@
      （cursor theme、WiFi 配置脚本、低电提示、kiosk 模式开关）。
   3. **P1** M2 遗留：T2-01/T1-04 重启回归、G2 标准修订（20 轮 vs 已做 5 轮）、
      M2 Go/No-Go 评审。
-  4. **P2** M3（`lmi-repart` 扩容，需测试机 + 备份恢复演练）→ M4 v1.0。
+  4. **P2** M3（`lmi-repart` 扩容）——**已完成（2026-09-15，本机实施）**：
+     userdata 107→91 GiB + 新建 `lnx` 16 GiB；rootfs 已迁移到 `lnx` 并从其启动（账本
+     `root=/dev/sda35`）；新镜像 `boot-m1b-v10.img`（`4cd59700…`）已部署 recovery。
+     验收 `docs/acceptance/m3-2026-09-15.md`（含审计结论）；遗留：Android 侧确认、
+     super 旧区回收、风险台账 R1/R2 关闭。后续 → M4 v1.0。
      进展（2026-09-15）：规划器 v0.1 已完成并入仓（见 CHANGELOG）。
 - **P0 已完成（路线 A，2026-09-15）**：在**手机 Linux 侧就地**
   重建了 `boot-m1b-v9.img`（sha256 `f7fb3167…`，58,634,240 B，overlay

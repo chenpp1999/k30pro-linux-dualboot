@@ -29,6 +29,14 @@
   扇区 2244020（`lmi_root_off` 是相对 super 分区的，已实测 ext4 魔数）；
   新增回归断言与 `docs/m3-repart-plan.md` §4b。
 
+- M3 扩容实施完成（2026-09-15，本机）：userdata 107→91 GiB（PARTUUID/名字
+  保留）+ 新建 `lnx` 16 GiB；rootfs 迁移到 `lnx` 并从该分区启动
+  （账本 `root=/dev/sda35`）。init 改为按 GPT PARTNAME 优先挂 `lnx`（保留
+  super 偏移回退）；新镜像 `boot-m1b-v10.img`（`4cd59700…`）已部署。
+  审计避免了一次数据丢失（`resize.f2fs` 必须 `-s`；`lmi_root_off` 是
+  相对 super 的偏移；`-t` 单位是设备扇区）。验收：
+  `docs/acceptance/m3-2026-09-15.md`。Android 侧待确认。
+
 ## [Unreleased]
 
 ### Added

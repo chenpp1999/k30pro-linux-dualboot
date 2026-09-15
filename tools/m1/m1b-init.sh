@@ -58,6 +58,17 @@ done
 # whitelisted fallback node (lmi super = sda32, docs/architecture.md §2)
 [ -n "$SUPER" ] || SUPER=/dev/sda32
 
+# M3: prefer the dedicated `lnx` partition (created by tools/m3/lmi-repart.sh),
+# where the rootfs image lives directly at partition offset 0.  Falls back to
+# the super free-space layout when the partition is absent.
+ROOT_DEV=""
+for b in /sys/class/block/sda*; do
+  if $BB grep -q "^PARTNAME=lnx$" "$b/uevent" 2>/dev/null; then
+    ROOT_DEV="/dev/$($BB basename "$b")"
+    break
+  fi
+done
+
 mbox() {
   # usage: mbox <section>   (body on stdin)
   sec=$1
@@ -136,20 +147,29 @@ echo "super device: $SUPER"
 # port 22 into the persistent system (issue found on the v1/v2 attempts).
 [ -e /dev/loop0 ] || $BB mknod /dev/loop0 b 7 0
 OFFSET=$((ROOT_OFF_BLOCKS * 4096))
-if ! $BB losetup -o "$OFFSET" /dev/loop0 "$SUPER"; then
-  echo "FATAL: losetup failed (offset=$OFFSET)"
-  printf 'init: FATAL losetup failed offset=%s super=%s\n' "$OFFSET" "$SUPER" | mbox init
-  /usr/sbin/dropbear -R -p 22 2>/dev/null
-  while true; do $BB sleep 3600; done
+ROOT_SOURCE=""
+if [ -n "$ROOT_DEV" ] && $BB mount -t ext4 -o rw "$ROOT_DEV" /newroot; then
+  echo "persistent rootfs mounted from $ROOT_DEV (M3 lnx partition)"
+  printf 'init: mounted lnx rootfs from %s\n' "$ROOT_DEV" | mbox init
+  ROOT_SOURCE="$ROOT_DEV"
+else
+  [ -n "$ROOT_DEV" ] && echo "WARN: $ROOT_DEV mount failed; falling back to super offset"
+  if ! $BB losetup -o "$OFFSET" /dev/loop0 "$SUPER"; then
+    echo "FATAL: losetup failed (offset=$OFFSET)"
+    printf 'init: FATAL losetup failed offset=%s super=%s\n' "$OFFSET" "$SUPER" | mbox init
+    /usr/sbin/dropbear -R -p 22 2>/dev/null
+    while true; do $BB sleep 3600; done
+  fi
+  if ! $BB mount -t ext4 -o rw /dev/loop0 /newroot; then
+    echo "FATAL: mount ext4 failed (loop0@$SUPER offset=$OFFSET)"
+    printf 'init: FATAL ext4 mount failed offset=%s super=%s\n' "$OFFSET" "$SUPER" | mbox init
+    $BB losetup -d /dev/loop0 2>/dev/null
+    /usr/sbin/dropbear -R -p 22 2>/dev/null
+    while true; do $BB sleep 3600; done
+  fi
+  echo "persistent rootfs mounted ($SUPER offset=$OFFSET)"
+  ROOT_SOURCE="$SUPER offset=$OFFSET"
 fi
-if ! $BB mount -t ext4 -o rw /dev/loop0 /newroot; then
-  echo "FATAL: mount ext4 failed (loop0@$SUPER offset=$OFFSET)"
-  printf 'init: FATAL ext4 mount failed offset=%s super=%s\n' "$OFFSET" "$SUPER" | mbox init
-  $BB losetup -d /dev/loop0 2>/dev/null
-  /usr/sbin/dropbear -R -p 22 2>/dev/null
-  while true; do $BB sleep 3600; done
-fi
-echo "persistent rootfs mounted ($SUPER offset=$OFFSET)"
 
 # --- one-shot rootfs overlay (persistent, applied before switch_root) ---
 OVERLAY="/m1b-overlay.tar.gz"
@@ -191,8 +211,9 @@ COUNT=0
 [ -r "$LEDGER_MARK" ] && read -r COUNT < "$LEDGER_MARK" 2>/dev/null
 COUNT=$((COUNT + 1))
 printf '%s\n' "$COUNT" > "$LEDGER_MARK"
-printf '%s boot=%s kernel=%s bcb=%s overlay=%s\n' \
+printf '%s boot=%s kernel=%s bcb=%s overlay=%s root=%s\n' \
   "$($BB date -u '+%Y-%m-%dT%H:%M:%SZ')" "$COUNT" "$($BB uname -r)" "${BCB:-none}" "$OVERLAY_RESULT" \
+  "$ROOT_SOURCE" \
   >> "$LEDGER_DIR/m1b-boots.log"
 $BB sync
 
