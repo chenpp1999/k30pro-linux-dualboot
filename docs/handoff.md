@@ -27,8 +27,9 @@
 - **监控在跑**：`lmi-monitor`（60 s 采样 → `/run/lmi-monitor/latest`，CSV 落 `/var/log/lmi-monitor/`），
   LAN 面板 `http://172.16.42.1:8080/`（python3 回退服务器）。`lmi-status` 可命令行查看。
 - **镜像清单**（`/root/m1b-rebuild/`）：
-  - `boot-m1b-v13.img` = 当前部署（`e4684d05…`，overlay v7）
-  - `boot-m1b-v11.img`（含 .sha256，也导出到 Android `/sdcard/Download/phone-server/lmi-m1b/`）
+  - `boot-m1b-v14.img` = 当前部署（`44cc3b27…`，overlay v7，**initramfs 救援口令已轮换**）
+  - `boot-m1b-v13.img`（含旧口令哈希，勿分发；出于安全已不再部署）
+  - `boot-m1b-v11.img`（含 .sha256，也导出到 Android `/sdcard/Download/phone-server/lmi-m1b/`；同样含旧哈希，勿分发）
   - `boot-m1b-v9b.img`（旧回滚点）
   - 回滚 = `dd` 任一旧镜像回 `/dev/sda28`（`rollback-v12.img` 视需要重建）
 - **Android 侧**：Magisk 模块 `lmi-dualboot-switch` v0.2 已激活（可在 Android 一键切 Linux）；
@@ -107,9 +108,12 @@ recovery 内容与目标 sha256 一致 → 只写 BCB 重启（**FAST**），否
 12. `od` 缩写重复行 → 定长数据必须 `od -An -v -tx1`；fastboot/TWRP 后常需重插 USB；
     NCM 启动到 SSH 偶发 6–10 分钟（轮询超时给 ≥5 分钟）。
 13. **Magisk 覆盖 init `.rc` 无效**（init 解析早于 Magisk 挂载）。
-14. 改 overlay 后**别忘了 bump 版本号**：`tools/m1/m1b-init.sh` 的 `OVERLAY_VERSION` 与
+14. **凭据不得入库**：仓库/镜像里不允许出现任何真实口令、哈希、SSID、设备标识
+    （CI `tools/ci/checks.sh` 第 4 项会拦）。构建时用 `LMI_ROOT_PASSWORD` 或随机生成；
+    重建镜像换救援口令用 `--root-password` / `--random-root-password`；政策见 `SECURITY.md`。
+15. 改 overlay 后**别忘了 bump 版本号**：`tools/m1/m1b-init.sh` 的 `OVERLAY_VERSION` 与
     `tools/m1/rebuild-image-from-device.sh` 的默认 `VERSION`（应用是一次性的，靠版本号判断）。
-15. 开工前检查 open issues，`[VFY]` 开头 = 独立验证者产出，按 `docs/ai-protocol.md` 只能
+16. 开工前检查 open issues，`[VFY]` 开头 = 独立验证者产出，按 `docs/ai-protocol.md` 只能
     评论 `Resolved-by:`/`Rejected:`。
 
 ## 七、开发环境与通道

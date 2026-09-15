@@ -3,6 +3,21 @@
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与
 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### Security
+- **个人信息与凭据清理**（2026-09-15）：仓库不再包含设备序列号/CPUID/证书、
+  Wi-Fi SSID 与内网 IP、任何口令或口令哈希、主机路径。
+  - 构建脚本改为"构建时随机生成或由 `LMI_ROOT_PASSWORD` 指定"（salt 由口令派生，
+    保持可复现）；`lmi-wifi-join` 不再接受硬编码网络。
+  - **全部 Git 历史已重写**（`git filter-repo`，含标签）并强推；旧的不可达提交
+    在 GitHub 侧仍需人工申请回收，因此**凭据一律按已泄露处理并已轮换**：
+    root 口令、部署镜像的 initramfs 救援口令均已更换。
+  - `tools/m1/rebuild-image-from-device.sh` 新增 `--root-password` /
+    `--random-root-password`：救援口令不再随镜像固定。
+  - CI 新增第 4 道防线（`tools/ci/checks.sh`）：命中已知个人信息特征即失败。
+  - 政策见 `SECURITY.md` §凭据与隐私。
+
 ## [1.0.0] - 2026-09-15
 
 ### Added

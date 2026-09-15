@@ -22,6 +22,10 @@
 #     --out <name>         output file name (default boot-m1b-v9.img)
 #     --work <dir>         work dir (default /root/m1b-rebuild)
 #     --mkbootimg <file>   mkbootimg.py (default: PATH lookup)
+#     --root-password <pw> set the initramfs rescue root password (SHA-512)
+#     --random-root-password
+#                          generate a strong random rescue root password and
+#                          print it once (recommended: never ship a fixed one)
 #     --no-roundtrip       skip the unpack/repack round-trip proof
 #     --dry-run            only size and validate the source
 #
@@ -40,10 +44,21 @@ WORK=/root/m1b-rebuild
 MKBOOTIMG=
 ROUNDTRIP=1
 DRY=0
+NEWPW=
+RANDPW=0
 
 die() { echo "FATAL: $*" >&2; exit 1; }
 info() { echo "$*"; }
 sha() { sha256sum "$1" | awk '{print $1}'; }
+
+# SHA-512 crypt via python3 (Alpine 3.12 still has the crypt module) with a
+# busybox fallback.  The salt is derived from the password, so rebuilding with
+# the same --root-password yields the same hash (reproducible builds).
+hash_pw() {
+	_salt=$(printf '%s' "$1" | sha256sum | cut -c1-16)
+	python3 -c 'import crypt,sys; print(crypt.crypt(sys.argv[1], "$6$"+sys.argv[2]+"$"))' "$1" "$_salt" 2>/dev/null ||
+		busybox cryptpw -m sha512 -S "$_salt" "$1"
+}
 
 while [ $# -gt 0 ]; do
 	case "$1" in
@@ -55,6 +70,8 @@ while [ $# -gt 0 ]; do
 	--out) OUT=$2; shift 2;;
 	--work) WORK=$2; shift 2;;
 	--mkbootimg) MKBOOTIMG=$2; shift 2;;
+	--root-password) NEWPW=$2; shift 2;;
+	--random-root-password) RANDPW=1; shift;;
 	--no-roundtrip) ROUNDTRIP=0; shift;;
 	--dry-run) DRY=1; shift;;
 	-h|--help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
@@ -216,6 +233,31 @@ mkdir -p "$WORK/unpacked/ramdisk-tree"
 	die "ramdisk has no busybox/shell - not the M1b initramfs?"
 
 mkdir -p "$WORK/empty-tree"
+
+# --- initramfs rescue password --------------------------------------------
+# The ramdisk carries its own /etc/shadow (the dropbear that m1b-init starts
+# when the rootfs cannot be mounted).  A fixed/hard-coded hash must never be
+# shipped: generate a random one, or set the caller's.
+RD=$WORK/unpacked/ramdisk-tree
+if [ "$RANDPW" = 1 ] && [ -z "$NEWPW" ]; then
+	NEWPW=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | cut -c1-16)
+	info "generated rescue root password (save it now): $NEWPW"
+fi
+if [ -n "$NEWPW" ]; then
+	[ -f "$RD/etc/shadow" ] || die "ramdisk has no etc/shadow to patch"
+	hashash=$(hash_pw "$NEWPW") || die "could not compute a SHA-512 hash"
+	[ -n "$hashash" ] || die "empty hash"
+	if grep -q '^root:' "$RD/etc/shadow"; then
+		awk -v h="$hashash" 'BEGIN{FS=OFS=":"} $1=="root"{$2=h; $3=19000} {print}' \
+			"$RD/etc/shadow" > "$RD/etc/shadow.new" || die "shadow rewrite failed"
+	else
+		printf 'root:%s:19000:0:99999:7:::\n' "$hashash" > "$RD/etc/shadow.new"
+	fi
+	mv "$RD/etc/shadow.new" "$RD/etc/shadow"
+	chmod 600 "$RD/etc/shadow"
+	info "initramfs rescue root password updated"
+fi
+
 info "overlay: full payload from $TREE as $VERSION (empty baseline)"
 # build-m1b-image.sh generates the overlay itself when a baseline is given and
 # deletes any pre-existing m1b-overlay.tar.gz in the initramfs dir, so the
