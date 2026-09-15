@@ -1,4 +1,4 @@
-# 开发交接（Handoff）— 2026-09-14
+# 开发交接（Handoff）— 2026-09-15
 
 > 给接手本项目的 AI 会话/开发者：按 `AGENTS.md` → `docs/ai-protocol.md` → 本文 的顺序阅读，
 > 再按需深入 `docs/` 其他文档。所有结论以仓库与 `/root/SERVER_NOTES.md`（第 14、15 节）为准，
@@ -12,6 +12,7 @@
 | M1a | ✅ 完成 | Alpine+Weston RAM 全量 bring-up（触摸+虚拟键盘）；`docs/m1a-ramboot.md`、证据 `docs/acceptance/m1a-2026-09-14/` |
 | M1b | ✅ 已验收（2026-09-14） | 持久 rootfs（super 空闲区）+ WiFi 直连 + 持久化 3 轮 + USB/局域网 SSH；`docs/acceptance/m1b-2026-09-14.md` |
 | M2 | 🚧 v0.1 实机验收完成（部分标准） | 双向切换器；T1-03 完成并修复 recovery 引导缺陷（v7）；T2-02 5 轮零失败（负责人决定提前结束）；`docs/acceptance/m2-2026-09-14.md` |
+| Linux UX（issue #17） | 🚧 Phase 1/2 已完成并实机验证 | overlay `m1b-ux-v5` 内容已入仓（时间/RTC、CJK 字体、桌面、按键/息屏、OSK 中文输入 + 快捷键栏）；**尚未重建镜像（v9）**；`docs/linux-ux-plan-2026-09-14.md`、audit §6 |
 | M3/M4 | ⬜ | 见 `docs/charter.md` |
 
 ## 二、M1b 现状（收尾项的起点）
@@ -78,17 +79,39 @@
      `docs/acceptance/m2-2026-09-14.md`。
   4. 最终状态：手机在 Android（默认）；`recovery` = `boot-m1b-v7.img`（回读
      校验通过）；BCB 空；`boot` 分区 sha256 `8d441fc5…` 全程未变。
-- **下一阶段：Linux UX 优化（2026-09-14 起，追踪 issue #17）**：
+- **Linux UX 优化（2026-09-15 会话完成 Phase 1 + Phase 2，追踪 issue #17）**：
   审查 `docs/linux-ux-audit-2026-09-14.md`；计划 `docs/linux-ux-plan-2026-09-14.md`；
-  5 份调研报告 `docs/research/ux-2026-09-14/`。
-  已完成（live 验证，待入 overlay）：weston 面板终端启动器 + 自绘图标（文件已入仓）。
-  Phase 1（配置级）：时间（NTP/RTC/时区）、CJK 字体（wqy-zenhei）、黑化桌面 +
-  24h 时钟、m1-weston/init 重启修复 → overlay `m1b-ux-v3` → 重建 `boot-m1b-v8.img`。
-  Phase 2（源码级）：补丁 weston-keyboard 布局（符号/Esc/Ctrl）与 weston-terminal
-  text-input（当前 OSK 打不进终端）。
-- **下一步（建议）**：标准修订（G2/T2-02 轮数）→ M2 Go/No-Go → 执行 UX
-  Phase 1（需负责人确认）；遗留：T2-01（30 次重启）、T1-04（100 次重启回归）、
-  Magisk 模块实机安装、Linux 启动耗时波动观察。
+  调研 `docs/research/ux-2026-09-14/`（5 份）+ `docs/research/ux-ime-2026-09-15.md`
+  + `docs/research/ux-osk-shortcuts-2026-09-15.md`。**全部资产已入仓并实机验证**：
+  - Phase 1（overlay v3/v4 → `boot-m1b-v8.img`，已部署 recovery）：时间（NTP/swclock/
+    时区）、CJK 字体（wqy-zenhei）、桌面面板 + 24h 时钟 + 启动器、weston 合成卡死规避
+    （禁用 background/panel-color/wallpaper）、`m1-weston`/init 重启加固。
+  - Phase 2a 按键/息屏：`tools/m1/lmi-keys.c`（音量键→背光 10%、电源键开关屏、
+    空闲灭背光，`-t 300`）+ `m1-weston IDLE_TIME=300`。
+  - Phase 2b OSK 源码补丁（`tools/m1/weston-patches/0001-0010`，设备内原生构建，
+    `tools/m1/build-weston-clients.sh`）：终端 text-input v1、符号/宽度/立即提交、
+    退格；**中文拼音页 + 候选条**（引擎 `tools/m1/ime/`，词典 221 KB：431 音节/
+    19631 字/18130 词，数据源 pinyin-data/rime/CC-CEDICT）；终端 `delete_surrounding_text`；
+    **快捷键栏**（Esc/Tab/Ctrl/Alt/方向/Home/End/PgUp/PgDn，Ctrl/Alt latch + 双击锁定，
+    终端解析 modifiers_map 并翻译 Ctrl/Alt 组合）。
+  - 基础设施：设备内原生构建流程、`tools/m1/dev/lmi-inject.py` + `kbd-tap.py`
+    （uinput 注入测试）、词典生成管线（fetch-data/gen-dict/check-dict + make-patch）。
+  - 验证：中文输入端到端（nihao→你好 上屏终端）、退格、Ctrl+C 中断前台进程、
+    Ctrl latch 高亮、候选翻页 `1/4`。
+- **下一步（建议，2026-09-15）**：
+  1. **P0** 回 Android 做仓库同步 → 重建 **`boot-m1b-v9`**（overlay `m1b-ux-v5`：
+     含 IME 词典 + 快捷键版二进制）→ 方法 A 验证 → 部署 recovery + attestation →
+     写 UX 验收记录（把中文输入/快捷键/息屏/音量键加入 UX1 清单）。
+  2. **P1** IME 迭代（第二页 Del/Ins/F1-F12、模糊音、长按备选、滑动）+ 小 UX
+     （cursor theme、WiFi 配置脚本、低电提示、kiosk 模式开关）。
+  3. **P1** M2 遗留：T2-01/T1-04 重启回归、G2 标准修订（20 轮 vs 已做 5 轮）、
+     M2 Go/No-Go 评审。
+  4. **P2** M3（`lmi-repart` 扩容，需测试机 + 备份恢复演练）→ M4 v1.0。
+- **2026-09-15 设备当前状态**：手机在 **Linux**（`boot-m1b-v8` 从 recovery 启动，
+  overlay v4 已应用）；rootfs 内已 live 安装最新 `weston-keyboard`/`weston-terminal`
+  （含 IME + 快捷键栏）与 `/usr/share/lmi/ime/pinyin.dict`；`lmi-keys`/`ntpd` 开机自启；
+  rootfs 用量约 780 MB（其中构建依赖约 450 MB 可清理）；Termux 侧仓库未同步到最新
+  （回 Android 后需 `git pull`）。
 
 ## 三、M2 设计要点（照 `docs/adr/0001-boot-switch-mechanism.md`；追踪 issue #15）
 
@@ -178,23 +201,28 @@
 本仓库刻意不依赖会话记忆：新会话拿到仓库 + 下列三步即可完整接手。
 
 1. **同步**：电脑侧 `git pull --ff-only`；手机侧仓库（`/root/work/k30pro-linux-dualboot/`）
-   同样先 pull（GitHub 不稳时用 `git bundle` + scp，见 §四）。当前 tip ≥ `3701751`
-   （T1-03 修复；本次验收文档提交在其后，以 `git log` 为准）。
+   同样先 pull（GitHub 不稳时用 `git bundle` + scp，见 §四）。当前 tip ≥ `1f9b83a`
+   （2026-09-15 UX/IME/快捷键会话；以 `git log` 为准）。
 2. **阅读顺序**：`AGENTS.md` → `docs/ai-protocol.md` → 本文 → 按任务进
-   `docs/acceptance/m2-2026-09-14.md` / `docs/m2-runbook.md` /
-   `docs/m1b-persistent.md` / `docs/m1b-wifi-runbook.md`。
+   `docs/acceptance/m2-2026-09-14.md` / `docs/linux-ux-plan-2026-09-14.md` /
+   `docs/linux-ux-audit-2026-09-14.md`（§6 为 UX/IME 实测结论）/ `tools/m1/ime/README.md`
+   / `docs/m2-runbook.md` / `docs/m1b-persistent.md` / `docs/m1b-wifi-runbook.md`。
 3. **开工前检查**：open issues（`[VFY]` 开头 = 独立验证者产出，按协议评论
    `Resolved-by:`）；`git log --oneline -10` 对照本文"下一步"。
+4. **重要环境约束（2026-09-15 新增）**：weston 客户端（keyboard/terminal）**必须
+   在设备内原生编译**（`tools/m1/build-weston-clients.sh`）；WSL/alpine/proot 产出的
+   二进制在手机上会 SIGSEGV（库不匹配）；镜像构建（mkbootimg）仍在手机 Debian proot 内
+   （`tools/m1/build-m1b-image.sh`，需 Android 侧）。
 
 可直接粘贴给新会话的交接提示词：
 
 > 你在开发仓库 `k30pro-linux-dualboot`（Redmi K30 Pro 双系统）。
 > 先读 `AGENTS.md` → `docs/ai-protocol.md` → `docs/handoff.md`，然后 `git pull`
-> 并确认 HEAD 与 `origin/main` 一致（≥ `3701751`）。
-> 当前状态：M0/M1（含 M1b）已实机验收；M2 v0.1 已实机验收（T1-03 完成，修复
-> recovery 引导缺陷 → `boot-m1b-v7.img` 部署在 recovery；T2-02 5 轮零失败；
-> 故障场景/TWRP 演练全过；见 `docs/acceptance/m2-2026-09-14.md`）。手机当前在
-> Android（默认）；BCB 空；`boot` 分区未动。
-> 任务：先读验收记录与 handoff §二/§三 的遗留项（标准修订、T2-01/T1-04、Magisk
-> 模块实机、Linux 启动耗时观察），与负责人确认 M2 Go/No-Go 后再进入 M3。
+> 并确认 HEAD 与 `origin/main` 一致（≥ `1f9b83a`）。
+> 当前状态：M0/M1（含 M1b）已实机验收；M2 v0.1 已实机验收（T1-03 完成 →
+> `boot-m1b-v7`；T2-02 5 轮零失败；故障/TWRP 演练全过）。2026-09-15 完成 Linux UX
+> Phase 1/2 + 中文拼音输入法 + OSK 快捷键栏（资产已入仓，实机验证），但**尚未重建
+> 镜像**（overlay `m1b-ux-v5` → 待建 `boot-m1b-v9`）；手机当前在 Linux。
+> 任务优先级：P0 回 Android 同步 → 构建 v9 → 方法 A 验证 + 部署 + attestation +
+> UX 验收记录；P1 IME 迭代与 M2 遗留（T2-01/T1-04、标准修订、Go/No-Go）；P2 M3。
 > 收到后先复述计划再动手。
