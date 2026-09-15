@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  # Safety net (issue #18): every run so far was manual workflow_dispatch --
+  # push events never created a run (likely the push credential suppresses
+  # workflow events). A daily schedule keeps CI honest without relying on
+  # anyone remembering to dispatch it.
+  schedule:
+    - cron: '23 2 * * *'
 
 jobs:
   lint:

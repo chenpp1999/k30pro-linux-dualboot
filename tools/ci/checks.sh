@@ -4,6 +4,9 @@
 #   1. Markdown local link check
 #   2. Destructive scripts (dd ... of=) must offer --dry-run
 #   3. Hardcoded /dev/sd* nodes only allowed in the documented whitelist
+#
+# The whitelists are heuristics: any new tool must either satisfy the rule or
+# be added here WITH a written justification (issue #18).
 set -u
 
 status=0
@@ -32,13 +35,17 @@ fi
 rm -f "$broken"
 
 echo "== 2. destructive scripts must offer --dry-run =="
-# Ram boot init scripts are exempt: their only write is the documented one-shot
-# BCB clear (ADR-0001), gated by design, not an operator-run deployment.
-DRY_EXEMPT="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh"
+# Exemptions (each with a written justification):
+#   ramboot init scripts : only write is the one-shot BCB clear (ADR-0001)
+#   tools/m3/lmi-repart.sh : default action IS the dry-run planner; `apply` refuses
+DRY_EXEMPT="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh tools/m3/lmi-repart.sh"
 for f in $(git ls-files '*.sh' 'tools/m0/init'); do
+  case "$f" in
+    tools/tests/*) continue ;;   # test harnesses write only into mktemp dirs
+  esac
   if grep -qE 'dd .*of=' "$f" 2>/dev/null; then
     case " $DRY_EXEMPT " in
-      *" $f "*) echo "exempt (ramboot init): $f" ;;
+      *" $f "*) echo "exempt: $f" ;;
       *)
         if grep -q -- '--dry-run' "$f"; then
           echo "ok: $f"
@@ -53,7 +60,8 @@ done
 echo "== 3. hardcoded device nodes =="
 # by-name symlinks (/dev/block/by-name/...) are stable and allowed; raw /dev/sd*
 # partition nodes are only allowed in the documented whitelist files.
-NODE_ALLOWED="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh"
+# rebuild-image-from-device.sh: device-side tool, /dev/sda28 default with --dev override.
+NODE_ALLOWED="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh tools/m1/rebuild-image-from-device.sh"
 for f in $(git ls-files '*.sh' 'tools/m0/init'); do
   if grep -qE '/dev/sd[a-z][0-9]*' "$f" 2>/dev/null; then
     case " $NODE_ALLOWED " in
