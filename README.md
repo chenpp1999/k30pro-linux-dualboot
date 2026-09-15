@@ -11,6 +11,10 @@ Android + 真 Linux（Alpine/OpenRC + Weston）双系统方案。
 > ℹ️ **设备镜像是私有的**：引导镜像 / rootfs 内含按本机注入的 WiFi 凭据与设备序列号，
 > **不随仓库或 Release 分发**；请按 [复现指南](docs/reproduce.md) 自行构建。
 
+> ⚠️ **想一键安装？先读 [一键安装说明（含风险提示）](docs/install-guide.md)。**
+> 会覆盖 `recovery`、写入 `super` 空闲区、可能需要解锁 Bootloader（清数据）；
+> **尚未真机验证，请在测试机/已全量备份的设备上操作，风险自负。**
+
 ## 核心理念
 
 1. **Android first**：`boot` 分区永不改动；正常重启、断电、强制重启永远回到 Android。
@@ -32,7 +36,7 @@ Android + 真 Linux（Alpine/OpenRC + Weston）双系统方案。
 | Linux UX | 桌面可用性 + 中文输入法 + 快捷键栏 + 电源温控监控 | ✅ 实机验证（[UX 验收](docs/acceptance/ux-2026-09-15.md)、[温控充电](docs/m1b-thermal-charging.md)） |
 | M3 | 可选扩容工具 `lmi-repart`（userdata 缩容 + `lnx` 新建） | ✅ **已在本机执行**：userdata 107→91 GiB + `lnx` 16 GiB，rootfs 迁入并启动（[M3 验收](docs/acceptance/m3-2026-09-15.md)） |
 | M4 | v1.0 公开发布 | 🚧 进行中（[发布说明](docs/release-v1.0.0.md)、[复现指南](docs/reproduce.md)） |
-| M5 | 一键安装（PC 脚本 + 通用镜像） | 🚧 设计 + 地基（[设计](docs/installer-design.md)：LP 解析器 / 通用镜像构建 / 首次启动初始化） |
+| M5 | 一键安装（PC 脚本 + 通用镜像） | 🚧 PC 一键已实现（[安装说明](docs/install-guide.md)、[设计](docs/installer-design.md)）；离线模拟全绿，**真机端到端待验证** |
 
 ## 现在能做什么
 
@@ -73,6 +77,7 @@ Android + 真 Linux（Alpine/OpenRC + Weston）双系统方案。
   [系统架构](docs/architecture.md) · [风险台账](docs/risk-register.md) ·
   [测试计划](docs/test-plan.md) · [ADR-0001 启动切换机制](docs/adr/0001-boot-switch-mechanism.md)
 - [开发交接（Handoff）](docs/handoff.md) ← **新会话从这里开始**
+- [一键安装说明（含风险提示）](docs/install-guide.md) ← **要装系统先看这份**
 - [使用说明书（日常操作）](docs/usage.md) ← **装好之后看这份**
 - [复现指南（G5）](docs/reproduce.md) · [v1.0 发布说明](docs/release-v1.0.0.md) ·
   [AI 协作协议](docs/ai-protocol.md)

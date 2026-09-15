@@ -30,6 +30,11 @@
     mkbootimg）。默认 rootfs 槽位固定 1.5 GiB（与 `m1b-init.sh` 一致，实测系统仅占 ~1 GiB）。
   - `tools/tests/m5-install-test.sh`：合成 super/boot 镜像的离线测试（偏移选择、cmdline
     修补、写入顺序、体积/镜像/无空闲区门禁），CI 运行。
+  - `tools/tests/m5-install-sim-test.sh`：**完整模拟安装**（假 adb/fastboot + 沙箱分区，
+    跑真正的非 dry-run 路径：进 TWRP → 备份 → 修补 cmdline → 写 super/recovery → 写 BCB
+    → 回滚），断言 rootfs 逐字节落位、recovery cmdline、BCB、boot 未变、回滚生效；CI 运行。
+  - `docs/install-guide.md`：**一键安装说明（含醒目风险提示）**——前置条件、3 个文件、
+    3 条命令、首次启动行为、回滚、救援、限制与验证状态。
   - `docs/installer-design.md` 扩充用法、1.5 GiB 槽位与 `--grow`(M3) 说明；**设备端到端
     安装验证待做**（破坏性，需负责人 + 测试机）。
 - **使用说明书 `docs/usage.md`**：切换系统（Magisk 一键 / 命令行 / 救援）、WiFi 连接与排障、

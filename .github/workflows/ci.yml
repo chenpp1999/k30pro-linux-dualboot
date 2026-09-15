@@ -61,6 +61,7 @@ jobs:
           sh tools/tests/m5-lp-parse-test.sh
           sh tools/tests/m5-firstboot-test.sh
           sh tools/tests/m5-install-test.sh
+          sh tools/tests/m5-install-sim-test.sh
 
       - name: Markdown link check (basic)
         run: |

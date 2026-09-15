@@ -190,7 +190,9 @@ recovery 内容与目标 sha256 一致 → 只写 BCB 重启（**FAST**），否
    - `tools/install/firstboot/`（随机 root 口令/主机密钥/machine-id、SSH 仅公钥、幂等）。
    - `tools/install/lmi-install.sh`（PC 一键：`check`/`plan`/`install`/`rollback`；经
      `fastboot boot twrp` 进 TWRP，先备份再写，流式 `dd`，全程 `--dry-run`）与
-     `tools/install/patch-cmdline.py`（改 `lmi_root_off`）；测试 `tools/tests/m5-install-test.sh`。
+     `tools/install/patch-cmdline.py`（改 `lmi_root_off`）；测试 `tools/tests/m5-install-test.sh`
+     与 `tools/tests/m5-install-sim-test.sh`（假 adb/fastboot + 沙箱分区跑**真路径**安装与回滚）。
+   - **用户文档**：`docs/install-guide.md`（一键安装说明，含醒目风险提示）。
    **下一步**：**设备端到端安装验证**（破坏性，需负责人 + 测试机；先 `check`/`plan`/`--dry-run`）、
    安装时公钥注入、`--grow`（大 rootfs = 自动化 M3）。默认 rootfs 槽位固定 **1.5 GiB**（与
    `m1b-init.sh` 一致），实测系统仅占 ~1 GiB；大 rootfs 需 M3。注意 `super` 空闲区**不持久**
