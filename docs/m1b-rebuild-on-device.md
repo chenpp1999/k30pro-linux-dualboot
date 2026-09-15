@@ -90,7 +90,13 @@ dd if=<work>/boot-m1b-v9.img of=/dev/sda28 bs=1M && sync
 
 | 项 | 值 |
 |---|---|
-| 产物 | `boot-m1b-v9.img`，58,634,240 B |
+| 产物（最终，已部署） | `boot-m1b-v9b.img`，58,638,336 B |
+| sha256 | `bb7f4d4d512d819d9474ca859d39bf6cf0d60620a8a9d73c4fed588ac4504b80` |
+| overlay | `m1b-ux-v5`（9,818,329 B，32 文件/19 目录，已去 CRLF、排除 README） |
+| 部署 | recovery 分区（`/dev/sda28`）dd + 回读 sha256 一致；2026-09-15 |
+| 回滚镜像 | `/root/m1b-rebuild/source.img` = 原 v8（`4b2ce34b…`，58,064,896 B） |
+| 某次中间产物 | `boot-m1b-v9.img`（`f7fb3167…`）：含 CRLF payload，已退役删除 |
+| 旧项 | 值 |
 | sha256 | `f7fb31670dea491e31e0ea5615fa127428e257ef0c606bd3dccfa6716a52ed8d` |
 | overlay | `m1b-ux-v5`（9,822,534 B，33 文件/19 目录，全量 payload） |
 | kernel / dtb | `4583ada3…` / `aee89cc1…`（与 v8 相同） |
@@ -98,6 +104,14 @@ dd if=<work>/boot-m1b-v9.img of=/dev/sda28 bs=1M && sync
 | initramfs | 14,007,318 B（含 overlay、init、busybox） |
 | 源镜像 | recovery 分区（v8，`4b2ce34b…`，58,064,896 B） |
 | 位置 | 手机 `/root/m1b-rebuild/boot-m1b-v9.img`（未部署） |
+
+## 6b. 部署后验收（2026-09-15）
+
+`dd` 后写 BCB（`printf 'boot-recovery' > /dev/sda11`）并重启：设备从 v9 镜像
+成功进入 Linux，`etc/m1b-overlay-version` = `m1b-ux-v5`（ledger `overlay=applied`），
+服务（dropbear/lmi-keys/seatd/m1-weston/ntpd）正常，无线恢复。
+首次部署的 v9（CRLF payload）暴露了下面的 CRLF 坑（WiFi 起不来），
+已就地修复并重建/重新部署 v9b；本次验收以 v9b 为准。
 
 ## 7. 已知坑
 
@@ -109,3 +123,11 @@ dd if=<work>/boot-m1b-v9.img of=/dev/sda28 bs=1M && sync
   模式匹配差异（曾误报 overlay/busybox 缺失）。
 - 设备侧没有 `fastboot`，方式 A（RAM 引导验证）无法在本流程内完成；不要把它当作
   已通过方式 A。
+- **CRLF（最坑）**：payload 会被原样复制进 rootfs，而 Windows 工作副本可能是 CRLF
+  （.gitattributes 只管检出，不会重写已在磁盘的文件）→ OpenRC 脚本
+  shebang 后带 `\r` → `execve` ENOENT（报 "not found"）→ 服务起不来（实例：
+  `lmi-wifi`、`lmi-wifi-start`、`m1-weston`、`m1-mailbox`等）。
+  现在本脚本会先把 payload 阶段到 `$WORK/payload` 并**自动去 CR**（跳过
+  二进制），无需人工处理；已发现的库内 CRLF 已规范（commit 4f8b735）。
+- `build-m1b-image.sh` 会**删除** initramfs 中已有的 `m1b-overlay.tar.gz`，必须通过
+  `--base-tree <空目录>` 让它重建（见 §3）。

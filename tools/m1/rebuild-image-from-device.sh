@@ -64,6 +64,32 @@ done
 
 [ -n "$TREE" ] || TREE=$REPO/tools/m1/m1b
 [ -d "$TREE" ] || die "overlay payload tree not found: $TREE"
+
+# Stage the payload: drop repo-only files and normalise CRLF.  The payload is
+# copied into the rootfs verbatim, and a CR before the newline breaks OpenRC
+# shebangs / conf.d parsing on the device (seen with lmi-wifi, 2026-09-15);
+# Windows checkouts can carry CRLF even when .gitattributes asks for LF.
+TREE_SRC=$TREE
+TREE=$WORK/payload
+rm -rf "$TREE"
+mkdir -p "$TREE"
+( cd "$TREE_SRC" && tar -cf - --exclude=README.md --exclude=.git . ) |
+	( cd "$TREE" && tar -xf - )
+python3 - "$TREE" <<'PY'
+import os, sys
+root = sys.argv[1]
+n = 0
+for dirpath, _dirs, files in os.walk(root):
+    for name in files:
+        path = os.path.join(dirpath, name)
+        data = open(path, "rb").read()
+        if b"\0" in data or b"\r" not in data:   # binaries / already LF
+            continue
+        open(path, "wb").write(data.replace(b"\r\n", b"\n"))
+        n += 1
+print("payload normalized: %d CRLF text file(s) fixed" % n)
+PY
+
 for t in cpio gzip python3 dd stat; do
 	command -v "$t" >/dev/null 2>&1 || die "$t not found"
 done

@@ -111,6 +111,8 @@
 - **P0 已完成（路线 A，2026-09-15）**：在**手机 Linux 侧就地**
   重建了 `boot-m1b-v9.img`（sha256 `f7fb3167…`，58,634,240 B，overlay
   `m1b-ux-v5` 全量 payload）——无 Android、无 fastboot、无 USB 重拔；
+  **已部署到 recovery 并完成引导验收**（最终产物 v9b：`bb7f4d4d…`，
+  58,638,336 B；重启后 overlay v5 applied、服务正常；回滚镜像 = source.img (v8)）；
   流程/自检/部署/回滚见 `docs/m1b-rebuild-on-device.md`（工具
   `tools/m1/rebuild-image-from-device.sh`）。自检全绿（kernel/dtb/dtbo/cmdline
   与 v8 逐字节一致）；**尚未部署**（部署 = 单独一步，

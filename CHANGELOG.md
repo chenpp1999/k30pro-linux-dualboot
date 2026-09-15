@@ -16,6 +16,12 @@
   `boot-m1b-v9.img`（`f7fb3167…`，58,634,240 B，overlay `m1b-ux-v5`），
   流程与部署/回滚说明：`docs/m1b-rebuild-on-device.md`。未部署。
 
+- 设备侧重建已部署验收（2026-09-15）：`boot-m1b-v9b.img`
+  （`bb7f4d4d…`，58,638,336 B）写入 recovery（回读一致）并引导验证
+  （overlay `m1b-ux-v5` applied、服务正常）；修复并记录 payload CRLF 坑
+  （OpenRC shebang 受损导致 WiFi 起不来）：库内两个脚本规范化，
+  重建脚本新增 payload 自动去 CR 步骤。
+
 ## [Unreleased]
 
 ### Added
