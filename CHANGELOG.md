@@ -37,6 +37,18 @@
   相对 super 的偏移；`-t` 单位是设备扇区）。验收：
   `docs/acceptance/m3-2026-09-15.md`。Android 侧待确认。
 
+- 修复与加固（2026-09-15 晚）：
+  1. **字体白框根因**：冷启动早期 fontconfig 重建缓存的窗口
+     + weston 一次 SIGABRT 后 wrapper 自弃退出；现在 weston 启动前
+     刷 `fc-cache -f`，且重试策略改为永不自弃（退避 3 s / 30 s）。
+  2. **仓库事故修正**：之前用 `tr -d "\r"` 时反斜杠被 shell 吃掉，
+     把 `m1-weston`/`lmi-wifi-start` 里的字母 r 全删了（已提交）；现以设备
+     上的正确文件回填，并做了 payload 逐文件 sha256 对比（已 100%
+     一致）。
+  3. **payload 缺口**：该 payload 之前没有 `usr/sbin/lmi-keys`（新装会缺音量键/
+     息屏功能），现已入包。
+  4. 新镜像 `boot-m1b-v11.img`（`dd56ff2e…`，58,855,424 B）已部署 recovery（回读校验）。
+
 ## [Unreleased]
 
 ### Added
