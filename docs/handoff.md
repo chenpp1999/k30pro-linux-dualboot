@@ -18,30 +18,32 @@
 | 桌面/终端体验 | ✅ 指纹拖动滚动、键盘避让、单窗口、`lmi-help`、WiFi 看门狗 | `docs/usage.md` |
 | M4 | 🚧 v1.0 发布（本文档即其开工快照） | `docs/release-v1.0.0.md`、`docs/reproduce.md` |
 
-## 二、设备当前状态（2026-09-15 晚）
+## 二、设备当前状态（2026-09-15 深夜，实测）
 
-- **运行中**：手机在 **Linux**，内核镜像 = recovery 里的 `boot-m1b-v21.img`
-  （`e4684d05…`，overlay `m1b-ux-v7`，回读校验通过），rootfs 在 **`/dev/sda35`（`lnx`）**，
-  引导账本记 `boot=23`。**注意**：本次开机时 overlay 仍是 v6，v7 会在下次 Linux 启动时应用。
-- **充电控制正在生效**：`lmi-chargectl` 已把 SOC 控制在 70–80 % 锯齿内，当前 `soc≈99 temp≈34 °C
-  suspended=1`（放电中，约 160–330 mA），降到 ≤70 % 自动恢复充电；CPU governor = `schedutil`。
-- **监控在跑**：`lmi-monitor`（60 s 采样 → `/run/lmi-monitor/latest`，CSV 落 `/var/log/lmi-monitor/`），
-  LAN 面板 `http://172.16.42.1:8080/`（python3 回退服务器）。`lmi-status` 可命令行查看。
-- **镜像清单**（`/root/m1b-rebuild/`）：
-  - `boot-m1b-v14.img` = 当前部署（`44cc3b27…`，overlay v7，**initramfs 救援口令已轮换**）
-  - `boot-m1b-v13.img`（含旧口令哈希，勿分发；出于安全已不再部署）
-  - `boot-m1b-v11.img`（含 .sha256，也导出到 Android `/sdcard/Download/phone-server/lmi-m1b/`；同样含旧哈希，勿分发）
-  - `boot-m1b-v9b.img`（旧回滚点）
-  - 回滚 = `dd` 任一旧镜像回 `/dev/sda28`（`rollback-v12.img` 视需要重建）
-- **Android 侧**：Magisk 模块 `lmi-dualboot-switch` v0.2 已激活（可在 Android 一键切 Linux）；
-  `/data` = 91 GiB（数据完整）；`/dev/block/by-name/lnx → /dev/block/sda35` 可见。
+- **运行中**：手机在 **Linux**（一次长会话，未重启）；`recovery` = **`boot-m1b-v21.img`**
+  （`9064c43b…`，**overlay `m1b-ux-v14`**，回读校验通过）；rootfs 在 **`/dev/sda35`（`lnx`）**。
+  引导账本仍是 `boot=23`（账本只在**启动**时写），所以**下一次 Linux 启动才会把 v14 overlay 落盘**；
+  当前运行态是我今天逐文件同步并验证过的（见 §六之二）。
+- **WiFi 正常**：`wlan0 up`，SSID `CX8`，`10.84.40.112/24`；`lmi-netwatch`（看门狗）在跑，
+  `/run/lmi-netwatch.state` = `status=ok`。
+- **充电/温控在生效**：`lmi-chargectl` 把 SOC 控制在 70–80 % 锯齿（`/run/lmi-chargectl.state`），
+  governor = `schedutil`；监控 `lmi-monitor` + 面板 `http://172.16.42.1:8080/` 正常。
+- **rootfs 空间已修好**：`lnx` 上的 ext4 原来只有 1.4 GiB（迁移时忘了扩容，写满后 `dd` 会**静默失败**），
+  已在线 `resize2fs` 到 **15.7 GiB（可用 ~14 GiB）**。
+- **凭据已轮换**（2026-09-15 的隐私事件后）：root 口令与部署镜像里的 initramfs 救援口令都换过，
+  存在设备 `/root/lmi-root-password.txt`(600) 与电脑侧 `%TEMP%\opencode\lmi-*-password.txt`；
+  **仓库/发布物里没有任何口令或哈希**。
+- **镜像**：`/root/m1b-rebuild/boot-m1b-v21.img`（当前部署，回滚点已清理；需要旧版就从当前镜像
+  重建或走方式 A RAM 引导 / TWRP）。`super` 内的旧 rootfs 区仍完整保留（终极回滚）。
+- **Android 侧**：Magisk 模块 `lmi-dualboot-switch` v0.2 已激活；`/data` = 91 GiB；
+  `/dev/block/by-name/lnx → /dev/block/sda35`。
 - **`boot` 分区 sha256 `8d441fc5…` 自始至终未变**（项目第一原则）。
 
 ## 三、存储布局（M3 之后，本机）
 
 | 分区 | Android 名 | Linux 名 | 内容 |
 |---|---|---|---|
-| GPT 12 | `recovery` | `/dev/sda28` | **Linux 引导镜像**（v13；M2 双向切换的落点） |
+| GPT 12 | `recovery` | `/dev/sda28` | **Linux 引导镜像**（当前 `boot-m1b-v21.img`；M2 双向切换的落点） |
 | GPT 16 | `super` | `/dev/sda32` | Android 动态分区；**内部旧 rootfs 区（偏移 4K 单元 1,596,852）仍完整保留**（回滚用，未回收） |
 | GPT 18 | `userdata` | `/dev/sda34` | 91 GiB（M3 由 107 GiB 缩容，PARTUUID 保留） |
 | GPT 19 | `lnx` | `/dev/sda35` | **16 GiB，当前 rootfs 所在**（ext4，PARTUUID `91B8F669-…` 之外的独立新条目） |
@@ -51,7 +53,7 @@
 - M3 规划/审计工具：`tools/m3/lmi-repart.sh`（`apply` 故意拒绝自动执行）+ 离线测试
   `tools/tests/m3-repart-test.sh`（CI 运行）+ 方案 `docs/m3-repart-plan.md`（§4b 独立子代理审计）。
 
-## 四、功能资产（overlay `m1b-ux-v7` = 当前最新）
+## 四、功能资产（overlay `m1b-ux-v14` = 当前最新）
 
 | 领域 | 内容 |
 |---|---|
@@ -66,6 +68,28 @@
 
 **weston 客户端补丁**（`tools/m1/weston-patches/0001-0011`）**必须在设备内原生编译**
 （`tools/m1/build-weston-clients.sh`）；WSL/alpine/proot 产物在手机上 SIGSEGV。
+
+
+### weston 客户端补丁索引（`tools/m1/weston-patches/`，**应用顺序即文件名顺序、`-p0`**）
+
+| # | 作用 |
+|---|---|
+| 0001 | 终端支持 text-input v1（屏幕键盘可输入终端） |
+| 0002–0006 | 键盘符号 `_ . ,`、宽度适配 540、逐键立即提交、无 surrounding text 时退格发 BackSpace |
+| 0007 | 键盘**拼音页 + 候选条**（引擎与词典在 `tools/m1/ime/`） |
+| 0008 | 终端实现 `delete_surrounding_text`（退格真正删字） |
+| 0009 | 键盘**快捷键栏**（Esc/Tab/Ctrl/Alt/方向/Home/End/PgUp/PgDn，Ctrl/Alt 单击锁定、双击常锁） |
+| 0010 | 终端解析 `modifiers_map`（Ctrl/Alt 组合正确翻译成终端字节） |
+| 0011 | 面板时钟追加**电量** + 默认 24 小时制 |
+| 0012 | 终端**手指拖动=滚动**历史（原来拖动被用于文本选择） |
+| 0013/0014/0016 | 终端**键盘避让**：预留/读取 `keyboard-inset`（ini `[terminal]` 与 `/etc/conf.d/m1-weston`，实测 480） |
+| 0015 | 终端从 `weston.ini` 读 `shell=`（**每个**终端都打印 `lmi-help` 说明书） |
+| 0017 | 终端**网格按可用高度重排**、底边贴键盘上沿（不再有黑带，提示行始终可见） |
+| 0018 | 修**滚动锚点**（`saved_start` 随输出/resize 同步）——修掉"滚动后输出被吞" |
+| 0019 | 屏幕键盘输入（preedit/commit/keysym）也把视图拉回活区 |
+
+> 构建：`tools/m1/build-weston-clients.sh`（**必须在设备内原生编译**；meson 需 `-Dprefix=/usr`，
+> 补丁 `-p0`）。装好后把二进制放进 payload（`tools/m1/m1b/usr/bin/`、`usr/libexec/`）再重建镜像。
 
 ## 五、两条关键操作流程
 
@@ -151,18 +175,22 @@ recovery 内容与目标 sha256 一致 → 只写 BCB 重启（**FAST**），否
 - 手机 Android 侧：Magisk 模块目录 `/data/adb/modules/lmi-dualboot-switch/`，
   镜像与备份 `/sdcard/Download/phone-server/`、`/data/local/lmi-dualboot/`。
 
-## 八、下一步（M4 v1.0）
+## 八、下一步
 
-1. **文档收尾**：`README.md` 状态表、`docs/architecture.md` §2/§3 存储布局、风险台账 R1/R2 关闭、
-   测试计划 T2-05..07 状态、`docs/reproduce.md`（G5 外部复现指南）、`docs/release-v1.0.0.md`。
-2. **发布**：`VERSION` + `CHANGELOG` v1.0.0 段 → tag `v1.0.0` → GitHub Release
-   （**只发源码/文档，不发设备镜像**：镜像含注入的 WiFi 凭据，属隐私）。
-3. **CI**：把新增的无扩展名脚本纳入 shellcheck 清单（`tools/ci/checks.sh`）。
-4. **G5**：需**外部用户**按 `docs/reproduce.md` 复现一次（本仓库无法自证）。
-5. **可选收尾**：观察数日后回收 super 内旧 rootfs 区、rootfs 清理 ~450 MB 构建依赖、
-   电池 LED 提示、IME 第二页。
-
-> 面向使用者的日常操作手册在 [`docs/usage.md`](usage.md)（切系统/WiFi/监测台/充电/输入法）。
+1. **M5 一键安装（已定方案，未开工）**：目标是"别人也能装"。已确认的约束与设计：
+   - Android 用户态**无法**写 `super`（`baseband_guard`，issue #13）→ 纯 App 一键不可行；
+     选定形态 = **PC 一键脚本 + TWRP 写入** + **通用镜像**。
+   - **通用镜像不得含任何固定口令/凭据**：root 口令首次启动随机生成并显示、SSH 仅公钥、
+     不预置 WiFi 网络、首次启动重生成主机密钥与 machine-id。
+   - 安装器要自动做：备份 → 校验 → 写 super 空闲区（需先解析 `super` 的 LP 元数据找到空闲区）
+     → 写 recovery → 写 BCB → 回滚；**不自动重分区**（M3 永远保持可选、手动）。
+2. **G5 外部复现**：`docs/reproduce.md` 已就绪，需要一位**外部用户**跑通并回报（仓库无法自证）。
+3. **回馈上游**：`saved_start` 锚点缺陷、以及 ini `shell=` 不生效，都是 weston-terminal 的真实问题，
+   值得整理成上游 patch（我们的 0018/0019/0015 可作素材）。
+4. **WiFi 掉线根因未定**：已用 `lmi-netwatch` 自动恢复兜底；下次复现时先看
+   `/var/log/lmi-netwatch.log`、`dmesg | grep -i cnss`、`/var/log/lmi-wifi.log` 再动手。
+5. **可选收尾**：super 内旧 rootfs 区回收（观察期后）、`docs/architecture.md` §2/§3 与
+   `docs/test-plan.md` T4 回填、IME 第二页、电池 LED 提示。
 
 ## 九、新会话开工清单
 
