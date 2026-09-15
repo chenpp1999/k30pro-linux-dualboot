@@ -1,40 +1,61 @@
-# Magisk 模块：K30 Pro Dualboot Switch（M2 v0.1）
+# packages/magisk-module — Android → Linux 一键切换（v0.2）
 
-Android → Linux 的一键切换入口：在 Magisk 应用里按模块的 **Action** 按钮
-（需 Magisk 27+），即执行 `recovery-swap.sh to-linux` 并自动重启进入 Linux。
+Magisk 模块，把 M2 的切换器包装成"一键"入口：
 
-- 机制：ADR-0001（`recovery` 分区 + `misc` BCB 一次性引导）。
-- `boot` 分区永不被修改；Linux 侧任意重启回 Android（M1b init 清 BCB）。
-- 本模块**不包含**切换逻辑本身，只是调用已部署的
-  `recovery-swap.sh`（默认 Termux home）与已通过方式 A 验证的镜像。
+- **Action 按钮**（Magisk 27+ 的模块卡片）或 root shell 里执行
+  `/data/adb/modules/lmi-dualboot-switch/action.sh`。
+- **镜像自动选择**：`/data/local/lmi-dualboot/boot-m1b-vNN.img` 或
+  `/sdcard/Download/phone-server/lmi-m1b/boot-m1b-vNN.img` 中版本号最大的一个；
+  也可用 `LMI_SWITCH_IMG=<path>` 指定。
+- **安全门禁**：沿用 `recovery-swap.sh to-linux` 的规则——没有方式 A
+  （RAM 引导）attestation 的镜像会被拒绝；`LMI_SWITCH_FORCE=1` 仅用于救援/测试。
+- **只读演练**：`LMI_SWITCH_DRY=1 .../action.sh` 只打印将执行的操作（`--dry-run`），
+  不写任何分区。
+- **不变式**：`boot` 分区永不修改；切过去后 Linux init 会清 BCB，之后任何重启都回
+  Android（`docs/architecture.md` §4）。
 
-## 依赖
-
-| 项 | 默认值 | 覆盖环境变量 |
-|---|---|---|
-| 切换脚本 | `/data/data/com.termux/files/home/recovery-swap.sh` | `LMI_SWITCH_SCRIPT` |
-| Linux 镜像 | `/data/local/lmi-dualboot/boot-m1b-v6.img` | `LMI_SWITCH_IMG` |
-| 跳过门禁（救援/测试） | 关 | `LMI_SWITCH_FORCE=1` |
-
-镜像必须已生成 attestation（`recovery-swap.sh attest-ramboot`，见
-`docs/m0-runbook.md` §4），否则 `to-linux` 会按部署门禁拒绝写入。
-
-## 打包与安装
-
-模块目录内容需位于 zip 根（`module.prop`、`action.sh` 在 zip 顶层）：
+## 构建
 
 ```sh
-cd packages/magisk-module
-zip -r ../lmi-dualboot-switch-v0.1.zip .
-# 然后在 Magisk 应用里“从本地安装”该 zip，重启后生效
+packages/magisk-module/build.sh          # -> packages/magisk-module/lmi-dualboot-switch.zip
 ```
 
-## 卸载 / 回滚
+## 安装
 
-- Magisk 里直接移除模块即可（本模块不写任何分区）。
-- 若切换后想回 TWRP：`recovery-swap.sh restore-twrp`（见 `docs/m2-runbook.md`）。
+- Magisk App → 模块 → 从本地安装（选 zip）；或
+- root shell：`magisk --install-module /path/to/lmi-dualboot-switch.zip`。
 
-## 状态
+⚠️ **安装后需要重启一次**：Magisk 30.x 的 CLI 安装会把模块放进
+`/data/adb/modules_update/`，重启时才搬到 `/data/adb/modules/` 并让模块卡片与
+Action 按钮生效（`ls` 只看到 `module.prop` 是正常现象）。
 
-v0.1 骨架，随 M2 实机验收一起验证；接口（环境变量与默认路径）已冻结，
-实现可能随验收反馈调整。详见 `docs/m2-runbook.md` 与 issue #15。
+## 两条路径（action.sh）
+
+| 场景 | 行为 |
+|---|---|
+| **FAST**：`recovery` 里已经是所选镜像（前 N 字节 sha256 与镜像一致） | 只写一次性 BCB 然后重启——**不重写任何镜像**，也无需 attestation |
+| **FULL**：镜像不同 | 委托 `recovery-swap.sh to-linux`：写镜像 → 回读校验 → 写 BCB → 重启；无方式 A attestation 的镜像会被拒绝（`LMI_SWITCH_FORCE=1` 仅救援/测试） |
+
+镜像选择：`$LMI_SWITCH_IMG` > 两个已知目录里 **版本号最大** 的
+`boot-m1b-vNN.img`（`/data/local/lmi-dualboot`、`/sdcard/Download/phone-server/lmi-m1b`）。
+
+实测（2026-09-15，Magisk 30.7）：`LMI_SWITCH_DRY=1 .../action.sh` 会打印
+"recovery already holds this image -> fast path"，即当前 recovery（v11）与
+`sdcard/.../boot-m1b-v11.img` 哈希一致时，一键切换 = 写 BCB + 重启。
+
+## 用法
+
+```sh
+# 演练（不动分区）
+adb shell su -c 'LMI_SWITCH_DRY=1 /data/adb/modules/lmi-dualboot-switch/action.sh'
+
+# 真切换（会写 recovery + BCB 并重启）
+adb shell su -c '/data/adb/modules/lmi-dualboot-switch/action.sh'
+```
+
+切回 Android：在 Linux 里 `reboot`（或长按电源/断电）即可——BCB 已被 Linux 清掉。
+
+## 备注
+
+- 这是便利封装，安全语义与 `tools/m1/recovery-swap.sh` 完全一致（M2 v0.1）。
+- 更"图形化"的入口（快捷磁贴/独立 App）不在本期范围（`packages/android-app` 仍为空）。
