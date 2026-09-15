@@ -129,6 +129,24 @@ while :; do
 				done
 			printf '</table>'
 		fi
+		printf '<h1>常用指令</h1><table>'
+		while IFS='|' read -r _c _d; do
+			[ -n "$_c" ] || continue
+			printf '<tr><th>%s</th><td>%s</td></tr>' "$_c" "$_d"
+		done <<'CMDS'
+lmi-help|完整说明书（切系统 / WiFi / 监测台 / 充电 / 输入法）
+lmi-status|一屏健康摘要（-j 原始 / -w 单行）
+lmi-wifi-status|当前 WiFi 状态
+lmi-wifi-scan|扫描可见网络
+lmi-wifi-join <SSID> <密钥>|连接 WiFi（开放网络用 -）
+rc-service lmi-wifi restart|WiFi 掉线自救（看门狗已自动做这件事）
+cat /run/lmi-chargectl.state|充电控制当前状态
+rc-service lmi-monitor restart|重启本采样/面板服务
+rc-service lmi-netwatch status|WiFi 看门狗状态
+lmi-power -s / -p|省电（schedutil）/ 满频（performance）
+dmesg | tail -20|最近内核消息（排障）
+CMDS
+		printf '</table>'
 		printf '<p>thresholds: '
 		grep -E '^(CHARGE_STOP_SOC|CHARGE_RESUME_SOC|TEMP_STOP_C|TEMP_RESUME_C|RECOVER_SOC)=' \
 			/etc/conf.d/lmi-power 2>/dev/null | tr '\n' ' '

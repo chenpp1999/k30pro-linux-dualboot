@@ -38,7 +38,7 @@ REPO=$(CDPATH='' cd -- "$HERE/../.." && pwd)
 DEV=/dev/sda28
 IMAGE=
 TREE=
-VERSION=m1b-ux-v7
+VERSION=m1b-ux-v14
 OUT=boot-m1b-v9.img
 WORK=/root/m1b-rebuild
 MKBOOTIMG=
@@ -107,6 +107,40 @@ for dirpath, _dirs, files in os.walk(root):
 print("payload normalized: %d CRLF text file(s) fixed" % n)
 PY
 
+# The staged payload must equal the source after CRLF normalisation.  A silent
+# content mutation (a `tr -d "r"` mishap ate every letter "r" once: `mkdir` ->
+# `mkdi`, `/var/log` -> `/va/log`, which broke WiFi recovery for hours - see
+# docs/handoff.md) must fail the build instead of shipping a broken script.
+python3 - "$TREE_SRC" "$TREE" <<'PY'
+import os, sys
+src, dst = sys.argv[1], sys.argv[2]
+skip = {"README.md", ".gitignore"}
+problems = []
+for dirpath, dirs, files in os.walk(src):
+    dirs[:] = [d for d in dirs if d != ".git"]
+    for name in files:
+        if name in skip:
+            continue
+        p = os.path.join(dirpath, name)
+        rel = os.path.relpath(p, src)
+        raw = open(p, "rb").read()
+        # mirror the normaliser: only text files get CRLF folded
+        want = raw if b"\0" in raw else raw.replace(b"\r\n", b"\n")
+        try:
+            got = open(os.path.join(dst, rel), "rb").read()
+        except FileNotFoundError:
+            problems.append("missing: " + rel)
+            continue
+        if got != want:
+            problems.append("content mismatch: " + rel)
+if problems:
+    print("payload integrity check FAILED:")
+    for x in problems[:20]:
+        print("  " + x)
+    sys.exit(1)
+print("payload integrity: staged tree matches the source byte-for-byte")
+PY
+
 for t in cpio gzip python3 dd stat; do
 	command -v "$t" >/dev/null 2>&1 || die "$t not found"
 done
@@ -149,10 +183,20 @@ print(page_size * (1 + pages(kernel_size) + pages(ramdisk_size) +
                    pages(dtb_size)))
 PY
 )
-	[ -n "$size" ] || die "failed to parse the boot header"
-	info "source: $DEV -> $IMAGE ($size bytes)"
-	[ "$DRY" = 1 ] && { info "DRY-RUN: source is a valid boot image of $size bytes"; exit 0; }
-	dd if="$DEV" of="$IMAGE" bs=4096 count=$((size / 4096 + 1)) 2>/dev/null
+[ -n "$size" ] || die "failed to parse the boot header"
+info "source: $DEV -> $IMAGE ($size bytes)"
+
+# Preflight: unpacking + repacking needs roughly 3x the image size in $WORK, and
+# a full filesystem used to fail *silently* (dd's stderr is discarded and
+# `set -e` exits) - that cost an afternoon on 2026-09-15, hence the explicit
+# check and the dd failure message below.
+need=$((size * 3))
+have=$(df -k "$WORK" | awk 'NR==2 {print $4 * 1024}')
+[ "$have" -ge "$need" ] ||
+	die "not enough space in $WORK: need ~$((need / 1048576)) MiB, have $((have / 1048576)) MiB free"
+
+dd if="$DEV" of="$IMAGE" bs=4096 count=$((size / 4096 + 1)) 2>/dev/null ||
+	die "copying $DEV -> $IMAGE failed (out of space?)"
 	truncate -s "$size" "$IMAGE" 2>/dev/null || true
 else
 	[ -f "$IMAGE" ] || die "image not found: $IMAGE"

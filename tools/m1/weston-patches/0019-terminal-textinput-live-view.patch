@@ -1,0 +1,82 @@
+From: k30pro-linux-dualboot
+Subject: [PATCH 0019] terminal: on-screen-keyboard input returns to the live view
+
+key_handler() snaps the scrollback view back to the live end whenever a key is
+pressed, but the on-screen keyboard delivers everything through
+zwp_text_input_v1 (preedit/commit/keysym) and none of those touched the view:
+typing while scrolled left the shell output and the prompt below the visible
+viewport, so it looked as if the output had been swallowed.  Mirror the
+key-handler reset in all three handlers (the pinyin keyboard stays in preedit
+until a candidate is chosen, so preedit matters most in practice).
+
+--- clients/terminal.c.orig
++++ clients/terminal.c
+@@ -2670,6 +2670,22 @@
+ {
+ 	struct terminal *terminal = data;
+ 
++	/* lmi: on-screen-keyboard input must return the view to the live end exactly
++	 * like a physical key press does (see key_handler) - otherwise typing while
++	 * the scrollback is scrolled leaves the new output below the view and the
++	 * prompt looks swallowed.  The pinyin keyboard only sends preedit events
++	 * until a candidate is chosen, so cover those too. */
++	if (terminal->scrolling) {
++		int d = terminal->saved_start - terminal->start;
++
++		terminal->row -= d;
++		terminal->selection_start_row -= d;
++		terminal->selection_end_row -= d;
++		terminal->start = terminal->saved_start;
++		terminal->scrolling = 0;
++		widget_schedule_redraw(terminal->widget);
++	}
++
+ 	terminal_write(terminal, text, strlen(text));
+ }
+ 
+@@ -2679,6 +2695,22 @@
+ 		  uint32_t state, uint32_t modifiers)
+ {
+ 	struct terminal *terminal = data;
++
++	/* lmi: on-screen-keyboard input must return the view to the live end exactly
++	 * like a physical key press does (see key_handler) - otherwise typing while
++	 * the scrollback is scrolled leaves the new output below the view and the
++	 * prompt looks swallowed.  The pinyin keyboard only sends preedit events
++	 * until a candidate is chosen, so cover those too. */
++	if (terminal->scrolling) {
++		int d = terminal->saved_start - terminal->start;
++
++		terminal->row -= d;
++		terminal->selection_start_row -= d;
++		terminal->selection_end_row -= d;
++		terminal->start = terminal->saved_start;
++		terminal->scrolling = 0;
++		widget_schedule_redraw(terminal->widget);
++	}
+ 	char buf[MAX_RESPONSE];
+ 	size_t len = 0;
+ 	xkb_mod_mask_t mods = 0;
+@@ -2834,6 +2866,22 @@
+ 				   int32_t index, uint32_t length)
+ {
+ 	struct terminal *terminal = data;
++
++	/* lmi: on-screen-keyboard input must return the view to the live end exactly
++	 * like a physical key press does (see key_handler) - otherwise typing while
++	 * the scrollback is scrolled leaves the new output below the view and the
++	 * prompt looks swallowed.  The pinyin keyboard only sends preedit events
++	 * until a candidate is chosen, so cover those too. */
++	if (terminal->scrolling) {
++		int d = terminal->saved_start - terminal->start;
++
++		terminal->row -= d;
++		terminal->selection_start_row -= d;
++		terminal->selection_end_row -= d;
++		terminal->start = terminal->saved_start;
++		terminal->scrolling = 0;
++		widget_schedule_redraw(terminal->widget);
++	}
+ 	uint32_t n, i;
+ 
+ 	(void)index;

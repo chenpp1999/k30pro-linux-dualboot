@@ -1,0 +1,36 @@
+From: k30pro-linux-dualboot
+Subject: [PATCH 0016] terminal: apply the keyboard inset unconditionally
+
+The inset from patches 0013/0014 was gated on the text-input
+input_panel_state event, but weston maps its virtual keyboard as a
+permanently visible overlay panel and never sends that event - so the
+prompt stayed behind the keyboard with only a few pixels of it showing.
+Reserve the space always (measured: keys occupy the bottom 480 logical
+pixels of the 540x1200 panel) and keep a CLI/ini opt-out via
+keyboard-inset=0.
+
+--- clients/terminal.c.orig
++++ clients/terminal.c
+@@ -1093,12 +1093,17 @@
+ 	average_width = terminal->average_width;
+ 	side_margin = (allocation.width - terminal->width * average_width) / 2;
+ 	top_margin = (allocation.height - terminal->height * extents.height) / 2;
+-	if (terminal->input_panel_shown && option_keyboard_inset > 0) {
+-		/* lmi: align the bottom row with the top of the keyboard instead of
+-		 * centring the content; rows that no longer fit scroll off the top. */
++	if (option_keyboard_inset > 0) {
++		/* lmi: keep the last row (the prompt) above the on-screen keyboard.
++		 * The inset is unconditional on purpose: weston maps its virtual
++		 * keyboard as a permanently visible overlay panel
++		 * (zwp_input_panel_v1.set_overlay_panel) and never sends the text-input
++		 * input_panel_state event, so there is nothing to gate on.  Measured on
++		 * the K30 Pro: the panel is 540x1200 logical, the keyboard + shortcut
++		 * bar occupy the bottom 480 px, hence keyboard-inset=480. */
+ 		int inset = option_keyboard_inset;
+-		if (inset > allocation.height / 2)
+-			inset = allocation.height / 2;
++		if (inset > allocation.height * 3 / 4)
++			inset = allocation.height * 3 / 4;
+ 		top_margin = allocation.height - inset -
+ 			     terminal->height * extents.height;
+ 	}

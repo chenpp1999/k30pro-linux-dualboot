@@ -1,0 +1,17 @@
+#!/sbin/openrc-run
+# shellcheck shell=sh
+# shellcheck disable=SC2034  # values are consumed by OpenRC, not by this file
+# SPDX-License-Identifier: MIT
+# WiFi watchdog: brings wlan0 back after a WLAN stack teardown, without a reboot.
+description="lmi wlan0 watchdog (auto-restart lmi-wifi)"
+
+command="/usr/sbin/lmi-netwatch"
+command_background="yes"
+pidfile="/run/lmi-netwatch.pid"
+output_log="/var/log/lmi-netwatch.out.log"
+error_log="/var/log/lmi-netwatch.out.log"
+
+depend() {
+	after lmi-wifi
+	use net
+}

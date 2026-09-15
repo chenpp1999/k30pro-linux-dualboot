@@ -1,0 +1,89 @@
+From: k30pro-linux-dualboot
+Subject: [PATCH 0013] terminal: keep the prompt above the on-screen keyboard
+
+Weston maps the virtual keyboard with zwp_input_panel_v1.set_overlay_panel, so
+the compositor never moves the focused window: on the lmi panel the keyboard
+covers the bottom 300 logical pixels and the shell prompt was permanently
+hidden.  Track the input-panel state event (already delivered via our
+text-input patch) and, while the keyboard is up, align the content bottom with
+its top edge (--keyboard-inset=<px>).  Also make the touch drag 2x snappier.
+
+--- clients/terminal.c.orig
++++ clients/terminal.c
+@@ -55,6 +55,10 @@
+ static bool option_maximize;
+ static char *option_font;
+ static int option_font_size;
++/* lmi: logical pixels reserved at the bottom while the on-screen keyboard is
++ * shown (0 = disabled, i.e. the stock behaviour).  The lmi wrapper passes
++ * --keyboard-inset=<px>; on the K30 Pro the panel is 300 logical px tall. */
++static int option_keyboard_inset;
+ static char *option_term;
+ static char *option_shell;
+ 
+@@ -464,6 +468,10 @@
+ 	int touch_scroll;
+ 	float touch_last_y;
+ 	int touch_scroll_px;
++	/* lmi: the on-screen keyboard is an overlay panel (set_overlay_panel), so
++	 * the compositor never moves us out of its way; remember whether it is up
++	 * and lift the content above it in redraw_handler(). */
++	int input_panel_shown;
+ 	int send_cursor_position;
+ 	int fd, master;
+ 	uint32_t modifiers;
+@@ -1085,6 +1093,15 @@
+ 	average_width = terminal->average_width;
+ 	side_margin = (allocation.width - terminal->width * average_width) / 2;
+ 	top_margin = (allocation.height - terminal->height * extents.height) / 2;
++	if (terminal->input_panel_shown && option_keyboard_inset > 0) {
++		/* lmi: align the bottom row with the top of the keyboard instead of
++		 * centring the content; rows that no longer fit scroll off the top. */
++		int inset = option_keyboard_inset;
++		if (inset > allocation.height / 2)
++			inset = allocation.height / 2;
++		top_margin = allocation.height - inset -
++			     terminal->height * extents.height;
++	}
+ 
+ 	cairo_set_line_width(cr, 1.0);
+ 	cairo_translate(cr, allocation.x + side_margin,
+@@ -2743,6 +2760,15 @@
+ text_input_input_panel_state(void *data, struct zwp_text_input_v1 *text_input,
+ 			     uint32_t state)
+ {
++	struct terminal *terminal = data;
++	int shown = (state == 1);
++
++	/* lmi: 1 = the on-screen keyboard is mapped.  Lift the drawing area so the
++	 * last line (the shell prompt) stays visible above it. */
++	if (terminal->input_panel_shown != shown) {
++		terminal->input_panel_shown = shown;
++		widget_schedule_redraw(terminal->widget);
++	}
+ }
+ 
+ static void
+@@ -3197,9 +3223,11 @@
+ 	/* Feed the wheel-scroll path (axis_handler) so all its clamping applies:
+ 	 * dragging the finger down reveals older lines.  One line per ~1.5 font
+ 	 * sizes keeps the gesture close to the visible row height. */
+-	line_px = option_font_size + option_font_size / 2;
+-	if (line_px < 8)
+-		line_px = 8;
++	/* lmi: one line per 0.75 font sizes - a full-screen drag covers the whole
++	 * scrollback quickly; raise this if the gesture feels too fast. */
++	line_px = option_font_size * 3 / 4;
++	if (line_px < 6)
++		line_px = 6;
+ 	acc = &terminal->touch_scroll_px;
+ 	*acc += (int)dy;
+ 	while (*acc >= line_px) {
+@@ -3420,6 +3448,7 @@
+ 	{ WESTON_OPTION_BOOLEAN, "maximized", 'm', &option_maximize },
+ 	{ WESTON_OPTION_STRING, "font", 0, &option_font },
+ 	{ WESTON_OPTION_INTEGER, "font-size", 0, &option_font_size },
++	{ WESTON_OPTION_INTEGER, "keyboard-inset", 0, &option_keyboard_inset },
+ 	{ WESTON_OPTION_STRING, "shell", 0, &option_shell },
+ };
+ 

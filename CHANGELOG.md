@@ -10,6 +10,55 @@
   SSH 与改口令/公钥、监测台（`lmi-status` + 网页面板 + CSV 指标解读）、充电温控策略与调参、
   CPU 降温、桌面/中文输入/按键、服务与日志速查、FAQ、安全提醒；README 索引已挂。
 
+### Added
+- 桌面与终端体验（overlay `m1b-ux-v10`，补丁 0012/0013）：
+  - **手指拖动＝滚动**终端（原先拖动被当作文本选择，触屏上没有鼠标、历史内容不可达），
+    力度约每 0.75 个字高滚一行；
+  - **键盘不再遮挡提示行**：键盘弹出时终端内容自动上移（`--keyboard-inset`，
+    `/etc/conf.d/m1-weston` 的 `KEYBOARD_INSET=300`），最后一行始终在键盘之上；
+  - 会话默认只开**一个最大化窗口**（`HINT=1`：说明书终端，打印完直接进 shell）；
+    `TERMINAL=1`/`EDITOR=1` 可加开；重启时清理残留客户端（避免重复窗口），
+    并修复了旧版残留 `weston-editor` 被重新映射的问题；
+  - `keyboard-inset` 从 `weston.ini` 读取（补丁 0014），面板启动器等多开的窗口也自动避让键盘。
+    注意：weston 14 的终端**不读** ini 的 `shell=`（只读 font/font-size/term），补丁 0015 补上。
+- 终端交互（补丁 0012–0019，overlay `m1b-ux-v14`）：手指拖动=滚动历史；`--keyboard-inset`
+  避让键盘（ini 可配）；快捷栏 `Esc/Tab/Ctrl/Alt/方向/Home/End/PgUp/PgDn`；**每个**终端启动
+  都打印 `lmi-help` 说明书（补丁 0015 让终端读取 ini 的 `shell=`）；`LMI_NO_MOTD=1` 可跳过。
+- `tools/m1/dev/lmi-inject.py` 新增 `type`（注入字符串，US 布局）与 `drag`（触摸拖动）两种
+  测试模式——用于无人值守地验证键盘/滚动；配合 `weston-screenshooter`（输出写到当前目录的
+  `wayland-screenshot-*.png`）可以端到端截图核对界面。
+
+- `lmi-help` 命令一览（大标题 + 分组指令表）：**每个** weston 终端启动时都会打印
+  （`weston.ini [terminal] shell=` + 补丁 0015，面板启动器开的窗口同样生效），SSH 登录横幅
+  （`etc/profile.d/20-lmi-motd.sh`）与仪表盘"常用指令"表共用同一份内容；
+  `LMI_NO_MOTD=1` 可跳过（要一个干净终端时用），每次调用记一行到 `/var/log/lmi-help.log`。
+- `lmi-netwatch` WiFi 看门狗：`wlan0`/`wpa_supplicant` 消失后自动 `rc-service lmi-wifi restart`
+  （掉线不必再重启），带指数退避、状态文件与 `NETWATCH_*` 配置；`NETWATCH_REBOOT=1` 为最后手段
+  （写 BCB 重启回 Linux，绝不进 Android）。
+- `lmi-wifi` 改为**一次性服务**：原先 bring-up 脚本退后台，成功后 OpenRC 会误报 `crashed`。
+- 载荷完整性防线：重建脚本断言"暂存 payload 与源逐字节一致"并做空间预检；CI 新增第 5 项
+  （payload 脚本必须 755、文本必须 LF）。
+
+### Fixed
+- **rootfs 实际只有 1.4 GiB**（迁移到 `lnx` 16 GiB 分区时没有把 ext4 扩到分区大小），写满后
+  `dd` 与脚本写入**静默失败**（一次镜像构建因此产出截断文件）。已在线 `resize2fs` 扩到
+  **15.7 GiB（可用 13.8 GiB）**；重建脚本新增"空间不足即报错"与 dd 失败提示。
+- 设备上安装的 `/usr/sbin/lmi-wifi-start` 曾被 `tr -d "r"` 削掉全部字母 r（`mkdi`、`/va/log`），
+  导致 WLAN 栈掉线后**永远无法恢复**：已按仓库逐字节校验回填，并加了完整性断言防止复发。
+
+### Fixed
+- **终端滚动后"输出被吞"**（overlay `m1b-ux-v14`，补丁 0018/0019）：滚动期间输出会推进
+  `terminal->start`，而"回到活区"的锚点 `saved_start` 不跟着走，于是回滚的钳制量变成负数、
+  视图越过活区滚进旧行（表现为只剩命令行、下面一大片空）。现在锚点跟随输出；并且屏幕键盘
+  输入（`text_input` 的 preedit/commit/keysym 三条路径）也像物理按键一样把视图拉回活区，
+  不再出现"打字后输出在视野之外"。
+- **键盘遮挡提示行**（补丁 0013/0014/0016/0017）：weston 把虚拟键盘做成**常驻覆盖层**
+  （`zwp_input_panel_v1.set_overlay_panel`），且**从不发送** text-input 的
+  `input_panel_state` 事件——所以合成器永远不会把窗口挪开，客户端只能自己避让。
+  现在终端按"可用高度 = 窗口高度 − 键盘高度"重排网格（并把新的 winsize 告诉 PTY），
+  网格底边贴着键盘上沿：没有黑带、提示行与命令输出始终可见。`keyboard-inset` 可配
+  （`weston.ini [terminal]` 与 `/etc/conf.d/m1-weston`，实测 K30 Pro 为 480）。
+
 ### Security
 - **个人信息与凭据清理**（2026-09-15）：仓库不再包含设备序列号/CPUID/证书、
   Wi-Fi SSID 与内网 IP、任何口令或口令哈希、主机路径。

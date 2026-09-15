@@ -2,18 +2,38 @@
 # shellcheck shell=sh
 # shellcheck disable=SC2034  # values are consumed by OpenRC, not by this file
 # SPDX-License-Identifier: MIT
-# lmi-wifi — run the QCA6390 WLAN bring-up in the background at boot.
-
-name="lmi-wifi"
+# lmi-wifi - QCA6390 WLAN bring-up.
+#
+# This is a *one-shot* job, not a long-running daemon: lmi-wifi-start does the
+# firmware/qrtr/cnss/wpa_supplicant/udhcpc sequence and then exits (wpa_supplicant
+# and udhcpc keep running in the background).  Declaring it as a background
+# service made OpenRC report "crashed" after every successful bring-up, which
+# was repeatedly mistaken for a real failure (2026-09-15) - so it is a oneshot.
 description="QCA6390 WLAN bring-up (downstream CNSS2 + qcacld)"
-
-command="/usr/sbin/lmi-wifi-start"
-command_background="yes"
-pidfile="/run/lmi-wifi.pid"
-output_log="/var/log/lmi-wifi.out.log"
-error_log="/var/log/lmi-wifi.out.log"
 
 depend() {
 	need localmount
 	after m1-weston
+}
+
+start() {
+	ebegin "Bringing up WLAN (lmi-wifi-start)"
+	/usr/sbin/lmi-wifi-start >>/var/log/lmi-wifi.out.log 2>&1
+	eend $? "WLAN bring-up failed (see /var/log/lmi-wifi.log)"
+}
+
+stop() {
+	ebegin "Stopping WLAN"
+	pkill -x wpa_supplicant 2>/dev/null
+	pkill -x udhcpc 2>/dev/null
+	eend 0
+}
+
+status() {
+	if [ -e /sys/class/net/wlan0 ]; then
+		einfo "wlan0 present"
+	else
+		eerror "wlan0 missing"
+		return 1
+	fi
 }

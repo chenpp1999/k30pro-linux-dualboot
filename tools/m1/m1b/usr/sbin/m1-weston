@@ -32,7 +32,7 @@ export XCURSOR_THEME XCURSOR_SIZE
 
 log() { printf '%s [%s] %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$$" "$*"; }
 
-WPID=''; C1=''; C2=''; MTEST=''; FEEDER=''; WORK=''
+WPID=''; C0=''; C1=''; C2=''; MTEST=''; FEEDER=''; WORK=''
 STOPPING=0
 trap 'STOPPING=1' TERM INT HUP
 
@@ -46,7 +46,7 @@ kill_wait() { # $1=pid $2=timeout_s
 }
 
 cleanup() {
-  kill_wait "$C1" 3; kill_wait "$C2" 3
+  kill_wait "$C0" 3; kill_wait "$C1" 3; kill_wait "$C2" 3
   kill_wait "$MTEST" 3; kill_wait "$FEEDER" 3
   if [ -n "$WPID" ]; then kill_wait "$WPID" 8; wait "$WPID" 2>/dev/null; fi
   [ -n "$WORK" ] && rm -rf "$WORK"
@@ -84,6 +84,18 @@ sweep_stale() { # only a leftover weston from a killed/daemonized run
   return 0
 }
 
+sweep_stale_clients() {
+  # A previous session can leave clients behind (e.g. when the wrapper was
+  # SIGKILLed, so its cleanup never ran) and weston would map them again as
+  # extra windows.  Only ever kill our own clients, never a foreign app.
+  for c in weston-terminal weston-editor weston-keyboard; do
+    pids=$(pgrep -x "$c" 2>/dev/null) || continue
+    log "stale client $c (pid $pids); terminating"
+    kill_wait "$pids" 3
+  done
+  return 0
+}
+
 splash_release() { # D80-proven modetest sequence, bounded
   WORK=$(mktemp -d /tmp/m1-weston.XXXXXX) || { WORK=''; return 0; }
   mkfifo "$WORK/input" || { rm -rf "$WORK"; WORK=''; return 0; }
@@ -118,6 +130,7 @@ while :; do
   attempt=$((attempt+1))
   wait_seat || log "WARN: seatd/dri not ready after ${SEAT_WAIT}s"
   sweep_stale || log "WARN: DRM seat may still be busy"
+  sweep_stale_clients
   splash_release
   conf=$CONF
   if [ "${conf_override:-0}" = 1 ] || { [ "$attempt" -gt 3 ] && [ -f "$FALLBACK" ]; }; then
@@ -125,8 +138,23 @@ while :; do
   fi
   if start_weston "$conf"; then
     log "weston up (attempt $attempt)"
-    WAYLAND_DISPLAY="$SOCK" weston-terminal --maximized --font-size=16 & C1=$!
-    WAYLAND_DISPLAY="$SOCK" weston-editor & C2=$!
+    # Session windows.  Default: a single maximized terminal whose "shell" is the
+    # lmi-help cheat sheet - it prints the big banner + command table and then
+    # drops into a shell, so it is both the welcome screen and the terminal
+    # (a finger drag scrolls it; see patch 0012).  Extra windows are opt-in via
+    # /etc/conf.d/m1-weston: HINT / TERMINAL / EDITOR.
+    if [ "${HINT:-1}" = 1 ] && [ -x /usr/sbin/lmi-help ]; then
+      WAYLAND_DISPLAY="$SOCK" weston-terminal --maximized --font-size=15 \
+        --keyboard-inset="${KEYBOARD_INSET:-300}" \
+        --shell=/usr/sbin/lmi-help & C0=$!
+    fi
+    if [ "${TERMINAL:-0}" = 1 ]; then
+      WAYLAND_DISPLAY="$SOCK" weston-terminal --maximized --font-size=16 \
+        --keyboard-inset="${KEYBOARD_INSET:-300}" & C1=$!
+    fi
+    if [ "${EDITOR:-0}" = 1 ]; then
+      WAYLAND_DISPLAY="$SOCK" weston-editor & C2=$!
+    fi
     wait "$WPID"; rc=$?; WPID=''
     [ "$STOPPING" = 1 ] && { log "stop requested"; exit 0; }
     log "weston exited rc=$rc (restarting)"

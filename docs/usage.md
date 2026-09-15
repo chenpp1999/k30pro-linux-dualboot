@@ -164,6 +164,9 @@ lmi-power -S       # 看三簇当前/最高频率
 |---|---|
 | 终端 / 编辑器 | 桌面上的终端、`weston-editor`；终端已是 256 色 + 彩色 `ls` |
 | 中文输入 | 点输入框 → 屏幕键盘上屏 → 输拼音（如 `nihao`）→ 点候选条选字；`←/→` 翻页 |
+| 终端滚动 | **手指在终端里上下拖动 = 翻历史**（键盘弹出时内容会自动上移，提示行不会被挡住） |
+| 多个终端 | 面板上的终端图标可以再开窗口，每个都会先打印说明书 |
+| 命令速查 | `lmi-help`（**每个**新开的终端都会自动打印；SSH 登录也会打印一次；`LMI_NO_MOTD=1` 跳过） |
 | 快捷键栏 | `Esc Tab Ctrl Alt ← ↑ ↓ → Home End PgUp PgDn`；**单击 Ctrl/Alt = 锁定一次，双击 = 常锁**（再点解除） |
 | 音量键 | 调屏幕背光（含 0%/10% 档） |
 | 电源键 | 开关屏 |
@@ -202,6 +205,8 @@ rc-service <名字> status|restart|stop|start
 | 充电一直不停 | `cat /run/lmi-chargectl.state`；确认 `lmi-chargectl` 在跑（`rc-status`） |
 | 电量掉到很低 | 卡死保护会在 ≤25 % 时重启回 Linux 重置 PMIC 状态；也可以手动 `rc-service lmi-chargectl restart` |
 | 想彻底恢复 Android | 重启；或 `fastboot erase misc` 后重启 |
+| WiFi 掉了（`wlan0` 消失） | `lmi-netwatch` 会自动重启 bring-up；手动看 `cat /run/lmi-netwatch.state` |
+| 终端里想看被键盘挡住的输出 | 手指向下拖动终端即可翻到更早的内容（键盘高度可用 `KEYBOARD_INSET` 调） |
 | 网页面板打不开 | `rc-service lmi-monitor restart`；`tail /var/log/lmi-dashboard.log`（无 http 服务时会提示） |
 
 ## 10. 安全提醒

@@ -1,0 +1,98 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# lmi-netwatch - keep wlan0 alive without a reboot.
+#
+# 2026-09-15: a long-running session lost the whole WLAN stack (wlan0 and every
+# cnss/qrtr/wpa_supplicant process gone, no kernel complaint in dmesg).  The
+# reason it could never come back was *not* the chip: the installed
+# /usr/sbin/lmi-wifi-start had been overwritten by a tr-damaged copy (every
+# letter "r" stripped: `mkdi`, `/va/log`, `/us/sbin`), so every restart died on
+# line 21.  With the payload restored, `rc-service lmi-wifi restart` brings the
+# interface back in ~25 s.  This watchdog automates exactly that.
+#
+# Policy:
+#   1. every NETWATCH_INTERVAL seconds check for wlan0 and a live wpa_supplicant
+#   2. after NETWATCH_FAIL_CHECKS consecutive bad checks -> rc-service lmi-wifi restart
+#   3. if it stays broken after NETWATCH_MAX_RESTARTS restarts, keep trying with
+#      a long backoff and log a loud warning (no reboot unless NETWATCH_REBOOT=1)
+#   4. every event goes to /var/log/lmi-netwatch.log and is summarised for
+#      lmi-status / the monitor CSV
+#
+# Config lives in /etc/conf.d/lmi-power (shared with the other lmi daemons).
+# shellcheck source=/dev/null
+[ -r /etc/conf.d/lmi-power ] && . /etc/conf.d/lmi-power
+
+INTERVAL=${NETWATCH_INTERVAL:-120}
+FAIL_CHECKS=${NETWATCH_FAIL_CHECKS:-2}
+MAX_RESTARTS=${NETWATCH_MAX_RESTARTS:-5}
+LONG_BACKOFF=${NETWATCH_LONG_BACKOFF:-1800}
+REBOOT=${NETWATCH_REBOOT:-0}
+LOG=/var/log/lmi-netwatch.log
+STATE=/run/lmi-netwatch.state
+BCB_CMD=boot-recovery
+
+log() { printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" | tee -a "$LOG"; }
+
+wlan_ok() {
+	[ -e /sys/class/net/wlan0 ] || return 1
+	pgrep -x wpa_supplicant >/dev/null 2>&1 || return 1
+	return 0
+}
+
+write_state() { # $1=status $2=fails $3=restarts
+	printf 'status=%s\nfails=%s\nrestarts=%s\nupdated=%s\n' \
+		"$1" "$2" "$3" "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" > "$STATE"
+}
+
+fails=0
+restarts=0
+log "started: interval=${INTERVAL}s fail_checks=${FAIL_CHECKS} max_restarts=${MAX_RESTARTS} reboot=${REBOOT}"
+
+while :; do
+	sleep "$INTERVAL"
+	if wlan_ok; then
+		if [ "$fails" -gt 0 ]; then
+			log "wlan0 healthy again (was failing x$fails)"
+		fi
+		fails=0
+		restarts=0
+		write_state ok "$fails" "$restarts"
+		continue
+	fi
+
+	fails=$((fails + 1))
+	if [ -e /sys/class/net/wlan0 ]; then
+		detail="wlan0 present but wpa_supplicant gone"
+	else
+		detail="wlan0 missing"
+	fi
+	log "check failed ($fails/$FAIL_CHECKS): $detail"
+	write_state failing "$fails" "$restarts"
+	[ "$fails" -ge "$FAIL_CHECKS" ] || continue
+
+	if [ "$restarts" -lt "$MAX_RESTARTS" ]; then
+		restarts=$((restarts + 1))
+		log "recovery attempt $restarts/$MAX_RESTARTS: rc-service lmi-wifi restart"
+		rc-service lmi-wifi restart >>"$LOG" 2>&1 || log "restart command failed"
+		fails=0
+		sleep 30
+		if wlan_ok; then
+			log "recovered after restart $restarts"
+			restarts=0
+			write_state recovered 0 0
+		fi
+		continue
+	fi
+
+	log "WARN: wlan0 still down after $MAX_RESTARTS restarts; backing off ${LONG_BACKOFF}s"
+	write_state giveup "$fails" "$restarts"
+	if [ "$REBOOT" = 1 ]; then
+		log "NETWATCH_REBOOT=1 -> writing BCB '$BCB_CMD' and rebooting back into Linux"
+		printf '%s' "$BCB_CMD" | dd of=/dev/sda11 bs=1 conv=fsync 2>/dev/null || log "BCB write failed"
+		sync
+		reboot
+	fi
+	# keep watching with a modest cadence: the interface may come back on its own
+	restarts=0
+	sleep "$LONG_BACKOFF"
+done

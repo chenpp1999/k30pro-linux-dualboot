@@ -22,3 +22,17 @@ KIOSK=0
 # theme is installed into /usr/share/icons.
 XCURSOR_THEME=
 XCURSOR_SIZE=24
+
+# Session windows.  HINT=1 opens the lmi-help cheat sheet maximized (big title +
+# command table, then a shell) - it is the default and the only window unless
+# the two below are enabled.  A finger drag scrolls the terminal (patch 0012).
+HINT=1
+TERMINAL=0
+EDITOR=0
+
+# Logical pixels reserved at the bottom of the terminal while the on-screen
+# keyboard is up, so the last line (the shell prompt) is never hidden behind it.
+# The K30 Pro panel is 540x1200 logical and the keyboard+shortcut bar take the
+# bottom 480 px (measured 2026-09-15); raise this
+# if the prompt still sits under the keyboard, 0 restores the stock behaviour.
+KEYBOARD_INSET=480

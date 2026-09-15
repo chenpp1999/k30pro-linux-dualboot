@@ -15,11 +15,12 @@
 | Linux UX | ✅ Phase 1 + Phase 2 + 中文输入法 + 快捷键栏，实机验证 | `docs/acceptance/ux-2026-09-15.md` |
 | M3 | ✅ **已在本机执行完成**（userdata 107→91 GiB + 新建 `lnx` 16 GiB，rootfs 迁移到 `lnx`） | `docs/acceptance/m3-2026-09-15.md`、`docs/m3-repart-plan.md` |
 | 电源/温控/监控 | ✅ 实机落地（见 §五） | `docs/m1b-thermal-charging.md` |
+| 桌面/终端体验 | ✅ 指纹拖动滚动、键盘避让、单窗口、`lmi-help`、WiFi 看门狗 | `docs/usage.md` |
 | M4 | 🚧 v1.0 发布（本文档即其开工快照） | `docs/release-v1.0.0.md`、`docs/reproduce.md` |
 
 ## 二、设备当前状态（2026-09-15 晚）
 
-- **运行中**：手机在 **Linux**，内核镜像 = recovery 里的 `boot-m1b-v13.img`
+- **运行中**：手机在 **Linux**，内核镜像 = recovery 里的 `boot-m1b-v21.img`
   （`e4684d05…`，overlay `m1b-ux-v7`，回读校验通过），rootfs 在 **`/dev/sda35`（`lnx`）**，
   引导账本记 `boot=23`。**注意**：本次开机时 overlay 仍是 v6，v7 会在下次 Linux 启动时应用。
 - **充电控制正在生效**：`lmi-chargectl` 已把 SOC 控制在 70–80 % 锯齿内，当前 `soc≈99 temp≈34 °C
@@ -115,6 +116,27 @@ recovery 内容与目标 sha256 一致 → 只写 BCB 重启（**FAST**），否
     `tools/m1/rebuild-image-from-device.sh` 的默认 `VERSION`（应用是一次性的，靠版本号判断）。
 16. 开工前检查 open issues，`[VFY]` 开头 = 独立验证者产出，按 `docs/ai-protocol.md` 只能
     评论 `Resolved-by:`/`Rejected:`。
+
+## 六之二、weston 终端/键盘实测结论（2026-09-15，补丁 0012–0019）
+
+这几条都是**读源码 + 截图核对**得出的结论，不要再凭猜测改：
+
+- **合成器不下发键盘几何**：`zwp_text_input_v1.input_panel_state` 在 weston 里**没有任何发送方**
+  （libweston/desktop-shell/compositor 全搜过）。键盘是 `set_overlay_panel` 的**常驻覆盖层**，
+  不会隐藏、也不会让窗口让位 → **避让只能客户端自己做**。
+- **`weston-terminal` 不读 ini 的 `shell=`**（只读 font/font-size/term，程序来自 `$SHELL` 或
+  `--shell=`）→ 想让"每个终端都显示说明书"必须打补丁 0015。
+- **网格在哪算**：`resize_handler()` 由 `(height - margin - inset)/extents.height` 得出行列数，
+  并经 `terminal_resize_cells()` 把 winsize 告诉 PTY。要"提示行可见"，就**缩小网格**而不是
+  平移内容（0017）。行高在 font-size=15 时约 21 逻辑像素；本机窗口 540×1168，键盘+快捷栏
+  占底部 480。
+- **滚动锚点缺陷（上游）**：视图位置 = `(row + start) & mask`；`saved_start` 是"活区"锚点。
+  输出滚动只推进 `start`（`terminal_scroll_buffer()`），resize 也会动它——**锚点不跟就会让
+  "回滚"的钳制 `saved_start - start` 变负、失效**，视图越界到旧行（表现为"输出被吞"）。
+  0018 让锚点处处跟随，0019 让屏幕键盘输入也回到活区。
+- **验证手段**：`weston-screenshooter` 把 PNG 写到**当前目录**（`wayland-screenshot-*.png`，忽略
+  传入路径）；`tools/m1/dev/lmi-inject.py` 支持 `taps`/`drag`/`type`，可以无人值守地"点键盘、
+  拖动、打字"再截图核对。本次修复就是这样逐张截图确认的。
 
 ## 七、开发环境与通道
 

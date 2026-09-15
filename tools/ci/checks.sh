@@ -56,7 +56,9 @@ scanned_scripts() {
 #                   recovery path (same class as the init scripts)
 #   m1-mailbox    : device-side mailbox writer (super read/write region)
 DRY_EXEMPT="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh tools/m3/lmi-repart.sh
-tools/m1/m1b/usr/sbin/lmi-chargectl tools/m1/m1b/usr/sbin/m1-mailbox"
+tools/m1/m1b/usr/sbin/lmi-chargectl tools/m1/m1b/usr/sbin/m1-mailbox
+#   lmi-netwatch : one-shot BCB write in the NETWATCH_REBOOT=1 last resort
+tools/m1/m1b/usr/sbin/lmi-netwatch"
 for f in $(scanned_scripts); do
   case "$f" in
     tools/ci/checks.sh) continue ;;   # the scanner itself contains these patterns
@@ -87,7 +89,7 @@ echo "== 3. hardcoded device nodes =="
 NODE_ALLOWED="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh
 tools/m1/rebuild-image-from-device.sh tools/m3/lmi-repart.sh
 tools/m1/m1b/usr/sbin/lmi-chargectl tools/m1/m1b/usr/sbin/m1-mailbox
-tools/m1/m1b/usr/sbin/lmi-wifi-start"
+tools/m1/m1b/usr/sbin/lmi-wifi-start tools/m1/m1b/usr/sbin/lmi-netwatch"
 for f in $(scanned_scripts); do
   case "$f" in
     tools/ci/checks.sh) continue ;;   # the scanner itself contains this pattern
@@ -131,6 +133,28 @@ if [ -n "$hits" ]; then
 else
 	echo "clean"
 fi
+
+echo "== 5. payload integrity (exec bits + line endings) =="
+# The overlay payload is copied into the rootfs verbatim and may also be exported
+# with `git archive` / `tar`; scripts must be executable and text files must be
+# LF in the index or the device ends up with a broken bring-up (2026-09-15:
+# 0644 scripts + CRLF blobs each bit us).
+pbad=0
+for f in $(git ls-files 'tools/m1/m1b/usr/sbin/*' 'tools/m1/m1b/etc/init.d/*' \
+	'tools/m1/m1b/usr/bin/*' 'tools/m1/m1b/usr/libexec/*'); do
+	mode=$(git ls-files -s "$f" | awk '{print $1}')
+	if [ "$mode" != "100755" ]; then
+		echo "NOT EXECUTABLE ($mode): $f"; pbad=1
+	fi
+done
+for f in $(git ls-files 'tools/m1/m1b/*'); do
+	eol=$(git ls-files --eol "$f" | awk '{print $1}')
+	case "$eol" in
+	i/lf|i/-text|i/none) ;;
+	*) echo "UNEXPECTED EOL ($eol): $f"; pbad=1 ;;
+	esac
+done
+if [ "$pbad" = 0 ]; then echo "ok"; else status=1; fi
 
 echo "== guard rails done (status=$status) =="
 exit $status

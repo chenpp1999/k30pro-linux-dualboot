@@ -1,0 +1,51 @@
+From: k30pro-linux-dualboot
+Subject: [PATCH 0017] terminal: shrink the grid, anchored above the keyboard
+
+Reserving the keyboard height by moving the content up (0013/0016) left a dead
+black band and hid output once the screen scrolled: the grid still had as many
+rows as the full window, so its last rows landed under the keyboard.  Do what
+touch terminals do - subtract the keyboard height from the usable height when
+the grid is computed (terminal_resize_cells() then tells the shell about the
+smaller window) and anchor the grid bottom to the keyboard top edge.
+
+--- clients/terminal.c.orig
++++ clients/terminal.c
+@@ -889,7 +889,19 @@
+ 	}
+ 	m = 2 * terminal->margin;
+ 	columns = (int32_t) round((width - m) / terminal->average_width);
+-	rows = (int32_t) round((height - m) / terminal->extents.height);
++	if (option_keyboard_inset > 0) {
++		/* lmi: only the area above the keyboard is usable; the grid shrinks and
++		 * terminal_resize_cells() sends the matching winsize, so the shell keeps
++		 * the prompt and the command output inside the visible rows. */
++		int32_t usable = height - m - option_keyboard_inset;
++		if (usable < terminal->extents.height)
++			usable = terminal->extents.height;
++		rows = (int32_t) (usable / terminal->extents.height);
++	} else {
++		rows = (int32_t) round((height - m) / terminal->extents.height);
++	}
++	if (rows < 1)
++		rows = 1;
+ 
+ 	if (!window_is_fullscreen(terminal->window) &&
+ 	    !window_is_maximized(terminal->window)) {
+@@ -1100,12 +1112,16 @@
+ 		 * (zwp_input_panel_v1.set_overlay_panel) and never sends the text-input
+ 		 * input_panel_state event, so there is nothing to gate on.  Measured on
+ 		 * the K30 Pro: the panel is 540x1200 logical, the keyboard + shortcut
+-		 * bar occupy the bottom 480 px, hence keyboard-inset=480. */
++		 * bar occupy the bottom 480 px, hence keyboard-inset=480.
++		 * Anchor the *bottom* row to that edge: centring (or clamping the wrong
++		 * way) leaves the last lines underneath the keyboard. */
+ 		int inset = option_keyboard_inset;
+ 		if (inset > allocation.height * 3 / 4)
+ 			inset = allocation.height * 3 / 4;
+ 		top_margin = allocation.height - inset -
+ 			     terminal->height * extents.height;
++		if (top_margin < 0)
++			top_margin = 0;
+ 	}
+ 
+ 	cairo_set_line_width(cr, 1.0);

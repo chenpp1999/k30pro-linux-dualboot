@@ -1,0 +1,66 @@
+From: k30pro-linux-dualboot
+Subject: [PATCH 0018] terminal: keep the scrollback anchor in sync with output
+
+Saved_start is the buffer index of the live view, recorded when scrolling
+starts.  terminal_scroll_buffer() and terminal_resize_cells() advance start
+(output and grid changes) without touching saved_start, so the clamp that
+stops "scroll down" (saved_start - start) turns negative and stops working:
+the view runs past the live end into stale rows and the newest output looks
+swallowed (seen on device after typing ls and scrolling down/up).  Advance
+saved_start wherever start moves, and drop out of scrollback mode once the
+view is back at the live position.
+
+--- clients/terminal.c.orig
++++ clients/terminal.c
+@@ -657,6 +657,11 @@
+ 	int i;
+ 
+ 	terminal->start += d;
++	/* lmi: keep the "live" anchor in step with the output.  Without this,
++	 * saved_start keeps an absolute buffer index from before the output, so the
++	 * clamp when scrolling back down (saved_start - start) goes negative and the
++	 * view runs past the live end into stale rows - the output looks swallowed. */
++	terminal->saved_start += d;
+ 	if (d < 0) {
+ 		d = 0 - d;
+ 		for (i = 0; i < d; i++) {
+@@ -775,7 +780,7 @@
+ 	char *tab_ruler;
+ 	int data_pitch, attr_pitch;
+ 	int i, l, total_rows;
+-	uint32_t d, uheight = height;
++	uint32_t d, uheight = height, start_before;
+ 	struct rectangle allocation;
+ 	struct winsize ws;
+ 
+@@ -784,6 +789,10 @@
+ 
+ 	if (terminal->width == width && terminal->height == height)
+ 		return;
++
++	/* lmi: the grid can shrink (keyboard inset) while the user is reading the
++	 * scrollback; whatever happens to start below must happen to saved_start. */
++	start_before = terminal->start;
+ 
+ 	if (terminal->data && width <= terminal->max_width) {
+ 		d = 0;
+@@ -846,6 +855,8 @@
+ 		terminal->tab_ruler = tab_ruler;
+ 		terminal->start = 0;
+ 	}
++
++	terminal->saved_start += terminal->start - start_before;
+ 
+ 	terminal->margin_bottom =
+ 		height - (terminal->height - terminal->margin_bottom);
+@@ -3261,6 +3272,10 @@
+ 			     AXIS_UNITS_PER_LINE, terminal);
+ 		*acc += line_px;
+ 	}
++	/* back at the live view: leave scrollback mode so the cursor and the
++	 * automatic scrolling behave normally again */
++	if (terminal->scrolling && terminal->start == terminal->saved_start)
++		terminal->scrolling = 0;
+ 	widget_schedule_redraw(widget);
+ }
+ 

@@ -8,6 +8,8 @@
 #   lmi-inject pointer X Y           # absolute pointer click (focuses windows;
 #                                    # weston grants keyboard focus on clicks)
 #   lmi-inject taps X Y X Y ...      # several touch taps on one device
+#   lmi-inject drag X1 Y1 X2 Y2 [n]  # one finger drag (scroll/gesture tests)
+#   lmi-inject type "ls" enter       # type text into the focused client and\n#                                    press Enter (US layout)
 import fcntl
 import os
 import struct
@@ -35,6 +37,31 @@ KEY = {
     "KEY_POWER": 116,
     "KEY_ENTER": 28,
     "KEY_BACKSPACE": 14,
+    # letters/digits for typing into a focused client (US layout), handy for
+    # end-to-end tests that cannot rely on the on-screen keyboard
+    "KEY_ESC": 1,
+    "KEY_SPACE": 57,
+    "KEY_A": 30, "KEY_B": 48, "KEY_C": 46, "KEY_D": 32, "KEY_E": 18,
+    "KEY_F": 33, "KEY_G": 34, "KEY_H": 35, "KEY_I": 23, "KEY_J": 36,
+    "KEY_K": 37, "KEY_L": 38, "KEY_M": 50, "KEY_N": 49, "KEY_O": 24,
+    "KEY_P": 25, "KEY_Q": 16, "KEY_R": 19, "KEY_S": 31, "KEY_T": 20,
+    "KEY_U": 22, "KEY_V": 47, "KEY_W": 17, "KEY_X": 45, "KEY_Y": 21,
+    "KEY_Z": 44, "KEY_1": 2, "KEY_2": 3, "KEY_3": 4, "KEY_4": 5,
+    "KEY_5": 6, "KEY_6": 7, "KEY_7": 8, "KEY_8": 9, "KEY_9": 10,
+    "KEY_0": 11, "KEY_SLASH": 53, "KEY_MINUS": 12, "KEY_DOT": 52,
+}
+
+# inject a whole string, then optionally Enter: `type "ls" enter`
+TEXT_KEYS = {
+    'a': 'KEY_A', 'b': 'KEY_B', 'c': 'KEY_C', 'd': 'KEY_D', 'e': 'KEY_E',
+    'f': 'KEY_F', 'g': 'KEY_G', 'h': 'KEY_H', 'i': 'KEY_I', 'j': 'KEY_J',
+    'k': 'KEY_K', 'l': 'KEY_L', 'm': 'KEY_M', 'n': 'KEY_N', 'o': 'KEY_O',
+    'p': 'KEY_P', 'q': 'KEY_Q', 'r': 'KEY_R', 's': 'KEY_S', 't': 'KEY_T',
+    'u': 'KEY_U', 'v': 'KEY_V', 'w': 'KEY_W', 'x': 'KEY_X', 'y': 'KEY_Y',
+    'z': 'KEY_Z', '0': 'KEY_0', '1': 'KEY_1', '2': 'KEY_2', '3': 'KEY_3',
+    '4': 'KEY_4', '5': 'KEY_5', '6': 'KEY_6', '7': 'KEY_7', '8': 'KEY_8',
+    '9': 'KEY_9', ' ': 'KEY_SPACE', '/': 'KEY_SLASH', '-': 'KEY_MINUS',
+    '.': 'KEY_DOT',
 }
 
 UI_DEV_SETUP = 0x405c5503
@@ -95,7 +122,7 @@ class UInput:
 
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ("key", "touch", "pointer", "taps"):
+    if len(sys.argv) < 2 or sys.argv[1] not in ("key", "touch", "pointer", "taps", "drag", "type"):
         print(__doc__)
         return 2
     mode = sys.argv[1]
@@ -138,6 +165,46 @@ def main():
         time.sleep(0.2)
         dev.close()
         print(f"injected pointer click at {x},{y}")
+    elif mode == "drag":
+        # drag X1 Y1 X2 Y2 [steps]  - one finger drag (scroll gesture tests)
+        x1, y1, x2, y2 = (int(sys.argv[i]) for i in (2, 3, 4, 5))
+        steps = int(sys.argv[6]) if len(sys.argv) > 6 else 20
+        dev = UInput("lmi-inject-drag", touch=True)
+        time.sleep(2.5)
+        dev.emit(EV_ABS, ABS_MT_SLOT, 0)
+        dev.emit(EV_ABS, ABS_MT_TRACKING_ID, 43)
+        dev.emit(EV_ABS, ABS_MT_POSITION_X, x1)
+        dev.emit(EV_ABS, ABS_MT_POSITION_Y, y1)
+        dev.emit(EV_KEY, BTN_TOUCH, 1)
+        dev.sync()
+        for i in range(1, steps + 1):
+            dev.emit(EV_ABS, ABS_MT_POSITION_X, x1 + (x2 - x1) * i // steps)
+            dev.emit(EV_ABS, ABS_MT_POSITION_Y, y1 + (y2 - y1) * i // steps)
+            dev.sync()
+            time.sleep(0.02)
+        dev.emit(EV_ABS, ABS_MT_TRACKING_ID, -1)
+        dev.emit(EV_KEY, BTN_TOUCH, 0)
+        dev.sync()
+        time.sleep(0.2)
+        dev.close()
+        print(f"injected drag {x1},{y1} -> {x2},{y2} in {steps} steps")
+    elif mode == "type":
+        text = sys.argv[2] if len(sys.argv) > 2 else "ls"
+        press_enter = len(sys.argv) > 3 and sys.argv[3] == "enter"
+        codes = [KEY[TEXT_KEYS[ch]] for ch in text.lower() if ch in TEXT_KEYS]
+        if press_enter:
+            codes.append(KEY["KEY_ENTER"])
+        dev = UInput("lmi-inject-type", keys=codes)
+        time.sleep(2.5)
+        for code in codes:
+            dev.emit(EV_KEY, code, 1)
+            dev.sync()
+            time.sleep(0.05)
+            dev.emit(EV_KEY, code, 0)
+            dev.sync()
+            time.sleep(0.08)
+        dev.close()
+        print(f"typed {text!r}" + (" + Enter" if press_enter else ""))
     elif mode == "key":
         name = sys.argv[2]
         code = KEY.get(name, int(name) if name.isdigit() else None)

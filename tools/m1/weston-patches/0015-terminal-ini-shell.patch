@@ -1,0 +1,22 @@
+From: k30pro-linux-dualboot
+Subject: [PATCH 0015] terminal: read `shell` from weston.ini too
+
+weston-terminal reads font/font-size/term from the [terminal] section but
+takes the program to run only from $SHELL or --shell=, so a `shell=` entry in
+weston.ini was silently ignored and only the windows we spawn explicitly got
+the lmi cheat sheet.  Read `shell` from the ini as well (a CLI --shell= still
+wins), so every window - panel launcher included - shows the sheet.
+
+--- clients/terminal.c.orig
++++ clients/terminal.c
+@@ -3479,6 +3479,10 @@
+ 	 * it, including the ones started by the panel launcher. */
+ 	weston_config_section_get_int(s, "keyboard-inset", &option_keyboard_inset, 0);
+ 	weston_config_section_get_string(s, "term", &option_term, "xterm");
++	/* lmi: let weston.ini [terminal] shell= decide what every window runs
++	 * (default: the lmi-help cheat sheet), so it is not up to whichever
++	 * launcher happens to pass --shell=.  A CLI --shell= still wins. */
++	weston_config_section_get_string(s, "shell", &option_shell, option_shell);
+ 	weston_config_destroy(config);
+ 
+ 	if (parse_options(terminal_options,

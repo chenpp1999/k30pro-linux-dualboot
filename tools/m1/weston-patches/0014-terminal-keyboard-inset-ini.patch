@@ -1,0 +1,31 @@
+From: k30pro-linux-dualboot
+Subject: [PATCH 0014] terminal: read keyboard-inset from weston.ini
+
+The inset added by patch 0013 only applied to terminals the wrapper starts
+with an explicit --keyboard-inset.  Read it from the [terminal] section as
+well so any weston-terminal (panel launcher, extra windows) keeps the shell
+prompt above the on-screen keyboard.
+
+--- clients/terminal.c.orig
++++ clients/terminal.c
+@@ -3474,6 +3474,10 @@
+ 	s = weston_config_get_section(config, "terminal", NULL, NULL);
+ 	weston_config_section_get_string(s, "font", &option_font, "monospace");
+ 	weston_config_section_get_int(s, "font-size", &option_font_size, 14);
++	/* lmi: reserve space at the bottom for the on-screen keyboard (see
++	 * redraw_handler).  Read from weston.ini so *every* weston-terminal gets
++	 * it, including the ones started by the panel launcher. */
++	weston_config_section_get_int(s, "keyboard-inset", &option_keyboard_inset, 0);
+ 	weston_config_section_get_string(s, "term", &option_term, "xterm");
+ 	weston_config_destroy(config);
+ 
+@@ -3484,7 +3488,8 @@
+ 		       "  --maximized or -m\n"
+ 		       "  --font=NAME\n"
+ 		       "  --font-size=SIZE\n"
+-		       "  --shell=NAME\n", argv[0]);
++		       "  --shell=NAME\n"
++		       "  --keyboard-inset=PX\n", argv[0]);
+ 		return 1;
+ 	}
+ 

@@ -1,0 +1,108 @@
+From: k30pro-linux-dualboot
+Subject: [PATCH 0012] terminal: touch-drag scrolls the scrollback
+
+On a touch-only device the finger drag used to extend a text selection (there is
+no mouse anyway) and the scrollback was unreachable: the on-screen keyboard
+covers the bottom of the window, so the last output lines and the prompt were
+invisible.  Treat a vertical drag as a wheel scroll and keep a tap for
+focus/selection.  The drag feeds axis_handler() so the existing clamping and
+smooth-scroll state still apply.  Applies with -p0 from the weston tree root.
+
+--- clients/terminal.c.orig
++++ clients/terminal.c
+@@ -458,6 +458,12 @@
+ 	wl_fixed_t smooth_scroll;
+ 	int saved_row, saved_column;
+ 	int scrolling;
++	/* lmi: touch-drag scrolling.  A finger drag used to extend a text
++	 * selection, which is useless on a touch-only device and also made the
++	 * scrollback unreachable behind the on-screen keyboard. */
++	int touch_scroll;
++	float touch_last_y;
++	int touch_scroll_px;
+ 	int send_cursor_position;
+ 	int fd, master;
+ 	uint32_t modifiers;
+@@ -3141,8 +3147,14 @@
+ {
+ 	struct terminal *terminal = data;
+ 
+-	if (id == 0)
++	if (id == 0) {
++		/* lmi: remember where the drag started; motion decides whether this
++		 * becomes a scroll (see touch_motion_handler). */
++		terminal->touch_scroll = 0;
++		terminal->touch_last_y = y;
++		terminal->touch_scroll_px = 0;
+ 		click_handler(widget, terminal, input, x, y, time);
++	}
+ }
+ 
+ static void
+@@ -3151,8 +3163,11 @@
+ {
+ 	struct terminal *terminal = data;
+ 
+-	if (id == 0)
++	if (id == 0) {
+ 		terminal->dragging = SELECT_NONE;
++		terminal->touch_scroll = 0;
++		terminal->touch_scroll_px = 0;
++	}
+ }
+ 
+ static void
+@@ -3160,15 +3175,44 @@
+ 		uint32_t time, int32_t id, float x, float y, void *data)
+ {
+ 	struct terminal *terminal = data;
+-
+-	if (terminal->dragging &&
+-		id == 0) {
+-		terminal->selection_end_x = (int)x;
+-		terminal->selection_end_y = (int)y;
+-
+-		if (recompute_selection(terminal))
+-			widget_schedule_redraw(widget);
+-	}
++	float dy;
++	int line_px;
++	int *acc;
++
++	if (id != 0)
++		return;
++	if (terminal->dragging == SELECT_NONE && !terminal->touch_scroll)
++		return;
++
++	dy = y - terminal->touch_last_y;
++	if (!terminal->touch_scroll) {
++		/* small movements still select (tap focus); a real drag scrolls */
++		if (dy < 12.0f && dy > -12.0f)
++			return;
++		terminal->touch_scroll = 1;
++		terminal->dragging = SELECT_NONE;
++	}
++	terminal->touch_last_y = y;
++
++	/* Feed the wheel-scroll path (axis_handler) so all its clamping applies:
++	 * dragging the finger down reveals older lines.  One line per ~1.5 font
++	 * sizes keeps the gesture close to the visible row height. */
++	line_px = option_font_size + option_font_size / 2;
++	if (line_px < 8)
++		line_px = 8;
++	acc = &terminal->touch_scroll_px;
++	*acc += (int)dy;
++	while (*acc >= line_px) {
++		axis_handler(widget, input, time, WL_POINTER_AXIS_VERTICAL_SCROLL,
++			     -AXIS_UNITS_PER_LINE, terminal);
++		*acc -= line_px;
++	}
++	while (*acc <= -line_px) {
++		axis_handler(widget, input, time, WL_POINTER_AXIS_VERTICAL_SCROLL,
++			     AXIS_UNITS_PER_LINE, terminal);
++		*acc += line_px;
++	}
++	widget_schedule_redraw(widget);
+ }
+ 
+ #ifndef howmany

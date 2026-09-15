@@ -50,3 +50,14 @@ MONITOR_FLUSH_SECONDS=600
 # Serve the status page on the USB LAN + WiFi via busybox httpd (0 = off).
 DASHBOARD=1
 DASHBOARD_PORT=8080
+
+# WiFi watchdog (lmi-netwatch): the WLAN stack can be torn down after a long
+# uptime (2026-09-15: wlan0 + cnss/qrtr/wpa_supplicant all gone, no kernel
+# complaint).  The watchdog restarts lmi-wifi instead of requiring a reboot.
+#   NETWATCH_REBOOT=1  last resort: write the BCB and reboot back into Linux
+#                      (never into Android) when recovery keeps failing.
+NETWATCH_INTERVAL=120
+NETWATCH_FAIL_CHECKS=2
+NETWATCH_MAX_RESTARTS=5
+NETWATCH_LONG_BACKOFF=1800
+NETWATCH_REBOOT=0
