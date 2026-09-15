@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+# SPDX-License-Identifier: MIT
+# Apply the CPU frequency governor / cap at boot (schedutil by default).
+description="lmi CPU frequency governor and thermal tuning"
+
+depend() {
+	need localmount
+	after sysfs
+}
+
+start() {
+	ebegin "Applying CPU governor policy"
+	/usr/sbin/lmi-power -a >/var/log/lmi-power.log 2>&1
+	eend $?
+}

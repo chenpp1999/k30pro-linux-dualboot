@@ -33,7 +33,7 @@ done
 ROOT_SIZE_BLOCKS=393216
 MBOX_GAP_BLOCKS=256
 MBOX_SECTION_BLOCKS=16
-OVERLAY_VERSION=m1b-ux-v6
+OVERLAY_VERSION=m1b-ux-v7
 
 $BB mount -t proc none /proc
 $BB mount -t sysfs none /sys
@@ -198,7 +198,7 @@ fi
 if [ "$OVERLAY_RESULT" = applied ]; then
   echo "post-overlay setup (service enablement, font cache)"
   $BB chroot /newroot /bin/sh -c \
-    '/sbin/rc-update del hwclock boot >/dev/null 2>&1; /sbin/rc-update add swclock boot >/dev/null 2>&1; /sbin/rc-update add ntpd default >/dev/null 2>&1; /sbin/rc-update add lmi-keys default >/dev/null 2>&1; /usr/bin/fc-cache --system-only >/dev/null 2>&1' \
+    '/sbin/rc-update del hwclock boot >/dev/null 2>&1; /sbin/rc-update add swclock boot >/dev/null 2>&1; /sbin/rc-update add ntpd default >/dev/null 2>&1; /sbin/rc-update add lmi-keys default >/dev/null 2>&1; /sbin/rc-update add lmi-power default >/dev/null 2>&1; /sbin/rc-update add lmi-chargectl default >/dev/null 2>&1; /sbin/rc-update add lmi-monitor default >/dev/null 2>&1; /usr/bin/fc-cache --system-only >/dev/null 2>&1' \
     2>>"$OVERLAY_LOG" || echo "WARN: post-overlay setup failed (see $OVERLAY_LOG)"
 fi
 $BB sync

@@ -1,0 +1,158 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# lmi-chargectl - charge/SOC/temperature control for a permanently-plugged lmi.
+#
+# Why: holding a Li-ion at 100 % on USB power is the worst case for battery
+# swelling and cycle life (BU-808: 4.20 V ~300-500 cycles, 4.00 V ~850-1500),
+# and warm + full is multiplicatively worse.  This daemon stops the charge
+# input above CHARGE_STOP_SOC and resumes below CHARGE_RESUME_SOC (10 %
+# hysteresis) and does the same for battery temperature.
+#
+# How: `battery/input_suspend` 0/1 (kernel: USB_ICL=0 via USER_VOTER; USB data
+# is unaffected - verified on device).  It is a votable that survives until
+# reboot, so it is *never* set unconditionally at boot, and sw_jeita (kept
+# enabled as the safety net) can also suspend the input - we therefore always
+# cross-check status/current_now/temp instead of trusting our own last write.
+#
+# Stuck-PMIC guard: if the SOC keeps dropping while we are charging (or the
+# battery is empty and not charging), log loudly; below RECOVER_SOC write the
+# one-shot BCB and reboot back into Linux (clears the votables, never boots
+# Android).
+set -eu
+
+CONF=/etc/conf.d/lmi-power
+# shellcheck source=/dev/null
+[ -r "$CONF" ] && . "$CONF"
+CHARGE_STOP_SOC=${CHARGE_STOP_SOC:-80}
+CHARGE_RESUME_SOC=${CHARGE_RESUME_SOC:-70}
+TEMP_STOP_C=${TEMP_STOP_C:-42}
+TEMP_RESUME_C=${TEMP_RESUME_C:-38}
+TEMP_WARN_C=${TEMP_WARN_C:-45}
+CHARGE_CURRENT_MAX_UA=${CHARGE_CURRENT_MAX_UA:-2000000}
+POLL_SECONDS=${POLL_SECONDS:-30}
+MIN_DWELL_SECONDS=${MIN_DWELL_SECONDS:-300}
+RECOVER_SOC=${RECOVER_SOC:-25}
+
+BAT=/sys/class/power_supply/battery
+STATE=/run/lmi-chargectl.state
+LOG=/var/log/lmi-chargectl.log
+MISC=/dev/sda11
+BCB_CMD=boot-recovery
+
+log() {
+	mkdir -p "$(dirname "$LOG")"
+	printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*" >> "$LOG"
+	# keep a bounded log
+	if [ "$(wc -c < "$LOG" 2>/dev/null || echo 0)" -gt 262144 ]; then
+		tail -n 2000 "$LOG" > "$LOG.tmp" 2>/dev/null && mv "$LOG.tmp" "$LOG"
+	fi
+}
+
+read_int() { # $1 = node
+	[ -r "$1" ] || { echo ""; return; }
+	head -c 64 "$1" 2>/dev/null | tr -dc '0-9-' | head -c 12
+}
+
+read_temp_c() { # battery temperature in Celsius
+	for _z in /sys/class/thermal/thermal_zone*; do
+		[ -r "$_z/type" ] || continue
+		[ "$(cat "$_z/type" 2>/dev/null)" = "battery" ] || continue
+		_t=$(read_int "$_z/temp")
+		[ -n "$_t" ] && { echo $((_t / 1000)); return; }
+	done
+	_t=$(read_int "$BAT/temp")
+	[ -n "$_t" ] && echo $((_t / 10)) || echo ""
+}
+
+suspend_input() { # $1 = 1 suspend, 0 resume
+	[ -w "$BAT/input_suspend" ] || return 1
+	echo "$1" > "$BAT/input_suspend" 2>/dev/null || return 1
+	return 0
+}
+
+cap_current() {
+	[ "$CHARGE_CURRENT_MAX_UA" = 0 ] && return 0
+	node=$BAT/constant_charge_current_max
+	[ -w "$node" ] || { log "WARN: no constant_charge_current_max"; return 0; }
+	cur=$(read_int "$node")
+	[ "$cur" = "$CHARGE_CURRENT_MAX_UA" ] && return 0
+	echo "$CHARGE_CURRENT_MAX_UA" > "$node" 2>/dev/null &&
+		log "charge current capped: $(read_int "$BAT/constant_charge_current") uA" ||
+		log "WARN: failed to cap charge current"
+	return 0
+}
+
+needs_update() { # $1 = seconds since the last toggle
+	[ "$1" -ge "$MIN_DWELL_SECONDS" ] 2>/dev/null && return 0
+	return 1
+}
+
+recover() { # last resort: BCB + reboot back into Linux
+	soc=$1
+	log "FATAL: battery at ${soc}% and not charging (PMIC stuck?)"
+	if [ "${RECOVER_SOC:-0}" -gt 0 ] && [ "$soc" -le "$RECOVER_SOC" ] && [ -w "$MISC" ]; then
+		log "RECOVERY: writing BCB '$BCB_CMD' and rebooting (clears kernel votables)"
+		printf '%s' "$BCB_CMD" | dd of="$MISC" bs=1 conv=fsync 2>/dev/null || true
+		sync
+		reboot
+	fi
+	log "WARN: recovery disabled (RECOVER_SOC=$RECOVER_SOC); check the charger by hand"
+	sleep 300
+}
+
+mkdir -p "$(dirname "$STATE")"
+cap_current
+suspended=0
+last_toggle=$(( $(date +%s) - MIN_DWELL_SECONDS ))  # act once immediately at start
+drop_since=""
+drop_soc=""
+
+log "started: stop=${CHARGE_STOP_SOC}% resume=${CHARGE_RESUME_SOC}% temp=${TEMP_STOP_C}/${TEMP_RESUME_C}C cap=${CHARGE_CURRENT_MAX_UA}uA dwell=${MIN_DWELL_SECONDS}s recover=${RECOVER_SOC}%"
+
+while :; do
+	soc=$(read_int "$BAT/capacity")
+	temp_c=$(read_temp_c)
+	status=$(cat "$BAT/status" 2>/dev/null || echo "?")
+	now=$(date +%s)
+	toggle_age=$((now - last_toggle))
+
+	[ -n "$soc" ] || { log "WARN: cannot read capacity"; sleep "$POLL_SECONDS"; continue; }
+	[ -n "$temp_c" ] || temp_c=0
+
+	# state file for the dashboard/monitor
+	{
+		printf 'soc=%s\ntemp_c=%s\nstatus=%s\nsuspended=%s\nlast_toggle=%s\n' \
+			"$soc" "$temp_c" "$status" "$suspended" "$last_toggle"
+	} > "$STATE" 2>/dev/null || true
+
+	# stuck detection: charging requested but the SOC keeps falling
+	if [ "$status" = "Discharging" ] && [ "$soc" -le "$CHARGE_RESUME_SOC" ]; then
+		[ -n "$drop_since" ] || { drop_since=$now; drop_soc=$soc; }
+		if [ $((now - drop_since)) -ge 600 ] && [ "$soc" -lt "$drop_soc" ]; then
+			recover "$soc"
+			drop_since=""
+		fi
+	else
+		drop_since=""
+	fi
+
+	if [ "$temp_c" -ge "$TEMP_STOP_C" ] && [ "$suspended" = 0 ] && needs_update "$toggle_age"; then
+		suspend_input 1 && { suspended=1; last_toggle=$now; log "suspend: temp=${temp_c}C >= ${TEMP_STOP_C}C"; }
+	elif [ "$soc" -ge "$CHARGE_STOP_SOC" ] && [ "$suspended" = 0 ] && needs_update "$toggle_age"; then
+		suspend_input 1 && { suspended=1; last_toggle=$now; log "suspend: soc=${soc}% >= ${CHARGE_STOP_SOC}%"; }
+	elif [ "$suspended" = 1 ] && [ "$soc" -le "$CHARGE_RESUME_SOC" ] && [ "$temp_c" -le "$TEMP_RESUME_C" ] && needs_update "$toggle_age"; then
+		suspend_input 0 && { suspended=0; last_toggle=$now; log "resume: soc=${soc}% temp=${temp_c}C"; }
+	fi
+
+	# safety valve: never stay suspended for a whole day (stuck gauge / no
+	# resume); resume once so the pack cannot drain indefinitely.
+	if [ "$suspended" = 1 ] && [ "$toggle_age" -ge 86400 ]; then
+		suspend_input 0 && { suspended=0; last_toggle=$now; log "resume: 24h safety valve"; }
+	fi
+
+	if [ "$temp_c" -ge "$TEMP_WARN_C" ]; then
+		log "WARN: battery ${temp_c}C (>= ${TEMP_WARN_C}C)"
+	fi
+
+	sleep "$POLL_SECONDS"
+done

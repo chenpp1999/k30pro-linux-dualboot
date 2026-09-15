@@ -1,0 +1,146 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# lmi-monitor - long-term health sampler for the lmi server.
+#
+# Samples every MONITOR_INTERVAL seconds into a tmpfs ring file and flushes to
+# /var/log/lmi-monitor/YYYY-MM-DD.csv every MONITOR_FLUSH_SECONDS (flash wear).
+# It also accumulates the two real battery-stress counters - time spent at a
+# high state of charge and above 40 C - plus capacity fade proxies
+# (charge_full vs charge_full_design), so degradation can be seen over weeks.
+#
+# The dashboard (busybox httpd + CGI) serves /run/lmi-monitor/latest.
+set -eu
+
+CONF=/etc/conf.d/lmi-power
+# shellcheck source=/dev/null
+[ -r "$CONF" ] && . "$CONF"
+INTERVAL=${MONITOR_INTERVAL:-60}
+FLUSH=${MONITOR_FLUSH_SECONDS:-600}
+
+BAT=/sys/class/power_supply/battery
+BMS=/sys/class/power_supply/bms
+RUN=/run/lmi-monitor
+LOGDIR=/var/log/lmi-monitor
+STATS=$RUN/stress.env
+CSV_HEADER='ts,uptime_s,load1,mem_used_kb,mem_total_kb,disk_use_pct,soc,status,health,temp_c,current_ua,voltage_uv,charge_full,charge_full_design,cycle_count,cpu_max_mhz,soc_high_s,temp_high_s'
+
+val() { [ -r "$1" ] && head -c 64 "$1" 2>/dev/null | tr -dc '0-9-' | head -c 12 || echo ""; }
+
+mread_temp_c() { # battery temperature in Celsius
+	for _z in /sys/class/thermal/thermal_zone*; do
+		[ -r "$_z/type" ] || continue
+		[ "$(cat "$_z/type" 2>/dev/null)" = "battery" ] || continue
+		_t=$(val "$_z/temp")
+		[ -n "$_t" ] && { echo $((_t / 1000)); return; }
+	done
+	_t=$(val "$BAT/temp")
+	[ -n "$_t" ] && echo $((_t / 10)) || echo ""
+}
+
+
+# stress counters (accumulated, persisted across flushes)
+soc_high_s=0; temp_high_s=0; last_ts=0
+[ -r "$STATS" ] && . "$STATS"
+[ -r "$LOGDIR/stress.env" ] && . "$LOGDIR/stress.env"
+last_ts=$(date +%s)
+
+mkdir -p "$RUN" "$LOGDIR"
+printf '%s\n' "$CSV_HEADER" > "$RUN/current.csv"
+
+flush() {
+	d=$(date -u '+%Y-%m-%d')
+	cat "$RUN/current.csv" >> "$LOGDIR/$d.csv"
+	: > "$RUN/current.csv"
+	{
+		printf 'soc_high_s=%s\ntemp_high_s=%s\n' "$soc_high_s" "$temp_high_s"
+	} > "$LOGDIR/stress.env"
+	# keep the daily CSVs bounded in count (keep 60 files)
+	ls -1t "$LOGDIR"/*.csv 2>/dev/null | tail -n +61 | while read -r f; do rm -f "$f"; done
+}
+
+since_flush=0
+while :; do
+	ts=$(date +%s)
+	now=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+	dt=$((ts - last_ts)); [ "$dt" -gt 0 ] || dt=$INTERVAL
+	last_ts=$ts
+
+	soc=$(val "$BAT/capacity")
+	status=$(cat "$BAT/status" 2>/dev/null || echo "?")
+	health=$(cat "$BAT/health" 2>/dev/null || echo "?")
+	cur=$(val "$BAT/current_now"); volt=$(val "$BAT/voltage_now")
+	cfull=$(val "$BAT/charge_full"); cdes=$(val "$BAT/charge_full_design")
+	cyc=$(val "$BAT/cycle_count"); [ -n "$cyc" ] || cyc=$(val "$BMS/cycle_count")
+	temp_c=$(mread_temp_c); [ -n "$temp_c" ] || temp_c=0
+
+	if [ -n "$soc" ] && [ "$soc" -ge "${CHARGE_STOP_SOC:-80}" ]; then soc_high_s=$((soc_high_s + dt)); fi
+	if [ "$temp_c" -ge 40 ]; then temp_high_s=$((temp_high_s + dt)); fi
+
+	up=$(cut -d' ' -f1 /proc/uptime 2>/dev/null | cut -d. -f1)
+	load=$(cut -d' ' -f1 /proc/loadavg 2>/dev/null)
+	mem_total=$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null)
+	mem_avail=$(awk '/MemAvailable/{print $2}' /proc/meminfo 2>/dev/null)
+	mem_used=$(( ${mem_total:-0} - ${mem_avail:-0} ))
+	disk=$(df / 2>/dev/null | awk 'NR==2{gsub("%","",$5); print $5}')
+	cpumax=$(cat /sys/devices/system/cpu/cpufreq/policy7/scaling_cur_freq 2>/dev/null)
+	[ -n "$cpumax" ] && cpumax=$((cpumax / 1000)) || cpumax=""
+
+	printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+		"$now" "$up" "$load" "$mem_used" "$mem_total" "$disk" \
+		"$soc" "$status" "$health" "$temp_c" "$cur" "$volt" \
+		"$cfull" "$cdes" "$cyc" "$cpumax" "$soc_high_s" "$temp_high_s" \
+		>> "$RUN/current.csv"
+
+	{
+		printf 'updated=%s\nuptime_s=%s\nload1=%s\nmem_used_kb=%s\nmem_total_kb=%s\ndisk_use_pct=%s\n' \
+			"$now" "$up" "$load" "$mem_used" "$mem_total" "$disk"
+		printf 'soc=%s\nstatus=%s\nhealth=%s\ntemp_c=%s\ncurrent_ua=%s\nvoltage_uv=%s\n' \
+			"$soc" "$status" "$health" "$temp_c" "$cur" "$volt"
+		printf 'charge_full=%s\ncharge_full_design=%s\ncycle_count=%s\n' "$cfull" "$cdes" "$cyc"
+		printf 'cpu_mhz=%s\nsoc_high_h=%.1f\ntemp_high_h=%.1f\n' "$cpumax" \
+			"$(awk "BEGIN{printf \"%.1f\", $soc_high_s/3600}")" \
+			"$(awk "BEGIN{printf \"%.1f\", $temp_high_s/3600}")"
+		printf 'governor=%s\n' "$(cat /sys/devices/system/cpu/cpufreq/policy7/scaling_governor 2>/dev/null)"
+	} > "$RUN/latest"
+
+	# static dashboard page in tmpfs (served by darkhttpd, no flash writes)
+	mkdir -p "$RUN/www"
+	{
+		printf '<!DOCTYPE html><html><head><meta charset="utf-8">'
+		printf '<meta name="viewport" content="width=device-width,initial-scale=1">'
+		printf '<meta http-equiv="refresh" content="30"><title>lmi server</title>'
+		printf '<style>body{background:#111;color:#ddd;font:14px/1.45 monospace;margin:1rem}'
+		printf 'h1{font-size:1.1rem;color:#8fd}table{border-collapse:collapse;margin:.4rem 0}'
+		printf 'td,th{border:1px solid #333;padding:.2rem .6rem;text-align:left}'
+		printf 'th{background:#1b1b1b;color:#9cf}</style></head><body>'
+		printf '<h1>lmi server status</h1><table>'
+		sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' "$RUN/latest" |
+			while IFS='=' read -r _k _v; do
+				printf '<tr><th>%s</th><td>%s</td></tr>' "$_k" "$_v"
+			done
+		printf '</table>'
+		if [ -r /run/lmi-chargectl.state ]; then
+			printf '<h1>charge control</h1><table>'
+			sed -e 's/&/\&amp;/g' /run/lmi-chargectl.state |
+				while IFS='=' read -r _k _v; do
+					printf '<tr><th>%s</th><td>%s</td></tr>' "$_k" "$_v"
+				done
+			printf '</table>'
+		fi
+		printf '<p>thresholds: '
+		grep -E '^(CHARGE_STOP_SOC|CHARGE_RESUME_SOC|TEMP_STOP_C|TEMP_RESUME_C|RECOVER_SOC)=' \
+			/etc/conf.d/lmi-power 2>/dev/null | tr '\n' ' '
+		printf '</p></body></html>\n'
+	} > "$RUN/www/index.html" 2>/dev/null || true
+
+	{
+		printf 'soc_high_s=%s\ntemp_high_s=%s\n' "$soc_high_s" "$temp_high_s"
+	} > "$STATS" 2>/dev/null || true
+
+	since_flush=$((since_flush + INTERVAL))
+	if [ "$since_flush" -ge "$FLUSH" ]; then
+		since_flush=0
+		flush
+	fi
+	sleep "$INTERVAL"
+done

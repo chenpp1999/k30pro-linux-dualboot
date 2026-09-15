@@ -1,0 +1,45 @@
+#!/sbin/openrc-run
+# SPDX-License-Identifier: MIT
+# Long-term health sampler + LAN dashboard for the lmi server.
+description="lmi server health monitor and dashboard"
+
+command="/usr/sbin/lmi-monitor"
+command_background="yes"
+pidfile="/run/lmi-monitor.pid"
+output_log="/var/log/lmi-monitor.out.log"
+error_log="/var/log/lmi-monitor.out.log"
+
+start_pre() {
+	# busybox httpd serving the CGI dashboard (LAN only, no auth/TLS).
+	# shellcheck source=/dev/null
+	[ -r /etc/conf.d/lmi-power ] && . /etc/conf.d/lmi-power
+	[ "${DASHBOARD:-1}" = "1" ] || return 0
+	mkdir -p /run/lmi-monitor/www
+	port=${DASHBOARD_PORT:-8080}
+	if pgrep -f "lmi-monitor/www" >/dev/null 2>&1; then
+		return 0
+	fi
+	# fallback chain: darkhttpd -> busybox httpd -> python3 http.server
+	if [ -x /usr/bin/darkhttpd ]; then
+		/usr/bin/darkhttpd /run/lmi-monitor/www --port "$port" \
+			--index index.html >>/var/log/lmi-dashboard.log 2>&1 &
+		return 0
+	fi
+	if busybox httpd --help >/dev/null 2>&1; then
+		busybox httpd -h /run/lmi-monitor/www -p "$port" \
+			>>/var/log/lmi-dashboard.log 2>&1 &
+		return 0
+	fi
+	if command -v python3 >/dev/null 2>&1; then
+		( cd /run/lmi-monitor/www && python3 -m http.server "$port" \
+			>>/var/log/lmi-dashboard.log 2>&1 & )
+		return 0
+	fi
+	echo "no http server available (darkhttpd/busybox httpd/python3)" \
+		>>/var/log/lmi-dashboard.log
+	return 0
+}
+
+stop_post() {
+	pkill -f "lmi-monitor/www" 2>/dev/null || true
+}

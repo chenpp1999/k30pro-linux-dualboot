@@ -1,0 +1,82 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# lmi-power - CPU frequency governor / thermal sanity for the lmi server.
+#
+#   lmi-power            apply GOVERNOR (and MAX_FREQ_KHZ) from /etc/conf.d/lmi-power
+#   lmi-power -p         switch to `performance` (max clock) and report
+#   lmi-power -s         switch to `schedutil`
+#   lmi-power -S         status (governor, current/max freq per policy)
+#   lmi-power -h         help
+#
+# The stock rootfs boots with the `performance` governor, which pins all three
+# SD865 clusters at their maximum frequency - pointless heat for a 24/7 server.
+# `schedutil` drops to the minimum clock at idle; revert any time.
+set -eu
+
+CONF=/etc/conf.d/lmi-power
+# shellcheck source=/dev/null
+[ -r "$CONF" ] && . "$CONF"
+GOVERNOR=${GOVERNOR:-schedutil}
+MAX_FREQ_KHZ=${MAX_FREQ_KHZ:-0}
+
+POLICIES=""
+for p in /sys/devices/system/cpu/cpufreq/policy*; do
+	[ -d "$p" ] || continue
+	POLICIES="$POLICIES $p"
+done
+[ -n "$POLICIES" ] || { echo "no cpufreq policies found"; exit 0; }
+
+set_governor() { # $1 = governor
+	gov=$1
+	for p in $POLICIES; do
+		avail=$(cat "$p/scaling_available_governors" 2>/dev/null || echo "")
+		case " $avail " in
+		*" $gov "*) echo "$gov" > "$p/scaling_governor" 2>/dev/null || true ;;
+		*) echo "WARN: $gov not available for $(basename "$p") ($avail)";;
+		esac
+	done
+}
+
+set_cap() { # $1 = kHz (0 = no cap)
+	cap=$1
+	for p in $POLICIES; do
+		hwmax=$(cat "$p/cpuinfo_max_freq" 2>/dev/null || echo 0)
+		if [ "$cap" = 0 ]; then
+			[ "$hwmax" != 0 ] && echo "$hwmax" > "$p/scaling_max_freq" 2>/dev/null || true
+		else
+			echo "$cap" > "$p/scaling_max_freq" 2>/dev/null || true
+		fi
+	done
+}
+
+status() {
+	for p in $POLICIES; do
+		printf '%s: gov=%s cur=%s max=%s hw=%s\n' "$(basename "$p")" \
+			"$(cat "$p/scaling_governor" 2>/dev/null)" \
+			"$(cat "$p/scaling_cur_freq" 2>/dev/null)" \
+			"$(cat "$p/scaling_max_freq" 2>/dev/null)" \
+			"$(cat "$p/cpuinfo_max_freq" 2>/dev/null)"
+	done
+}
+
+case "${1:--a}" in
+-p|--performance)
+	set_governor performance
+	status
+	;;
+-s|--schedutil)
+	set_governor schedutil
+	status
+	;;
+-S|--status)
+	status
+	;;
+-a|--apply|"")
+	set_governor "$GOVERNOR"
+	[ "$MAX_FREQ_KHZ" = 0 ] || set_cap "$MAX_FREQ_KHZ"
+	echo "applied: governor=$GOVERNOR max_freq=${MAX_FREQ_KHZ:-0}"
+	;;
+*)
+	sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+	;;
+esac

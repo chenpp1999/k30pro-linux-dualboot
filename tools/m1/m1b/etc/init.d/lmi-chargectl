@@ -1,0 +1,15 @@
+#!/sbin/openrc-run
+# SPDX-License-Identifier: MIT
+# Charge/thermal control for a permanently-plugged lmi (see lmi-chargectl).
+description="lmi battery charge limit and temperature guard"
+
+command="/usr/sbin/lmi-chargectl"
+command_background="yes"
+pidfile="/run/lmi-chargectl.pid"
+output_log="/var/log/lmi-chargectl.out.log"
+error_log="/var/log/lmi-chargectl.out.log"
+
+depend() {
+	need localmount
+	after sysfs
+}

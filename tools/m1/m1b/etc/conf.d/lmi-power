@@ -1,0 +1,52 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# /etc/conf.d/lmi-power - tunables for the lmi power/thermal helpers.
+#
+# Charging control (lmi-chargectl).  Long-term USB-powered use: holding a
+# Li-ion at 100 % + warm is the worst case for swelling/lifespan (BU-808:
+# 4.20 V ~300-500 cycles vs 4.00 V ~850-1500).  We stop the charge input at
+# CHARGE_STOP_SOC and resume at CHARGE_RESUME_SOC.
+#
+# IMPORTANT: `input_suspend` is a kernel votable (USB_ICL=0 with an override)
+# and survives until a reboot, so it is never set unconditionally at boot -
+# the daemon only suspends while the battery is actually above the limit.
+# A 10 % hysteresis + a minimum dwell time keeps the PMIC from toggling.
+CHARGE_STOP_SOC=80
+CHARGE_RESUME_SOC=70
+
+# Battery temperature guard (Celsius, integer).  45 C is handled by the kernel
+# sw_jeita; >= 55 C is the ACC-style emergency shutdown threshold.
+TEMP_STOP_C=42
+TEMP_RESUME_C=38
+TEMP_WARN_C=45
+
+# Cap the charge current (uA) to cut fast-charge heat.  Written to
+# constant_charge_current_max - NOTE: the lmi SMB5 driver returns EPERM for
+# that node (verified on device 2026-09-15), so this stays 0 (= leave the
+# profile default) until a driver/DT change is validated.
+CHARGE_CURRENT_MAX_UA=0
+
+# Poll interval (seconds) and the minimum time between charge toggles.
+POLL_SECONDS=30
+MIN_DWELL_SECONDS=300
+
+# Last-resort recovery when the battery keeps draining although we asked for
+# charging (PMIC stuck / kernel still suspended): at this SOC, write the
+# one-shot BCB and reboot back into Linux (clears the votables).  0 = warn
+# only.  Never reboots into Android: the BCB is set to boot-recovery first.
+RECOVER_SOC=25
+
+# CPU frequency governor at boot: schedutil (on-demand, far less idle heat
+# than the `performance` default) - `lmi-power -p` switches back.
+GOVERNOR=schedutil
+# Optional hard cap in kHz (0 = leave the hardware maximum alone).
+MAX_FREQ_KHZ=0
+
+# Monitoring (lmi-monitor): sample interval and how often the ring log is
+# flushed from tmpfs to /var/log/lmi-monitor (flash wear: 60 s samples, a few
+# hundred bytes each, flushed every 10 min).
+MONITOR_INTERVAL=60
+MONITOR_FLUSH_SECONDS=600
+# Serve the status page on the USB LAN + WiFi via busybox httpd (0 = off).
+DASHBOARD=1
+DASHBOARD_PORT=8080

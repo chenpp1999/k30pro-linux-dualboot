@@ -1,0 +1,43 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# lmi-status - one-screen health summary for the lmi server.
+#
+#   lmi-status           human readable summary
+#   lmi-status -j        the raw key=value snapshot (see /run/lmi-monitor/latest)
+#   lmi-status -w        short one-liner (handy for SSH banners)
+set -eu
+
+RUN=/run/lmi-monitor
+BAT=/sys/class/power_supply/battery
+
+val() { [ -r "$1" ] && head -c 64 "$1" 2>/dev/null | tr -dc '0-9-' | head -c 12 || echo "?"; }
+
+if [ -r "$RUN/latest" ]; then
+	if [ "${1:-}" = "-j" ]; then
+		cat "$RUN/latest"
+		[ -r /run/lmi-chargectl.state ] && cat /run/lmi-chargectl.state
+		exit 0
+	fi
+	if [ "${1:-}" = "-w" ]; then
+		set -- $(grep -E '^(soc|temp_c|status)=' "$RUN/latest" | cut -d= -f2 | tr '\n' ' ')
+		printf 'lmi: up %s  soc %s%%  %s  batt %s C\n' \
+			"$(cut -d' ' -f1 /proc/uptime | cut -d. -f1)s" "${2:-?}" "${1:-?}" "${3:-?}"
+		exit 0
+	fi
+	sed -e 's/^/  /' "$RUN/latest"
+	[ -r /run/lmi-chargectl.state ] && { echo "  --- charge control:"; sed -e 's/^/  /' /run/lmi-chargectl.state; }
+	cat <<'EOF'
+  --- thresholds (/etc/conf.d/lmi-power):
+EOF
+	grep -E '^(CHARGE_STOP_SOC|CHARGE_RESUME_SOC|TEMP_STOP_C|TEMP_RESUME_C|RECOVER_SOC|GOVERNOR)=' /etc/conf.d/lmi-power 2>/dev/null | sed 's/^/  /'
+	exit 0
+fi
+
+# fallback: direct sysfs (monitor not running)
+printf 'uptime : %s s\n' "$(cut -d' ' -f1 /proc/uptime | cut -d. -f1)"
+printf 'load   : %s\n' "$(cut -d' ' -f1 /proc/loadavg)"
+printf 'battery: %s%% %s %s C %s uA %s uV\n' \
+	"$(val "$BAT/capacity")" "$(cat "$BAT/status" 2>/dev/null)" \
+	"$(( $(val "$BAT/temp") / 1000 ))" "$(val "$BAT/current_now")" "$(val "$BAT/voltage_now")"
+printf 'governor: %s\n' "$(cat /sys/devices/system/cpu/cpufreq/policy7/scaling_governor 2>/dev/null)"
+printf 'monitor : not running (rc-service lmi-monitor start)\n'

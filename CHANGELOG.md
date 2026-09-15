@@ -60,6 +60,19 @@
   新镜像 oot-m1b-v12.img（30346c12…）已部署 recovery（回读校验）；
   账本 oot=23 … overlay=applied root=/dev/sda35（v6 已应用）。
 
+- 温控/充电/监控（overlay `m1b-ux-v7`，已实机验证）：
+  ① lmi-power+init：开机 governor 从 performance 改为 schedutil
+  （三簇不再长期钉最高频）；
+  ② lmi-chargectl+init：停充 80% / 恢复 70%（迟滞 10%）、停充 42°C /
+  恢复 38°C、最小驻留 300s，用 input_suspend（实测不影响 USB
+  数据），含卡死保护（→ BCB+reboot 回 Linux）与 24h 安全阀；
+  ③ lmi-monitor+init：60s 采样、tmpfs 最新快照 + 静态面板页、
+  10min 落盘 CSV（保留 60 天）、累计高压 SOC 时长与 >40°C 时长；
+  ④ lmi-status 一屏摘要 + LAN 面板（darkhttpd→busybox httpd→python3 回退）；
+  ⑤ 实测：充电挂起后 status=Discharging、usb0/adb 正常、温度读数
+  修正（attery/temp 是 0.1°C）。设计/风险见 docs/m1b-thermal-charging.md。
+  新镜像 oot-m1b-v13.img（e4684d05…）已部署 recovery。
+
 ## [Unreleased]
 
 ### Added
