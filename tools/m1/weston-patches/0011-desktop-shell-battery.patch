@@ -1,0 +1,50 @@
+--- clients/desktop-shell.c
++++ clients/desktop-shell.c
+@@ -56,7 +56,7 @@
+ #include "tablet-unstable-v2-client-protocol.h"
+ #include "weston-desktop-shell-client-protocol.h"
+ 
+-#define DEFAULT_CLOCK_FORMAT CLOCK_FORMAT_MINUTES
++#define DEFAULT_CLOCK_FORMAT CLOCK_FORMAT_MINUTES_24H /* lmi */
+ #define DEFAULT_SPACING 10
+ 
+ enum clock_format {
+@@ -452,6 +452,38 @@
+ 	timeinfo = localtime(&rawtime);
+ 	strftime(string, sizeof string, clock->format_string, timeinfo);
+ 
++	/* lmi: battery */
++	{
++		FILE *bf = fopen("/sys/class/power_supply/battery/capacity", "r");
++		int cap = -1;
++		char status[32] = "";
++		FILE *sf;
++
++		if (bf) {
++			if (fscanf(bf, "%d", &cap) != 1)
++				cap = -1;
++			fclose(bf);
++		}
++		sf = fopen("/sys/class/power_supply/battery/status", "r");
++		if (sf) {
++			if (!fgets(status, sizeof(status), sf))
++				status[0] = '\0';
++			fclose(sf);
++		}
++		if (cap >= 0) {
++			char bat[32];
++			const char *mark = "";
++
++			if (strstr(status, "Charging"))
++				mark = "+";
++			else if (strstr(status, "Full"))
++				mark = "*";
++			snprintf(bat, sizeof(bat), "  %d%%%s", cap, mark);
++			strncat(string, bat,
++				sizeof(string) - strlen(string) - 1);
++		}
++	}
++
+ 	widget_get_allocation(widget, &allocation);
+ 	if (allocation.width == 0)
+ 		return;

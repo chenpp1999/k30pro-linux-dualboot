@@ -49,6 +49,17 @@
      息屏功能），现已入包。
   4. 新镜像 `boot-m1b-v11.img`（`dd56ff2e…`，58,855,424 B）已部署 recovery（回读校验）。
 
+- UX 增强（overlay `m1b-ux-v6`，已应用并验证）：
+  ① **面板电量**：clients/desktop-shell.c 补丁（0011）把电量跟到面板时钟那行
+  （读 /sys/class/power_supply/battery/），实测显示 `Tue Sep 15, 15:44  100%*`；
+  ② **24 小时制修复**：clock-format 在本机未生效 → 默认格式改为
+  `CLOCK_FORMAT_MINUTES_24H`（同一补丁）；
+  ③ **终端配色/TERM**（/etc/profile.d/10-lmi-term.sh）、
+  **WiFi CLI**（lmi-wifi-status|scan|join）、**kiosk 开关**（/etc/conf.d/m1-weston KIOSK=1）；
+  ④ 光标主题未入包（Adwaita 约 12 MB 且全是符号链接，触屏设备价值低）。
+  新镜像 oot-m1b-v12.img（30346c12…）已部署 recovery（回读校验）；
+  账本 oot=23 … overlay=applied root=/dev/sda35（v6 已应用）。
+
 ## [Unreleased]
 
 ### Added
