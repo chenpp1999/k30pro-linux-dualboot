@@ -177,7 +177,7 @@ recovery 内容与目标 sha256 一致 → 只写 BCB 重启（**FAST**），否
 
 ## 八、下一步
 
-1. **M5 一键安装（地基已落地，PC 编排未实现）**：目标是"别人也能装"。设计见
+1. **M5 一键安装（PC 一键已实现，设备端验证待做）**：目标是"别人也能装"。设计见
    `docs/installer-design.md`；约束：Android 用户态写不了 `super`（`baseband_guard`，
    issue #13）→ 纯 App 不可行，形态 = **PC 一键脚本 + TWRP 写入 + 通用镜像**；安装器自动
    备份 → 解析 super LP 元数据找空闲区 → 写 rootfs → 写 recovery → 写 BCB → 回滚；
@@ -188,8 +188,13 @@ recovery 内容与目标 sha256 一致 → 只写 BCB 重启（**FAST**），否
    - `tools/install/build-generic-image.sh`（零凭据门禁 fail-closed + 注入 firstboot + 调用
      `build-m1b-image.sh`；`--dry-run`）；
    - `tools/install/firstboot/`（随机 root 口令/主机密钥/machine-id、SSH 仅公钥、幂等）。
-   **下一步**：`tools/install/lmi-install.sh`（PC 编排）、TWRP 集成与安装时公钥注入；
-   注意 super 空闲区只有 ~2.41 GiB（大 rootfs 需用户自行 M3）。
+   - `tools/install/lmi-install.sh`（PC 一键：`check`/`plan`/`install`/`rollback`；经
+     `fastboot boot twrp` 进 TWRP，先备份再写，流式 `dd`，全程 `--dry-run`）与
+     `tools/install/patch-cmdline.py`（改 `lmi_root_off`）；测试 `tools/tests/m5-install-test.sh`。
+   **下一步**：**设备端到端安装验证**（破坏性，需负责人 + 测试机；先 `check`/`plan`/`--dry-run`）、
+   安装时公钥注入、`--grow`（大 rootfs = 自动化 M3）。默认 rootfs 槽位固定 **1.5 GiB**（与
+   `m1b-init.sh` 一致），实测系统仅占 ~1 GiB；大 rootfs 需 M3。注意 `super` 空闲区**不持久**
+   （Android OTA 可能重新分配并覆盖）。
 2. **G5 外部复现**：`docs/reproduce.md` 已就绪，需要一位**外部用户**跑通并回报（仓库无法自证）。
 3. **回馈上游**：`saved_start` 锚点缺陷、以及 ini `shell=` 不生效，都是 weston-terminal 的真实问题，
    值得整理成上游 patch（我们的 0018/0019/0015 可作素材）。

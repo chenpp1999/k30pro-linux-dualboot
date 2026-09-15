@@ -21,6 +21,17 @@
     `--force`，离线测试 `tools/tests/m5-firstboot-test.sh`（CI 运行）；
   - `tools/ci/checks.sh` 第 5 项与 `.gitattributes` 纳入 `tools/install/firstboot/*`
     （必须 755 + LF）。
+  - `tools/install/lmi-install.sh`：**PC 一键安装**（`check`/`plan`/`install`/`rollback`）——
+    经 `fastboot boot twrp`（只 RAM 引导、不刷写）进入 TWRP，先备份 recovery/boot/misc/
+    super 元数据，再用 LP 元数据算偏移、修补引导镜像 cmdline、流式 `dd` 写 rootfs(super
+    空闲区)/recovery、最后写 BCB（写后校验、可回滚）；**不重分区、不写 `boot`**，
+    全程 `--dry-run`。
+  - `tools/install/patch-cmdline.py`：原地改 boot 镜像 cmdline 的 `lmi_root_off`（无需
+    mkbootimg）。默认 rootfs 槽位固定 1.5 GiB（与 `m1b-init.sh` 一致，实测系统仅占 ~1 GiB）。
+  - `tools/tests/m5-install-test.sh`：合成 super/boot 镜像的离线测试（偏移选择、cmdline
+    修补、写入顺序、体积/镜像/无空闲区门禁），CI 运行。
+  - `docs/installer-design.md` 扩充用法、1.5 GiB 槽位与 `--grow`(M3) 说明；**设备端到端
+    安装验证待做**（破坏性，需负责人 + 测试机）。
 - **使用说明书 `docs/usage.md`**：切换系统（Magisk 一键 / 命令行 / 救援）、WiFi 连接与排障、
   SSH 与改口令/公钥、监测台（`lmi-status` + 网页面板 + CSV 指标解读）、充电温控策略与调参、
   CPU 降温、桌面/中文输入/按键、服务与日志速查、FAQ、安全提醒；README 索引已挂。

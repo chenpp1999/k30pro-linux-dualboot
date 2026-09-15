@@ -35,10 +35,13 @@ PC 侧 install 脚本（对用户是一条命令）：
   1. 备份：读 recovery/boot/misc、super 的 LP 元数据、GPT（文本 + 二进制）。
      ——没有备份就不继续（硬门禁）。
   2. 解析 super：tools/install/lp-metadata.py 找空闲区（见 §4）。
-  3. 写入（用户确认后）：
-     a. 进 TWRP：写 rootfs 镜像到 super 空闲区（`dd` + 回读 sha256 校验）；
-     b. 写 recovery = 通用 Linux 引导镜像（dd + 回读校验）；
-     c. 写 misc/BCB = "boot-recovery"（写后校验）。
+  3. 写入（用户确认后，全部在 RAM 引导的 TWRP 内完成，`fastboot boot twrp.img`
+     只引导不刷写；`super` 从 PC 经 adb 流式 `dd` 写，不在设备上落临时文件）：
+     a. 备份 recovery / boot / misc / super 元数据到 PC（**没有备份不继续**）；
+     b. 按设备 LP 元数据算偏移，把引导镜像 cmdline 的 `lmi_root_off` 改成实际值；
+     c. 写 rootfs 镜像到 super 空闲区（`dd` + 回读 sha256 校验）；
+     d. 写 recovery = 通用 Linux 引导镜像（dd + 回读校验）；
+     e. 写 misc/BCB = "boot-recovery"（写后校验）。
   4. 重启：BCB → recovery(Linux) → Linux 首次启动做凭据/身份初始化（§5）。
   5. 回滚：任一步失败或用户取消 → 恢复备份的 recovery/misc（BCB 清零）；
      rootfs 区未被引用即"未生效"，可清零。
@@ -163,9 +166,33 @@ tools/install/build-generic-image.sh \
 | LP 解析离线测试 | `tools/tests/m5-lp-parse-test.sh` | ✅ 合成 super 镜像，CI 运行 |
 | 首次启动初始化载荷 | `tools/install/firstboot/` | ✅ 已实现 + 沙箱测试（`tools/tests/m5-firstboot-test.sh`） |
 | 通用镜像构建脚本 | `tools/install/build-generic-image.sh` | ✅ 已实现（零凭据门禁 + dry-run） |
-| PC 一键安装脚本 | `tools/install/lmi-install.sh`（待建） | 🚧 未实现 |
-| TWRP 集成（写入编排） | 待建 | 🚧 未实现 |
-| 安装时公钥注入 | 待建 | 🚧 未实现 |
+| 引导镜像 cmdline 修补 | `tools/install/patch-cmdline.py` | ✅ 已实现（把 `lmi_root_off` 改成设备实际偏移） |
+| PC 一键安装脚本 | `tools/install/lmi-install.sh` | ✅ 已实现（`check`/`plan`/`install`/`rollback`，全 `--dry-run`） |
+| 安装器离线测试 | `tools/tests/m5-install-test.sh` | ✅ 合成 super/boot 镜像，CI 运行 |
+| 设备端到端验证 | — | 🚧 **未做**（破坏性；需负责人 + 测试机，见 §8） |
+| 安装时公钥注入 | 待建 | 🚧 未实现（通用镜像 SSH 仅公钥，用户自行放 `authorized_keys`） |
+| `--grow`（大 rootfs = 自动化 M3） | 待建 | 🚧 未实现（默认不做，见 §9） |
+
+### 7.1 用法（小白一条命令）
+
+```sh
+# 0. 需要：解锁的 lmi + USB 线 + 已开 USB 调试；准备好三个文件：
+#    boot-m1b-generic-vN.img（Linux 引导镜像）
+#    rootfs-generic-vN.img（≤1.5 GiB 的 ext4 rootfs 镜像）
+#    twrp.img（TWRP，仅 RAM 引导，不刷写）
+tools/install/lmi-install.sh check   --recovery boot-m1b-generic-vN.img \
+                                     --rootfs rootfs-generic-vN.img --twrp twrp.img
+tools/install/lmi-install.sh plan    --recovery boot-m1b-generic-vN.img \
+                                     --rootfs rootfs-generic-vN.img
+tools/install/lmi-install.sh install --recovery boot-m1b-generic-vN.img \
+                                     --rootfs rootfs-generic-vN.img --twrp twrp.img
+# 出问题回滚：
+tools/install/lmi-install.sh rollback --twrp twrp.img
+```
+
+`install` 会自动：进入 fastboot → `fastboot boot twrp`（只引导、不刷写）→ 备份
+recovery/boot/misc/super 元数据 → 用 LP 元数据算偏移并修补 cmdline → 写 rootfs →
+写 recovery → 写 BCB → 重启进 Linux。加 `--dry-run` 只打印步骤、不碰设备。
 
 ## 8. 验收标准（M5）
 
@@ -179,9 +206,13 @@ tools/install/build-generic-image.sh \
 
 ## 9. 未决问题 / 下一步
 
-1. **rootfs 大小**：super 空闲区实测仅 ≈ 2.41 GiB，而本机已迁到 `lnx` 的
-   rootfs 是 15.7 GiB。通用镜像默认走 super 空闲区（低风险、不重分区），
-   容量受限；想要大 rootfs 的用户需自行做 M3。
+1. **rootfs 大小（已定：默认 1.5 GiB 固定槽位）**：`super` 空闲区实测 ≈ 2.41 GiB，
+   而 `m1b-init.sh` 的 rootfs 槽位与 mailbox 都是按 **1.5 GiB（393216 × 4096 B）** 常量
+   排布的，所以通用 rootfs 目标 ≤ 1.5 GiB。实测整套系统（Alpine + weston + 字体 +
+   输入法 + 监控，去掉构建残留）只占 **~1.0 GiB**，够用；安装器会拒绝 > 1.5 GiB 的镜像。
+   想要更大 rootfs 的正解是 M3（独立 `lnx` 分区），后续可做成安装器的 opt-in `--grow`
+   （复用 `tools/m3/lmi-repart.sh`，备份门禁后自动执行）。**注意**：`super` 空闲区不持久，
+   Android OTA 可能重新分配逻辑分区把它覆盖——这是独立分区（M3）存在的根本原因。
 2. **TWRP 获取与校验**：安装器要能自动进入 TWRP 并校验其来源（首选中立镜像源，
    记录 sha256）。
 3. **recovery 槽位复用**：安装后 recovery = Linux 镜像，原 TWRP 需备份成文件

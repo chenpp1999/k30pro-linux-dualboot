@@ -56,10 +56,11 @@ jobs:
           sudo apt-get install -y -qq gdisk
           sh tools/tests/m3-repart-test.sh
 
-      - name: M5 installer groundwork tests (offline, synthetic super image)
+      - name: M5 installer tests (offline, synthetic super/boot images)
         run: |
           sh tools/tests/m5-lp-parse-test.sh
           sh tools/tests/m5-firstboot-test.sh
+          sh tools/tests/m5-install-test.sh
 
       - name: Markdown link check (basic)
         run: |
