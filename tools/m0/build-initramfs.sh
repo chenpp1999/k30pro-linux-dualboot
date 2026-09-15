@@ -64,14 +64,29 @@ chmod 755 "$ROOTFS/bin/display"
 cp "$HERE/init" "$ROOTFS/init"
 chmod 755 "$ROOTFS/init"
 
-# Root password for the ramboot image: documented test password "<your-password>".
-# Fixed SHA-512 crypt hash for deterministic builds (issue #8). Regenerate with:
-#   openssl passwd -6 -salt <salt> '<your-password>'
-# shellcheck disable=SC2016  # the $ are part of the crypt hash, not expansion
-HASH=''
+# Root password for the ramboot image.
+#
+# The repository contains no password and no password hash on purpose: pass
+# LMI_ROOT_PASSWORD to pin one (required for byte-reproducible builds, issue #8),
+# otherwise a random password is generated and printed once below.
+# Requires openssl (see the build dependencies in README.md).
+if [ -n "${LMI_ROOT_PASSWORD:-}" ]; then
+	PW="$LMI_ROOT_PASSWORD"
+	PW_GENERATED=0
+else
+	PW=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | cut -c1-16)
+	PW_GENERATED=1
+fi
+# deterministic salt derived from the password: same password -> same hash
+SALT=$(printf '%s' "$PW" | sha256sum | cut -c1-16)
+HASH=$(openssl passwd -6 -salt "$SALT" "$PW") ||
+	{ echo "build-initramfs: openssl passwd failed (install openssl)" >&2; exit 1; }
+printf 'root:%s:19000:0:99999:7:::\n' "$HASH" > "$ROOTFS/etc/shadow"
+if [ "$PW_GENERATED" = 1 ]; then
+	echo "== generated ramboot root password (save it now): $PW"
+fi
 printf 'root:x:0:0:root:/root:/bin/sh\n' > "$ROOTFS/etc/passwd"
 printf 'root:x:0:\n' > "$ROOTFS/etc/group"
-printf 'root:%s:19000:0:99999:7:::\n' "$HASH" > "$ROOTFS/etc/shadow"
 chmod 600 "$ROOTFS/etc/shadow"
 chmod 700 "$ROOTFS/root"
 

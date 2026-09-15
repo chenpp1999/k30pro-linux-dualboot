@@ -78,7 +78,8 @@ B -    656634 - Mi MRR 0x07 = 0x00
 B -    660020 - Mi MRR 0x31 = 0x01
 B -    663314 - ddr serial number: 0000010000000000
 B -    667767 - DSF version = 156.8.18
-B -    670969 - Manufacturer ID = 1, Device Type = 8B -    674568 - Rank 0 size = 4096 MB, Rank 1 size = 4096 MB
+B -    670969 - Manufacturer ID = 1, Device Type = 8
+B -    674568 - Rank 0 size = 4096 MB, Rank 1 size = 4096 MB
 D -     48831 - sbl1_ddr_init
 D -        30 - boot_pre_ddi_entry
 B -    687683 - do_ddr_training, Start

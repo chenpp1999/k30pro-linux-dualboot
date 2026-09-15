@@ -130,7 +130,7 @@ BCB 残留，设备可能循环进入 recovery→fastboot，须按 runbook §5 �
 
 ## 7. 调试通道威胁模型（M0/M1a）
 
-- USB 网络（NCM/RNDIS）链路上的 SSH 使用仓库中公开记录的测试口令，仅适用于
+- USB 网络（NCM/RNDIS）链路上的 SSH 口令由构建时设置或随机生成（**仓库不含任何口令或哈希**），仅适用于
   USB 直连的受控宿主；不得将设备 USB 网络桥接到不可信网络。
 - telnet 默认关闭；仅在 boot cmdline 带 `lmi_telnet=1` 时启动，且经 login
   认证（2026-09-14，issue #9）。未认证 shell 通道不属于任何交付形态。

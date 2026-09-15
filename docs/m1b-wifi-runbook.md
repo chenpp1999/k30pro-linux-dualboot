@@ -62,7 +62,7 @@ fastboot boot boot-m1b-v6.img      # 全程不写任何分区
 ```sh
 # 电脑侧（Linux；Windows 需装 RNDIS/NCM 驱动）
 sudo ip addr add 172.16.42.2/24 dev <新网卡>
-ssh root@172.16.42.1               # 密码 <your-password>（M1b 的 dropbear）
+ssh root@172.16.42.1               # 密码 = 构建时设置/生成的 LMI_ROOT_PASSWORD（M1b 的 dropbear）
 ```
 
 > ⚠️ 手机与电脑之间的 USB 线不要拔；WiFi 验证时仍可保持 USB。
@@ -95,7 +95,7 @@ cat /var/log/cnss-daemon.log 2>/dev/null
 
 1. 记下 Linux 的 wlan0 IP：`ip -4 addr show wlan0`（DHCP；MAC 与 Android 相同
    `7c:2a:db:01:95:59`，路由器可能复用旧租约）。
-2. 同网段主机 `ssh root@<wlan0 IP>`（用户 root，密码 `<your-password>`）。
+2. 同网段主机 `ssh root@<wlan0 IP>`（用户 root，密码 = 构建时设置/生成的 `LMI_ROOT_PASSWORD`）。
 3. 成功后 `uname -a` 应显示 `4.19.325…aarch64 Linux`（不是 Android）。
 
 > 实测（2026-09-14）：电脑（`192.168.1.x`，同一 <SSID>）直连

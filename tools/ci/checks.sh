@@ -100,5 +100,20 @@ for f in $(scanned_scripts); do
   fi
 done
 
+echo "== 4. personal identifiers / credentials =="
+# The tree must never contain the author's device identifiers, network names or
+# credentials (SECURITY.md "凭据与隐私").  These patterns are the regression
+# guard for the 2026-09-15 scrub: extend the list instead of deleting entries.
+#   <your-password> is a *directory* name in some paths (phone-server/lmi-m0/), so it is
+#   only flagged when it appears as a credential (password context).
+FORBIDDEN='REDACTED|REDACTED|REDACTED|CMCC-[0-9]|(密码|口令|password)[^:]{0,12}<your-password>'
+hits=$(git grep -n -E "$FORBIDDEN" -- . ':(exclude)tools/ci/checks.sh' 2>/dev/null || true)
+if [ -n "$hits" ]; then
+	echo "$hits"
+	echo "FOUND personal identifiers/credentials"; status=1
+else
+	echo "clean"
+fi
+
 echo "== guard rails done (status=$status) =="
 exit $status

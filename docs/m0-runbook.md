@@ -37,7 +37,7 @@
 
 - [ ] A1 内核启动（设备进入 Linux，无 Android 界面）
 - [ ] A2 USB 网卡在宿主侧出现（NCM 优先 / RNDIS 回退，宿主网卡如 `UsbNcm Host Device`，可 `ping 172.16.42.1`）
-- [ ] A3 SSH 可登录（`ssh root@172.16.42.1`，密码 `<your-password>`）；telnet 默认
+- [ ] A3 SSH 可登录（`ssh root@172.16.42.1`，密码 = 构建时设置/生成的 `LMI_ROOT_PASSWORD`）；telnet 默认
   关闭，仅在 cmdline 加 `lmi_telnet=1` 时启用（且经 login 认证，issue #9）
 - [ ] A4 `eventdump /dev/input/event3`（`fts_ts`）能收到触摸事件
 - [ ] A5 面板显示 1080x2400 色条（`m0-display` 自动接管：DSI/panel 绑定成功、
@@ -67,7 +67,7 @@ A1–A5 为 M0 验收项（2026-09-13 终轮全过）；完整 UI（seatd/Weston
    - Linux：`sudo ip addr add 172.16.42.2/24 dev <新网卡> && sudo ip link set <新网卡> up`
    - Windows：适配器属性 → IPv4 → 手动 `172.16.42.2 / 255.255.255.0`
 
-9. `ssh root@172.16.42.1`（密码 `<your-password>`）；无宿主静态 IPv4 时可用
+9. `ssh root@172.16.42.1`（密码见构建输出）；无宿主静态 IPv4 时可用
    **IPv6 链路本地**：先 `ping -6 ff02::1%<ifindex>` 触发邻居发现，再从
    邻居表取设备的 `fe80::` 地址并 `ssh root@fe80::...%<ifindex>`
    （2026-09-14 实测可用）。telnet 默认关闭：如需兜底，在 cmdline 加

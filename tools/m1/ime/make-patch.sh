@@ -92,7 +92,6 @@ for pair in "0007-keyboard-pinyin.patch:0007" "0008-terminal-delete.patch:0008" 
 	f=${pair%%:*}
 	cp "$f" "$PATCHES/$f"
 	wc -l "$PATCHES/$f"
-	cp "$f" "<tmpdir>/$f"
 done
 echo "patches regenerated; build with tools/m1/build-weston-clients.sh on device"
 rm -rf "$BASE" "$WORK"

@@ -116,7 +116,7 @@ recovery 内容与目标 sha256 一致 → 只写 BCB 重启（**FAST**），否
 
 - **电脑**：`<host>\k30pro-linux-dualboot`（本仓库）。
   adb/fastboot = `<host>\k30Linux\tools\platform-tools\`（adb 序列号 `REDACTED`）。
-- **手机 Linux（当前主机）**：USB-NCM 固定 `172.16.42.1`，root / `<your-password>`；
+- **手机 Linux（当前主机）**：USB-NCM 固定 `172.16.42.1`，root / `<your-password>`（构建时设置或随机生成，仓库不含口令）；
   WiFi 侧 IP 随热点变（曾 `10.84.40.x` / `192.168.1.x`）。
 - 电脑侧辅助脚本（`%TEMP%\opencode\`）：`lssh.py`（SSH 执行）、`lcp.py`（put/get），
   **复杂命令一律写成脚本文件再 push 执行**（PowerShell 引号坑）。
