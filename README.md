@@ -5,7 +5,8 @@
 为小米 Redmi K30 Pro / POCO F2 Pro（代号 `lmi`，Qualcomm SM8250）提供故障安全的
 Android + 真 Linux（Alpine/OpenRC + Weston）双系统方案。
 
-> ⚠️ **实验性项目，当前处于 M4（v1.0 发布）。** M0–M3 均已实机验收。涉及引导与分区修改，
+> ⚠️ **实验性项目。** `v1.0.0` 已发布（tag `v1.0.0`，M0–M3 实机验收，M4 发布完成）；
+> 当前在开发 **M5 一键安装**（离线模拟全绿，**真机端到端待验证**）。涉及引导与分区修改，
 > 操作不当可能丢失数据。请先读完文档并做好备份。
 
 > ℹ️ **设备镜像是私有的**：引导镜像 / rootfs 内含按本机注入的 WiFi 凭据与设备序列号，
@@ -35,7 +36,7 @@ Android + 真 Linux（Alpine/OpenRC + Weston）双系统方案。
 | M2 | 双向切换器 v0.1（BCB 一次性引导 + 自动回退） | ✅ 实机验收（往返 5 轮零失败 + 故障/救援/TWRP 演练；`recovery_dtbo` 缺陷已修） |
 | Linux UX | 桌面可用性 + 中文输入法 + 快捷键栏 + 电源温控监控 | ✅ 实机验证（[UX 验收](docs/acceptance/ux-2026-09-15.md)、[温控充电](docs/m1b-thermal-charging.md)） |
 | M3 | 可选扩容工具 `lmi-repart`（userdata 缩容 + `lnx` 新建） | ✅ **已在本机执行**：userdata 107→91 GiB + `lnx` 16 GiB，rootfs 迁入并启动（[M3 验收](docs/acceptance/m3-2026-09-15.md)） |
-| M4 | v1.0 公开发布 | 🚧 进行中（[发布说明](docs/release-v1.0.0.md)、[复现指南](docs/reproduce.md)） |
+| M4 | v1.0 公开发布 | ✅ 已发布 tag `v1.0.0`（[发布说明](docs/release-v1.0.0.md)、[复现指南](docs/reproduce.md)） |
 | M5 | 一键安装（PC 脚本 + 通用镜像） | 🚧 PC 一键已实现（[安装说明](docs/install-guide.md)、[设计](docs/installer-design.md)）；离线模拟全绿，**真机端到端待验证** |
 
 ## 现在能做什么

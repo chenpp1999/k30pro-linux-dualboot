@@ -14,3 +14,9 @@ tools/m1/ime/data/
 
 # local, author-specific forbidden-token list (never commit real identifiers)
 tools/ci/forbidden-local.txt
+
+# M5 installer backups: partition dumps (recovery/boot/misc/super) of a real
+# device -- device-specific, never commit.
+lmi-install-backup/
+*.ramboot-ok
+*.buildinfo

@@ -54,7 +54,23 @@
 | T4-04 | 卡死保护 | SOC 持续下滑告警；≤ RECOVER_SOC 时写 BCB 并重启**回 Linux**（绝不去 Android） | ✅ 离线路径验证 + 24 h 安全阀 |
 | T4-05 | 监控采样 | `lmi-monitor` 60 s 更新 `/run/lmi-monitor/latest`，10 min 落 CSV，累计高压 SOC 与 >40 °C 时长 | ✅ 2026-09-15（`lmi-status` 与 CSV 正常） |
 | T4-06 | 内网面板 | 回退链可用，`:8080` 返回 200 且显示实时状态 | ✅ 2026-09-15（python3 回退，HTTP 200） |
-| T4-07 | 长稳观察 | 连续运行 ≥72 h 无异常，充电锯齿与温度曲线符合预期 | ⬜ 观察中（M4 发布后回填） |
+| T4-07 | 长稳观察 | 连续运行 ≥72 h 无异常，充电锯齿与温度曲线符合预期 | ⬜ 观察中（v1.0 发布后回填） |
+
+## T5 — M5 一键安装（离线可验证；真机待做）
+
+> 设计 `docs/installer-design.md`，使用说明 `docs/install-guide.md`。
+> 破坏性：会覆盖 `recovery`、写 `super` 空闲区；**不写 `boot`、不重分区**。
+
+| 编号 | 项目 | 通过标准 | 状态 |
+|---|---|---|---|
+| T5-01 | LP 元数据解析 | 合成 super 的分区/组/空闲区正确、校验和通过；真机 super 核对 | ✅ `tools/tests/m5-lp-parse-test.sh`（真机 super 核对通过） |
+| T5-02 | 偏移选择 + cmdline 修补 | 选中最优空闲区、报出 `lmi_root_off`，boot 镜像 cmdline 正确改写 | ✅ `tools/tests/m5-install-test.sh` |
+| T5-03 | 完整安装模拟 | 假 adb/fastboot + 沙箱分区跑真路径：备份→写 super/recovery→写 BCB；rootfs 逐字节、BCB 正确、`boot` 未变 | ✅ `tools/tests/m5-install-sim-test.sh` |
+| T5-04 | 回滚 | 恢复 recovery、清 BCB、`boot` 不写 | ✅ `tools/tests/m5-install-sim-test.sh` |
+| T5-05 | 首次启动初始化 | 随机 root 口令 / 主机密钥 / machine-id、SSH 仅公钥、幂等 | ✅ `tools/tests/m5-firstboot-test.sh`（沙箱） |
+| T5-06 | 体积/镜像/空闲区门禁 | >1.5 GiB、非 boot 镜像、无可用空闲区均拒绝 | ✅ `tools/tests/m5-install-test.sh` |
+| T5-07 | 通用镜像零凭据 | 含 WiFi/可用 root 口令/非空 machine-id/预置密钥即拒绝构建 | ✅ `tools/install/build-generic-image.sh` 门禁 |
+| T5-08 | **真机端到端** | 测试机/已备份设备跑通 `check→plan→install`；安装后 Android 正常、Linux 可启动、可回滚；记录到 `docs/acceptance/` | ⬜ **未做**（破坏性，需负责人 + 测试机） |
 
 ## 验收记录模板
 

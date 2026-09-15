@@ -1,6 +1,7 @@
 # 使用说明书（Linux 侧日常操作）
 
-> 面向"已经把 Linux 装好、想日常用"的人。安装/复现见 [`reproduce.md`](reproduce.md)，
+> 面向"已经把 Linux 装好、想日常用"的人。**一键安装见
+> [`install-guide.md`](install-guide.md)**；手工/分阶段复现见 [`reproduce.md`](reproduce.md)，
 > 底层原理与坑见 [`handoff.md`](handoff.md)、[`m1b-persistent.md`](m1b-persistent.md)。
 >
 > 约定：`$` 表示在手机 Linux 的终端/SSH 里执行；USB 网络的固定地址是 **`172.16.42.1`**

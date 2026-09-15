@@ -17,7 +17,7 @@
 | 分区 | 设备节点（Android / Linux） | 大小 | 用途 |
 |---|---|---|---|
 | boot | /dev/block/sde50 | 128 MB | Android 内核+ramdisk（**永不改动**，sha256 `8d441fc5…` 全程未变） |
-| recovery | /dev/block/sda28 / /dev/sda28 | 128 MB | **Linux 引导镜像槽位**（当前 `boot-m1b-v13.img`；原 TWRP 镜像已备份成文件） |
+| recovery | /dev/block/sda28 / /dev/sda28 | 128 MB | **Linux 引导镜像槽位**（当前 `boot-m1b-v21.img`，overlay `m1b-ux-v14`；原 TWRP 镜像已备份成文件） |
 | misc | /dev/block/sda11 / /dev/sda11 | 4 MB | BCB 一次性引导指令（ABL **不**清，由 Linux init 清） |
 | super | /dev/block/sda32 / /dev/sda32 | 8.5 GiB | Android 动态分区；**内部旧 rootfs 区（偏移 4K 单元 1,596,852，1.5 GiB）保留未回收**，供回滚 |
 | userdata | /dev/block/sda34 / /dev/sda34 | **91 GiB**（原 107） | Android 用户数据；M3 缩容（PARTUUID 保留），数据完好 |
@@ -54,15 +54,18 @@ Linux 侧 init 挂载 rootfs 的策略：**优先 GPT `PARTNAME=lnx`**，回退 
   偏移是相对 super 的）。验收 `docs/acceptance/m3-2026-09-15.md`。
   遗留：super 内旧 rootfs 区回收（观察期后）、风险台账 R1/R2 关闭。
 
-### 阶段 D（M5，未实现）— 一键安装
+### 阶段 D（M5，PC 一键已实现，真机端到端待验证）— 一键安装
 - **形态**：PC 一键脚本 + 通用镜像（Android 用户态写不了 `super`，纯 App 不可行，
   issue #13）；安装阶段经 TWRP 写入。
 - **通用镜像零凭据**：root 口令/主机密钥/machine-id 首次启动生成，SSH 仅公钥，
   不预置 WiFi；**不自动重分区**（M3 永远可选、手动）。
-- 地基已落地：`tools/install/lp-metadata.py`（解析 super 的 LP 元数据找空闲区）、
+- 已实现：`tools/install/lp-metadata.py`（解析 super 的 LP 元数据找空闲区）、
   `tools/install/build-generic-image.sh`（零凭据门禁 + 组装）、
-  `tools/install/firstboot/`（首次启动初始化）。
-- 设计/流程/威胁模型/验收：`docs/installer-design.md`。
+  `tools/install/firstboot/`（首次启动初始化）、`tools/install/lmi-install.sh`
+  （PC 一键：`fastboot boot twrp` → 备份 → 修补 cmdline → 流式写 super/recovery → 写 BCB → 可回滚）、
+  `tools/install/patch-cmdline.py`；离线测试 `tools/tests/m5-*.sh`（含假 adb 的完整模拟安装）。
+- 设计/流程/威胁模型/验收：`docs/installer-design.md`；**使用说明（含风险提示）**：
+  `docs/install-guide.md`。真机端到端安装尚未验证。
 
 ## 4. 启动切换协议（核心）
 

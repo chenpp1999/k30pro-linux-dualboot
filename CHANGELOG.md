@@ -40,8 +40,6 @@
 - **使用说明书 `docs/usage.md`**：切换系统（Magisk 一键 / 命令行 / 救援）、WiFi 连接与排障、
   SSH 与改口令/公钥、监测台（`lmi-status` + 网页面板 + CSV 指标解读）、充电温控策略与调参、
   CPU 降温、桌面/中文输入/按键、服务与日志速查、FAQ、安全提醒；README 索引已挂。
-
-### Added
 - 桌面与终端体验（overlay `m1b-ux-v10`，补丁 0012/0013）：
   - **手指拖动＝滚动**终端（原先拖动被当作文本选择，触屏上没有鼠标、历史内容不可达），
     力度约每 0.75 个字高滚一行；
@@ -76,8 +74,6 @@
   **15.7 GiB（可用 13.8 GiB）**；重建脚本新增"空间不足即报错"与 dd 失败提示。
 - 设备上安装的 `/usr/sbin/lmi-wifi-start` 曾被 `tr -d "r"` 削掉全部字母 r（`mkdi`、`/va/log`），
   导致 WLAN 栈掉线后**永远无法恢复**：已按仓库逐字节校验回填，并加了完整性断言防止复发。
-
-### Fixed
 - **终端滚动后"输出被吞"**（overlay `m1b-ux-v14`，补丁 0018/0019）：滚动期间输出会推进
   `terminal->start`，而"回到活区"的锚点 `saved_start` 不跟着走，于是回滚的钳制量变成负数、
   视图越过活区滚进旧行（表现为只剩命令行、下面一大片空）。现在锚点跟随输出；并且屏幕键盘
@@ -89,6 +85,12 @@
   现在终端按"可用高度 = 窗口高度 − 键盘高度"重排网格（并把新的 winsize 告诉 PTY），
   网格底边贴着键盘上沿：没有黑带、提示行与命令输出始终可见。`keyboard-inset` 可配
   （`weston.ini [terminal]` 与 `/etc/conf.d/m1-weston`，实测 K30 Pro 为 480）。
+- **M1b WiFi 手册 §4 与 §0 自相矛盾**（独立验证者 issue #20）：§4 曾指示把缺
+  `recovery_dtbo` 的 `boot-m1b-v6.img` 用 `--force` 写入 recovery（必然落 fastboot）。
+  已标注为历史、指向 `docs/m2-runbook.md`，并明确 `--force` 仅限救援。
+- **隐私清理遗漏**：`docs/handoff.md` 的真实 SSID/内网 IP、M1b WiFi 证据里的
+  BSSID/本机 WiFi MAC/uuid、UX 审查里的 SSID 均已移除或占位化
+  （CI 第 4 项未覆盖这些形式；政策见 `SECURITY.md`）。
 
 ### Security
 - **个人信息与凭据清理**（2026-09-15）：仓库不再包含设备序列号/CPUID/证书、
@@ -103,13 +105,11 @@
   - CI 新增第 4 道防线（`tools/ci/checks.sh`）：命中已知个人信息特征即失败。
   - 政策见 `SECURITY.md` §凭据与隐私。
 
-### Fixed
-- **M1b WiFi 手册 §4 与 §0 自相矛盾**（独立验证者 issue #20）：§4 曾指示把缺
-  `recovery_dtbo` 的 `boot-m1b-v6.img` 用 `--force` 写入 recovery（必然落 fastboot）。
-  已标注为历史、指向 `docs/m2-runbook.md`，并明确 `--force` 仅限救援。
-- **隐私清理遗漏**：`docs/handoff.md` 的真实 SSID/内网 IP、M1b WiFi 证据里的
-  BSSID/本机 WiFi MAC/uuid、UX 审查里的 SSID 均已移除或占位化
-  （CI 第 4 项未覆盖这些形式；政策见 `SECURITY.md`）。
+### Changed
+- **文档同步（2026-09-15）**：README / architecture / handoff / charter / test-plan /
+  reproduce / usage / release 更新到"v1.0 已发布 + M5 现状（真机端到端待验证）"；
+  `docs/test-plan.md` 新增 **T5**（M5 一键安装）组；`.gitignore` 忽略 M5 安装备份目录
+  与构建附属文件。
 
 ## [1.0.0] - 2026-09-15
 

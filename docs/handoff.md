@@ -16,7 +16,8 @@
 | M3 | ✅ **已在本机执行完成**（userdata 107→91 GiB + 新建 `lnx` 16 GiB，rootfs 迁移到 `lnx`） | `docs/acceptance/m3-2026-09-15.md`、`docs/m3-repart-plan.md` |
 | 电源/温控/监控 | ✅ 实机落地（见 §五） | `docs/m1b-thermal-charging.md` |
 | 桌面/终端体验 | ✅ 指纹拖动滚动、键盘避让、单窗口、`lmi-help`、WiFi 看门狗 | `docs/usage.md` |
-| M4 | 🚧 v1.0 发布（本文档即其开工快照） | `docs/release-v1.0.0.md`、`docs/reproduce.md` |
+| M4 | ✅ v1.0 已发布（tag `v1.0.0`） | `docs/release-v1.0.0.md`、`docs/reproduce.md` |
+| M5 | 🚧 一键安装：PC 一键已实现，离线模拟全绿，**真机端到端待验证** | `docs/install-guide.md`、`docs/installer-design.md`、`tools/tests/m5-*.sh` |
 
 ## 二、设备当前状态（2026-09-15 深夜，实测）
 
@@ -207,16 +208,19 @@ recovery 内容与目标 sha256 一致 → 只写 BCB 重启（**FAST**），否
 
 ## 九、新会话开工清单
 
-1. `git pull --ff-only`，确认 HEAD = `origin/main`（≥ `522e42b`）。
+1. `git pull --ff-only`，确认 HEAD = `origin/main`（≥ `8d26a65`，即 v1.0 之后的 M5 系列）。
 2. 读 `AGENTS.md` → `docs/ai-protocol.md` → 本文 → 按任务进 `docs/acceptance/*`、
-   `docs/m1b-rebuild-on-device.md`、`docs/m1b-thermal-charging.md`、`docs/m3-repart-plan.md`。
+   `docs/install-guide.md`、`docs/installer-design.md`、`docs/m1b-rebuild-on-device.md`、
+   `docs/m1b-thermal-charging.md`、`docs/m3-repart-plan.md`。
 3. 检查 open issues（`[VFY]` = 验证者产出）+ `git log --oneline -10` 对照 §八。
 
 可直接粘贴给新会话的提示词：
 
 > 你在开发仓库 `k30pro-linux-dualboot`（Redmi K30 Pro 双系统）。先读 `AGENTS.md` →
 > `docs/ai-protocol.md` → `docs/handoff.md`，再 `git pull` 并确认 HEAD 与 `origin/main`
-> 一致（≥ `522e42b`）。当前：M0–M2 已实机验收；M3 扩容已在本机执行完成（rootfs 在
-> `/dev/sda35`/`lnx`，镜像 `boot-m1b-v13`，overlay `m1b-ux-v7`）；Linux UX + 中文输入法 +
-> 快捷键栏 + 电源温控监控均已落地。任务：按 §八推进 M4 v1.0 发布（文档收尾 → VERSION/
-> CHANGELOG → tag `v1.0.0` → GitHub Release，**不发含凭据的设备镜像**）。收到后先复述计划再动手。
+> 一致（≥ `8d26a65`）。当前：M0–M4 已完成、**v1.0.0 已发布**；M3 扩容已在本机执行
+> （rootfs 在 `/dev/sda35`/`lnx`，镜像 `boot-m1b-v21`，overlay `m1b-ux-v14`）；Linux UX +
+> 中文输入法 + 快捷键栏 + 电源温控监控均已落地。**M5 一键安装**：PC 侧（`tools/install/`）
+> 已实现、离线模拟全绿，**真机端到端安装待验证**。任务：按 §八推进——真机安装演练（破坏性，
+> 需负责人 + 测试机，先 `check`/`plan`/`--dry-run`）、外部复现（G5）、回馈上游、WiFi 根因。
+> 收到后先复述计划再动手。

@@ -59,6 +59,12 @@
 6. 内网面板无鉴权，勿暴露到公网；SSH 口令由构建时设置/生成，仓库不含口令，仅适用于 USB/受控网络。
 7. G5（外部用户复现）**待完成** —— 欢迎按 [`docs/reproduce.md`](reproduce.md) 复现并回报。
 
+## v1.0 之后（M5）
+
+一键安装（PC 一条命令 + 零凭据通用镜像）正在开发：设计见
+[`installer-design.md`](installer-design.md)，使用说明见 [`install-guide.md`](install-guide.md)。
+PC 侧已实现、离线模拟全绿，**真机端到端安装尚未验证**。
+
 ## 升级 / 回滚
 
 - 升级 Linux 侧：改 overlay → `tools/m1/rebuild-image-from-device.sh`（设备内）→ `dd` 到 `recovery`；
