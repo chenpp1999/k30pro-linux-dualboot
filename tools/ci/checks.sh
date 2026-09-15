@@ -41,7 +41,8 @@ echo "== 2. destructive scripts must offer --dry-run =="
 DRY_EXEMPT="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh tools/m3/lmi-repart.sh"
 for f in $(git ls-files '*.sh' 'tools/m0/init'); do
   case "$f" in
-    tools/tests/*) continue ;;   # test harnesses write only into mktemp dirs
+    tools/ci/checks.sh) continue ;;   # the scanner itself contains these patterns
+    tools/tests/*) continue ;;        # test harnesses write only into mktemp dirs
   esac
   if grep -qE 'dd .*of=' "$f" 2>/dev/null; then
     case " $DRY_EXEMPT " in
@@ -63,6 +64,9 @@ echo "== 3. hardcoded device nodes =="
 # rebuild-image-from-device.sh: device-side tool, /dev/sda28 default with --dev override.
 NODE_ALLOWED="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh tools/m1/rebuild-image-from-device.sh"
 for f in $(git ls-files '*.sh' 'tools/m0/init'); do
+  case "$f" in
+    tools/ci/checks.sh) continue ;;   # the scanner itself contains this pattern
+  esac
   if grep -qE '/dev/sd[a-z][0-9]*' "$f" 2>/dev/null; then
     case " $NODE_ALLOWED " in
       *" $f "*) echo "whitelisted: $f" ;;
