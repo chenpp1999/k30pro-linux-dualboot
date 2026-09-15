@@ -14,3 +14,4 @@ tools/m1/m1b/etc/localtime binary
 tools/m1/m1b/usr/bin/* binary
 tools/m1/m1b/usr/libexec/* binary
 *.patch text eol=lf
+*.dict binary

@@ -9,3 +9,5 @@ kernel/
 d80/
 __pycache__/
 *.pyc
+# IME data downloads (re-fetch with tools/m1/ime/fetch-data.sh)
+tools/m1/ime/data/

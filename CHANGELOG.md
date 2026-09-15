@@ -68,8 +68,12 @@
 - Linux UX Phase 2（按键/息屏）：`tools/m1/lmi-keys.c`（音量键→背光、
   电源键开关屏、空闲灭背光）+ `m1-weston IDLE_TIME=300`（原 `--idle-time=0`
   不允许息屏）+ `tools/m1/dev/lmi-inject.py`（uinput 注入，无人值守验证）。
-  调研：`docs/research/ux-ime-2026-09-15.md`（中文输入法路线：weston-keyboard
-  拼音页 + 候选条，7–11 人日；Maliit 可试验但 Qt5 栈 ~300 MiB）。
+- Linux UX Phase 2（中文输入，overlay `m1b-ux-v5` 追加）：自补丁
+  weston-keyboard 加**拼音页 + 候选条**（补丁 0007、引擎 `tools/m1/ime/src/`、
+  词典 `tools/m1/ime/pinyin.dict` 221 KB，数据源 pinyin-data/rime/CC-CEDICT）；
+  终端配 `font=WenQuanYi Zen Hei Mono`（cairo toy API 无字形回退，否则中文
+  显示豆腐块）；端到端实机验证（nihao→你好 上屏终端）。
+  调研：`docs/research/ux-ime-2026-09-15.md`（路线与协议约束）。
 
 ### Changed
 - `recovery-swap.sh to-linux` 默认启用部署预检：SHA-256 清单 + attestation +

@@ -179,3 +179,33 @@
 - 坑：`qpn_pon`（真实设备）只报 VOLDOWN，VOLUP 在 `gpio-keys`；触摸设备
   `fts_ts` 的 BTN_TOUCH + ABS_MT 能力位需按 EV_KEY/EV_ABS 分别读；sysfs
   `capabilities/key` 是高位字在前（解析注意）。
+
+### 6.5 中文输入（Phase 2/IME，2026-09-15 完成）
+
+- **实现**：在自补丁 weston-keyboard 内加拼音页 + 候选条（补丁 0007 + 引擎
+  `tools/m1/ime/src/pinyin.c` + 词典 `pinyin.dict`，221 KB）。协议上零改动
+  （预编辑 `preedit_string`、提交 `commit_string`、ASCII 走 `keysym`）。
+  布局：候选条 + qwerty 三行 + `123/中英/符/空格/，。、/退格/回车`（12 列）。
+- **词典数据**：pinyin-data(MIT) 单字读音 + rime-essay-simp(LGPL-3.0) 字/词频
+  + rime-luna-pinyin(LGPL-3.0) 多音字权重 + CC-CEDICT(CC BY-SA 4.0) 词语拼音
+  （保证"银行/行走/北京大学"等多音节词正确）；生成器与格式见
+  `tools/m1/ime/README.md`。431 音节 / 19631 字 / 18130 词。
+- **引擎**：音节切分（有界 DFS 打分：整串词 > 最长前缀词 > 首音节单字 > 少音节
+  > 长首音节），候选合并前 4 种切分（`xian` 同页给 先/线/… 与 西安）；逐字提交
+  （选词只消费其覆盖的音节，剩余拼音继续）；`空格/，/。` 有候选先提交首选；
+  `回车` 提交首选或把原始拼音按 ASCII 上屏；`退格` 先删拼音缓冲再发给客户端。
+- **踩坑（务必记住）**：
+  1. 字符表是"每音节一个 u16 计数 + 数据"**交织**布局，数据下标 =
+     `sum(counts[0..n-1]) + n`（漏掉 `+n` 会读到别的音节，曾导致候选乱码）；
+  2. stock `input_method_activate()` 会把键盘状态重置为 DEFAULT → 补丁改为
+     词典可用时保持拼音态（否则每次聚焦文本框都会悄悄切回英文）；
+  3. **cairo toy 字体 API 没有逐字形回退**：DejaVu 缺 CJK 就是豆腐块（即使
+     fontconfig 有回退）→ 键盘显式请求 `WenQuanYi Zen Hei`；终端在 weston.ini
+     里配 `font=WenQuanYi Zen Hei Mono`（编辑器用 Pango，无此问题）；
+  4. weston 只在 seat 有**键盘焦点**时才把输入面板上屏（触摸点击即给焦点）；
+  5. 该驱动（msm/pixman）的截图可能混入陈旧帧：几何用 `weston-debug
+     scene-graph` 为准（见 `tools/m1/dev/kbd-tap.py`），内容用小裁剪区检查；
+  6. proot 构建环境里 `weston-debug | grep/tail` 会丢输出，写文件再读。
+- **验证（自动化注入触摸完成）**：`nihao` → 候选首选"你好"（蓝框）→ 点击提交
+  → 终端显示 `你好`（字体修复后）；`back` 删除拼音缓冲（`nihao`→`niha` 后提交
+  得到"你哈"）；`中/英` 切换正常；候选翻页 `1/4` 显示正常。
