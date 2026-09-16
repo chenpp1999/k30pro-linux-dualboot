@@ -49,7 +49,9 @@ jobs:
         run: sh tools/ci/checks.sh
 
       - name: M2 switch tests (offline, no partitions touched)
-        run: sh tools/tests/m2-switch-test.sh
+        run: |
+          sh tools/tests/m2-switch-test.sh
+          sh tools/tests/m2-action-test.sh
 
       - name: M3 repart planner tests (offline, synthetic disk image)
         run: |

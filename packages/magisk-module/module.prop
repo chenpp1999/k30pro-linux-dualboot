@@ -1,6 +1,6 @@
 id=lmi-dualboot-switch
 name=K30 Pro Dualboot Switch
-version=v0.2
-versionCode=2
+version=v0.3
+versionCode=3
 author=chenpp1999
-description=One-key Android -> Linux switch via recovery + one-shot BCB (ADR-0001). The Android boot partition is never modified; any later reboot returns to Android. Tap the module Action button in Magisk (27+), or run /data/adb/modules/lmi-dualboot-switch/action.sh as root. Bundles recovery-swap.sh and auto-selects the newest boot-m1b-vNN.img from /data/local/lmi-dualboot or /sdcard/Download/phone-server/lmi-m1b. Set LMI_SWITCH_DRY=1 to only print the plan; LMI_SWITCH_FORCE=1 skips the method-A attestation gate (rescue only).
+description=One-key Android -> Linux switch via recovery + one-shot BCB (ADR-0001). The Android boot partition is never modified; any later reboot returns to Android. Tap the module Action button in Magisk (27+), or run /data/adb/modules/lmi-dualboot-switch/action.sh as root. If recovery already holds the Linux image (normal after install) the button just writes the BCB and reboots; otherwise it deploys the newest method-A attested boot-m1b-vNN.img from /data/local/lmi-dualboot or /sdcard/Download/phone-server/lmi-m1b. Set LMI_SWITCH_IMG=<path> to deploy a specific image, LMI_SWITCH_DRY=1 to only print the plan; LMI_SWITCH_FORCE=1 skips the attestation gate (rescue only).

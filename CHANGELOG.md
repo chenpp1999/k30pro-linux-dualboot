@@ -69,6 +69,17 @@
   （payload 脚本必须 755、文本必须 LF）。
 
 ### Fixed
+- **Magisk Action 一键切换"点了没反应"**（2026-09-16，实测）：模块只从
+  `/data/local/lmi-dualboot`、`/sdcard/Download/phone-server/lmi-m1b` 挑**版本号最大**的
+  镜像（v11），而 `recovery` 里已是设备内重建的 v21 → 判为 FULL → v11 无
+  `.ramboot-ok` 被 attestation 门禁拒绝，且 `recovery-swap.sh` 的 `FATAL` 走 stderr、
+  Magisk 窗口只收 stdout，所以看起来毫无反应。修法（模块 **v0.3**）：
+  - 新优先级：`LMI_SWITCH_IMG` > **recovery 里已是 Linux**（`ANDROID!` + cmdline 含
+    `lmi_root_off=`）→ FAST 只写 BCB > 选**最新且已 attest** 的镜像做 FULL；
+  - 脚本 `exec 2>&1`，门禁报错与诊断在 Magisk 输出里可见；无可部署镜像时列出候选
+    与 attest 方法并非零退出；
+  - 只读回归测试 `tools/tests/m2-action-test.sh`（合成镜像 + `LMI_SWITCH_DRY=1`，
+    6 组，CI 运行）。
 - **rootfs 实际只有 1.4 GiB**（迁移到 `lnx` 16 GiB 分区时没有把 ext4 扩到分区大小），写满后
   `dd` 与脚本写入**静默失败**（一次镜像构建因此产出截断文件）。已在线 `resize2fs` 扩到
   **15.7 GiB（可用 13.8 GiB）**；重建脚本新增"空间不足即报错"与 dd 失败提示。

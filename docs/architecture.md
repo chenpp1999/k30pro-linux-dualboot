@@ -140,7 +140,9 @@ BCB 残留，设备可能循环进入 recovery→fastboot，须按 runbook §5 �
   `lmi-chargectl`（充电/温度门限）、`lmi-monitor`（采样/面板/CSV）、`lmi-status`
 - `tools/m1/m1b/` 其余 — overlay 载荷（Weston 配置、字体、按键守护、WiFi CLI、终端配色）
 - `tools/m1/dev/` — 测试注入工具（`lmi-inject.py`、`kbd-tap.py`，uinput）
-- `packages/magisk-module` — Android 端一键切换入口（v0.2：最新镜像选择 + hash 校验快路径）
+- `packages/magisk-module` — Android 端一键切换入口（v0.3：recovery 已装 Linux → FAST
+  只写 BCB；否则部署最新**已 attest** 镜像；`exec 2>&1` 让门禁报错可见；
+  测试 `tools/tests/m2-action-test.sh`）
 - `packages/android-app` — 可选图形入口
 - `packages/pmaports` — 设备包贡献（上游）
 - `kernel/` — 必要的 DTS / 补丁（GPL-2.0-only）

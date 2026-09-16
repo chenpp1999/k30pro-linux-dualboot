@@ -25,16 +25,26 @@
 Magisk 模块 `lmi-dualboot-switch`：
 
 1. Android 上打开 Magisk，进 **模块**，点 `lmi-dualboot-switch` 的 **操作** 按钮；
-2. 模块会挑出最新的 `boot-m1b-vNN.img`：
-   - recovery 分区的内容与目标镜像 **一致** → 只写引导标记（BCB）并重启（**FAST**，最快）；
-   - 不一致 → 走完整流程（**FULL**：写 recovery + 校验 + 写 BCB）；
+2. 模块按优先级决定动作：
+   - **`recovery` 里已经是 Linux**（装好之后的常态）→ **FAST**：只写引导标记（BCB）
+     并重启，不挑镜像、不动任何镜像数据；
+   - 想装/换别的镜像：设 `LMI_SWITCH_IMG=<路径>`，或不一致时走完整流程
+     （**FULL**：写 recovery + 校验 + 写 BCB，需要该镜像的 attestation）；
 3. 手机重启后进入 Linux（首次进入会比 Android 慢，USB 网络枚举最长可能几分钟）。
+
+> 排障：如果点 **操作** 后像"没反应"，先看 Magisk 弹出窗口里的文本（v0.3 起脚本
+> 会把子命令的报错也显示出来）；也可以先只读预演：
+> ```sh
+> adb shell su -c 'LMI_SWITCH_DRY=1 /data/adb/modules/lmi-dualboot-switch/action.sh'
+> ```
+> 模块更新后需在 Magisk 里重装 zip 并**重启一次**才生效。
 
 预演 / 排障用的环境变量（在模块 action 或终端里）：
 
 ```sh
-LMI_SWITCH_DRY=1    # 只打印计划，不写任何分区
-LMI_SWITCH_FORCE=1  # 跳过 attestation 门禁（确认过镜像来源才用）
+LMI_SWITCH_DRY=1    # 只打印计划，不写任何分区、不重启
+LMI_SWITCH_IMG=...  # 指定要部署的镜像
+LMI_SWITCH_FORCE=1  # 跳过 attestation 门禁（确认过镜像来源才用，仅救援）
 ```
 
 ### Linux → Android
@@ -43,8 +53,11 @@ LMI_SWITCH_FORCE=1  # 跳过 attestation 门禁（确认过镜像来源才用）
 
 ### 命令行方式（不用 Magisk UI）
 ```sh
-# 在 Android（root shell）里：
-sh /data/adb/modules/lmi-dualboot-switch/recovery-swap.sh to-linux
+# 在 Android（root shell）里，最轻量：只写 BCB，然后重启进 Linux（recovery 里已是 Linux 时）
+sh /data/adb/modules/lmi-dualboot-switch/recovery-swap.sh bcb boot-recovery && reboot
+
+# 或直接跑模块入口（与点 Action 等价）：
+sh /data/adb/modules/lmi-dualboot-switch/action.sh
 ```
 
 ### 救援

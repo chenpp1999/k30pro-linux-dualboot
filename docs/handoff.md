@@ -108,10 +108,13 @@ dd if=/root/m1b-rebuild/boot-m1b-vNN.img of=/dev/sda28 bs=1M && sync
 
 ### B. Android 侧一键切换
 
-Magisk 模块 `lmi-dualboot-switch` v0.2（`packages/magisk-module/`）：自动选最新 `boot-m1b-vNN.img`；
-recovery 内容与目标 sha256 一致 → 只写 BCB 重启（**FAST**），否则走 `recovery-swap.sh to-linux`
-（**FULL**，带 attestation 门禁）。`LMI_SWITCH_DRY=1` 预演、`LMI_SWITCH_FORCE=1` 绕过门禁。
-注意：Magisk CLI 安装模块后需重启才生效。
+Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：优先级 =
+`LMI_SWITCH_IMG` > **recovery 里已是 Linux**（`ANDROID!` + cmdline 含 `lmi_root_off=`）
+→ 只写 BCB 重启（**FAST**）> 选**最新且已 attest** 的 `boot-m1b-vNN.img` 走
+`recovery-swap.sh to-linux`（**FULL**，带 attestation 门禁）。`LMI_SWITCH_DRY=1` 预演、
+`LMI_SWITCH_FORCE=1` 绕过门禁（仅救援）。脚本 `exec 2>&1`，子脚本 `FATAL` 在 Magisk
+窗口可见；无可部署镜像时列出候选与 attest 方法。回归测试 `tools/tests/m2-action-test.sh`。
+注意：Magisk 安装模块后需重启一次才生效（`/data` 在 Linux 侧不可写）。
 
 ## 六、已知坑（务必读，不要重复踩）
 
