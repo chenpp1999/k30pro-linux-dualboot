@@ -165,6 +165,14 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
     `wpa_cli` 增删网络 + `save_config`（保留其它网络、立即生效），`init.d` 的 `stop()`
     会等进程退出并清理 `/run/wpa_supplicant*`。救回真实网络的办法：
     `wpa_cli -i wlan0 save_config`（把内存里仍有效的网络写回磁盘）。
+19. **蓝牙在本内核上不可用（2026-09-16 实测，别再花时间）**：内核只有 `CONFIG_BT=y`
+    核心 + `CONFIG_BT_SLIM_QCA6390`（SLIMbus BT/FM），**所有用户态 HCI 传输
+    （`BT_HCIUART`/`BT_HCIVHCI`/`BT_HCIBTUSB`…）全部未编**，DT 里也没有标准 BT 节点；
+    现象：`rfkill` 有 `bt_power`（可 unblock）、`/sys/class/bluetooth` 永远为空、
+    `bluez`/`btattach` 未装也无处接。要支持需**重建内核 + DT BT 节点 + QCA BT 固件 +
+    bluez**，属内核工程，非配置项。音频同理（`/dev/snd` 仅 timer）。
+    注：`docs/charter.md`/`feasibility.md` 里"蓝牙可用"说的是**社区 mainline**，不是
+    本项目部署的下游 4.19 内核（`docs/feasibility.md` §3 已注明）。
 
 ## 六之二、weston 终端/键盘实测结论（2026-09-15，补丁 0012–0019）
 

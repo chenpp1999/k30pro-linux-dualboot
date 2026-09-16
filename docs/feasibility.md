@@ -21,10 +21,25 @@ super 有 ~2.4 GiB 空闲空间）。主要风险集中在"扩容"这一可选�
 
 ## 3. 硬件支持现状（Linux 侧）
 
-- 可用：显示（60 Hz）、触屏、Adreno 650、WiFi、蓝牙、音频、电池/充电、
-  UFS、USB OTG、NFC、闪光灯、红外、加速度/磁力/光线传感器、部分相机。
-- 不可用/实验性：GPS、距离感应、震动（本机硬件已损坏）、SDX55 modem
-  （本机无 SIM，影响可忽略）。
+> ⚠️ 下表两条要分清：**社区 mainline（postmarketOS）基线**支持面较广，而本项目实际
+> 部署的是**下游 4.19 内核**（`yuweiyuan8/linux` 4.19-CIP + qcacld/cnss2），支持面更窄。
+> 2026-09-16 实测差异见下。
+
+- **社区 mainline 基线**可用：显示（60 Hz）、触屏、Adreno 650、WiFi、蓝牙、音频、
+  电池/充电、UFS、USB OTG、NFC、闪光灯、红外、加速度/磁力/光线传感器、部分相机。
+- **本项目下游 4.19 内核实测**：
+  - 可用：显示、触屏、WiFi（QCA6390 / cnss2+qcacld）、USB-NCM、UFS、
+    电池/充电、温控与监控。
+  - **不可用（重点）**：
+    - **蓝牙**：内核只编了 `CONFIG_BT=y` 核心 + `CONFIG_BT_SLIM_QCA6390`（SLIMbus
+      BT/FM 音频路径），**`CONFIG_BT_HCIUART` / `CONFIG_BT_HCIVHCI` / `BT_HCIBTUSB`
+      等所有用户态 HCI 传输全部未编**，DT 里也没有标准 BT 节点 → `bluez`/`btattach`
+      无从接入（rfkill `bt_power` 存在但 `/sys/class/bluetooth` 始终为空）。
+      要支持蓝牙必须：**重建内核**（启用 HCI-UART/VHCI 等）+ **DT BT 节点**
+      （UART + `bt-en` GPIO + 稳压器）+ **QCA BT 固件** + 用户态 bluez。
+    - **音频**：`/dev/snd` 仅有 timer，无声卡（未配置音频链路/UCM）。
+  - 不可用/实验性（其他）：GPS、距离感应、震动（本机硬件已损坏）、SDX55 modem
+    （本机无 SIM，影响可忽略）。
 
 ## 4. 平台限制
 

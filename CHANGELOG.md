@@ -147,6 +147,14 @@
   reproduce / usage / release 更新到"v1.0 已发布 + M5 现状（真机端到端待验证）"；
   `docs/test-plan.md` 新增 **T5**（M5 一键安装）组；`.gitignore` 忽略 M5 安装备份目录
   与构建附属文件。
+- **勘误：蓝牙在本项目内核上不可用（2026-09-16 实测）**。`docs/charter.md`/`feasibility.md`
+  原先"蓝牙可用"说的是**社区 mainline**；本项目部署的下游 4.19 内核
+  （`yuweiyuan8/linux` + qcacld/cnss2）**没有编任何用户态 HCI 传输**
+  （`CONFIG_BT_HCIUART`/`BT_HCIVHCI`/`BT_HCIBTUSB` 全未编，只有 `BT_SLIM_QCA6390`），
+  DT 也无标准 BT 节点 → `bluez`/`btattach` 无从接入（`rfkill` 有 `bt_power` 可 unblock，
+  但 `/sys/class/bluetooth` 始终为空）。已更新 `docs/feasibility.md` §3、
+  `docs/linux-ux-audit-2026-09-14.md` B6、`docs/handoff.md` §六 第 19 条，说明
+  "要支持需重建内核 + DT BT 节点 + QCA BT 固件 + bluez"，避免后续会话重复排查。
 
 ## [1.0.0] - 2026-09-15
 

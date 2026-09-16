@@ -39,7 +39,7 @@
 | B3 | 无亮度 UI/快捷键 | 背光只有 sysfs（536/2047）；音量键未映射 | 无工具/绑定 | 加 `brightnessctl`/脚本 + weston.ini `[keybindings]` 映射音量键（qpnp_pon 暴露 KEY_VOLUMEUP/DOWN，待实测） |
 | B4 | 永不息屏 + 无锁屏 | `weston --idle-time=0`；无屏保/锁屏 | 开发期配置 | OLED 烧屏/耗电：评估 idle blank + 触摸唤醒；或低亮度+定时提示 |
 | B5 | 无电量/网络状态指示 | 面板只有时钟；电池 sysfs 可读（100%/Full） | 无客户端 | 可写轻量状态脚本（周期性更新面板？weston 面板不支持）→ 评估小工具或放弃 |
-| B6 | 无蓝牙 | `bluez` 未装、`/sys/class/bluetooth` 空 | 未启用 | 评估内核 BT 支持与 bluez 打包（蓝牙耳机/键盘） |
+| B6 | 无蓝牙 | `bluez` 未装、`/sys/class/bluetooth` 空 | **内核无用户态 HCI 传输**（2026-09-16 实测：`CONFIG_BT_HCIUART`/`BT_HCIVHCI`/`BT_HCIBTUSB` 全未编，仅 `BT_SLIM_QCA6390` 的 SLIMbus 音频路径；DT 无标准 BT 节点） | **不是配置能修**：需重建内核 + DT BT 节点 + QCA BT 固件 + bluez；本期不做（`docs/feasibility.md` §3） |
 | B7 | 无音频 | `/dev/snd` 仅 timer，无声卡 | 内核音频/UCM/pipewire 未配置 | 评估 lmi 音频链路（D80 基线称可用）与最小方案（alsa-utils + UCM） |
 | B8 | WiFi 无 UI | 改网络需编辑 `wpa_supplicant.conf` + 重启服务 | 无网络管理器 | 可选：封装脚本 `lmi-wifi-add`（扫/连/切）或评估 nmcli |
 | B9 | cursor 主题缺失告警 | weston 日志 `could not load cursor 'dnd-copy'` | 无 cursor theme | 装 `adwaita-cursor-theme` 或忽略（触摸设备无鼠标） |
