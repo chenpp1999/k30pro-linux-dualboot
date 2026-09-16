@@ -90,6 +90,8 @@ tail -f /var/log/lmi-wifi.log    # 看 bring-up 过程
   （模板 `…conf.template` 保留其它已知网络；`lmi-wifi-join` 把新网络放在最前面）。
 - **凭据不入仓库**：模板里是占位符，真实 PSK 在构建镜像时注入；换网络用上面的 `lmi-wifi-join` 即可，不必重建镜像。
 - USB 网络（NCM）与 WiFi **同时可用**：USB 固定 `172.16.42.1`，WiFi 地址由路由器分配。
+- `lmi-wifi-join` **在现有配置上增删网络**（通过运行中的 `wpa_cli` + `save_config`），
+  不会动其它网络；旧实现按占位符模板重建、会把已有网络清成占位条目，已在 overlay v16 修掉。
 - **开机不再等 WiFi**：bring-up 会先扫一下，若配置里的网络一个都不在范围内，就立刻
   以 `status=idle` 结束（`wpa_supplicant` 仍在后台，等网络出现会自动连上）——
   以前会白等 60 秒并把后面的服务一起拖慢。`lmi-wifi-status` 此时显示 `state=up`

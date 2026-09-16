@@ -69,6 +69,14 @@
   （payload 脚本必须 755、文本必须 LF）。
 
 ### Fixed
+- **`lmi-wifi-join` 会清掉已配置的网络**（2026-09-16，实机复现；overlay **m1b-ux-v16**）：
+  旧实现用 `/etc/wpa_supplicant/wpa_supplicant.conf.template` **重建**配置，而模板里只有
+  占位符（`<router-ssid>` 等）——一次 `lmi-wifi-join <SSID> <pw>` 就把构建时注入的真实网络
+  换成了永远连不上的占位条目（实测：仓库里的 `502` 加入后，`CMCC-*`/`CX8` 被覆盖，且因为
+  `lmi-wifi` 是 oneshot、旧 `wpa_supplicant` 仍占着控制套接字，新配置根本没被尝试）。
+  现在改为：**通过运行中的 `wpa_cli` 增删网络并 `save_config`**（保留其它网络、立即生效），
+  未运行时才回退为"往现有配置追加"；`etc/init.d/lmi-wifi` 的 `stop()` 也会等进程退出并清理
+  `/run/wpa_supplicant*`。已用 `wpa_cli save_config` 把设备上的真实网络救回并追加 502。
 - **两边切换/开机慢**（2026-09-16，实机日志定位；overlay **m1b-ux-v15**）：
   - **Linux→Android 4.5 分钟**：长按电源键让 PMIC 硬复位（ABL `PM: HARD RESET by
     KPDPWR`）→ 冷启动时引导器初始化本机损坏的 AW8697（i2c 重试 549 次 = 273 s）。
@@ -84,6 +92,9 @@
   - 证据：`/var/log/messages`（`ERROR: lmi-wifi failed to start` → 紧接 `getty`）、
     `/var/log/lmi-wifi.log`（stage 时间戳）、Linux `dmesg`（`udevd worker ... video33
     is taking a long time`）、ABL 日志 `uefiFast-warm.txt` / `uefiSlow-coldboot.txt`。
+  - **实测（v16 部署后，ledger boot=30）**：`syslogd → getty` 由 **93 s → 38 s**；
+    WiFi bring-up 由"白等 60 s 后失败"变为 **30 s 内 `rc=0 status=ok` 并连上 502**；
+    overlay v16 已应用，`lmi-reboot` / `udev_settle_timeout=15` 均在位。
 - **Magisk Action 一键切换"点了没反应"**（2026-09-16，实测）：模块只从
   `/data/local/lmi-dualboot`、`/sdcard/Download/phone-server/lmi-m1b` 挑**版本号最大**的
   镜像（v11），而 `recovery` 里已是设备内重建的 v21 → 判为 FULL → v11 无

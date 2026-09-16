@@ -1,4 +1,4 @@
-# 开发交接（Handoff）— 2026-09-15（v1.0 已发布；M5 地基落地）
+# 开发交接（Handoff）— 2026-09-16（v1.0 已发布；M5 地基 + 开关机提速）
 
 > 给接手本项目的 AI 会话/开发者：阅读顺序 = `AGENTS.md` → `docs/ai-protocol.md` → 本文，
 > 再按需深入 `docs/`。所有结论以**仓库 + 设备实测**为准，不依赖任何会话记忆。
@@ -19,14 +19,14 @@
 | M4 | ✅ v1.0 已发布（tag `v1.0.0`） | `docs/release-v1.0.0.md`、`docs/reproduce.md` |
 | M5 | 🚧 一键安装：PC 一键已实现，离线模拟全绿，**真机端到端待验证** | `docs/install-guide.md`、`docs/installer-design.md`、`tools/tests/m5-*.sh` |
 
-## 二、设备当前状态（2026-09-15 深夜，实测）
+## 二、设备当前状态（2026-09-16，实测）
 
-- **运行中**：手机在 **Linux**（一次长会话，未重启）；`recovery` = **`boot-m1b-v21.img`**
-  （`9064c43b…`，**overlay `m1b-ux-v14`**，回读校验通过）；rootfs 在 **`/dev/sda35`（`lnx`）**。
-  引导账本仍是 `boot=23`（账本只在**启动**时写），所以**下一次 Linux 启动才会把 v14 overlay 落盘**；
-  当前运行态是我今天逐文件同步并验证过的（见 §六之二）。
-- **WiFi 正常**：`wlan0 up`，SSID/IP 属于按机信息（**不入仓**）；`lmi-netwatch`（看门狗）在跑，
-  `/run/lmi-netwatch.state` = `status=ok`。
+- **运行中**：手机**当前在 Android**（2026-09-16 会话末从 Linux 重启回来）；
+  `recovery` = **`boot-m1b-v23.img`**（sha256 `c01efe45…`，**overlay `m1b-ux-v16`**，回读校验通过）；
+  rootfs 在 **`/dev/sda35`（`lnx`）**。引导账本 `boot=30`、`overlay=applied`（v16 已落盘）。
+  v15/v16 的内容与实测数据见 §六 第 11/17/18 条与 `CHANGELOG.md`。
+- **WiFi 正常**：Linux 侧会自动连上配置里的网络（本机为 502），SSID/IP 属于按机信息（**不入仓**）；
+  `lmi-netwatch`（看门狗）在跑，`/run/lmi-netwatch.state` = `status=ok`。
 - **充电/温控在生效**：`lmi-chargectl` 把 SOC 控制在 70–80 % 锯齿（`/run/lmi-chargectl.state`），
   governor = `schedutil`；监控 `lmi-monitor` + 面板 `http://172.16.42.1:8080/` 正常。
 - **rootfs 空间已修好**：`lnx` 上的 ext4 原来只有 1.4 GiB（迁移时忘了扩容，写满后 `dd` 会**静默失败**），
@@ -34,8 +34,9 @@
 - **凭据已轮换**（2026-09-15 的隐私事件后）：root 口令与部署镜像里的 initramfs 救援口令都换过，
   存在设备 `/root/lmi-root-password.txt`(600) 与电脑侧 `%TEMP%\opencode\lmi-*-password.txt`；
   **仓库/发布物里没有任何口令或哈希**。
-- **镜像**：`/root/m1b-rebuild/boot-m1b-v21.img`（当前部署，回滚点已清理；需要旧版就从当前镜像
-  重建或走方式 A RAM 引导 / TWRP）。`super` 内的旧 rootfs 区仍完整保留（终极回滚）。
+- **镜像**：`/root/m1b-rebuild/boot-m1b-v23.img`（当前部署，overlay v16；上一版 v21/v22
+  与源镜像 `/root/m1b-rebuild/source.img` 仍在同目录）。回滚点也可走方式 A RAM 引导 / TWRP；
+  `super` 内的旧 rootfs 区仍完整保留（终极回滚）。
 - **Android 侧**：Magisk 模块 `lmi-dualboot-switch` v0.2 已激活；`/data` = 91 GiB；
   `/dev/block/by-name/lnx → /dev/block/sda35`。
 - **`boot` 分区 sha256 `8d441fc5…` 自始至终未变**（项目第一原则）。
@@ -44,7 +45,7 @@
 
 | 分区 | Android 名 | Linux 名 | 内容 |
 |---|---|---|---|
-| GPT 12 | `recovery` | `/dev/sda28` | **Linux 引导镜像**（当前 `boot-m1b-v21.img`；M2 双向切换的落点） |
+| GPT 12 | `recovery` | `/dev/sda28` | **Linux 引导镜像**（当前 `boot-m1b-v23.img`，overlay v16；M2 双向切换的落点） |
 | GPT 16 | `super` | `/dev/sda32` | Android 动态分区；**内部旧 rootfs 区（偏移 4K 单元 1,596,852）仍完整保留**（回滚用，未回收） |
 | GPT 18 | `userdata` | `/dev/sda34` | 91 GiB（M3 由 107 GiB 缩容，PARTUUID 保留） |
 | GPT 19 | `lnx` | `/dev/sda35` | **16 GiB，当前 rootfs 所在**（ext4，PARTUUID `91B8F669-…` 之外的独立新条目） |
@@ -156,6 +157,14 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
       `LMI_WPA_WAIT`（原 60 s）再退出 1，把后面的服务全拖慢、还被 `lmi-netwatch` 反复重启
       → 现在先扫后等，没有可用网络就 `status=idle` 立刻退出（`LMI_WPA_WAIT=25`）。
     证据：`/var/log/messages`（`lmi-wifi failed` 紧接 getty）与 `/var/log/lmi-wifi.log`。
+    实测（v16）：`syslogd → getty` **93 s → 38 s**；WiFi bring-up **30 s 内 `status=ok`**。
+18. **`lmi-wifi-join` 曾会清掉已配置的网络（overlay v16 修）**：旧实现用只含占位符的
+    `wpa_supplicant.conf.template` **重建**配置 → 一次 join 就把构建时注入的真实网络换成
+    `<router-ssid>` 之类的死条目；又因为 `lmi-wifi` 是 oneshot、旧 `wpa_supplicant` 仍占着
+    控制套接字，新配置根本没被用上（表现为"手动加 WiFi 失败"）。现在改为通过运行中的
+    `wpa_cli` 增删网络 + `save_config`（保留其它网络、立即生效），`init.d` 的 `stop()`
+    会等进程退出并清理 `/run/wpa_supplicant*`。救回真实网络的办法：
+    `wpa_cli -i wlan0 save_config`（把内存里仍有效的网络写回磁盘）。
 
 ## 六之二、weston 终端/键盘实测结论（2026-09-15，补丁 0012–0019）
 

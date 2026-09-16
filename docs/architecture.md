@@ -17,7 +17,7 @@
 | 分区 | 设备节点（Android / Linux） | 大小 | 用途 |
 |---|---|---|---|
 | boot | /dev/block/sde50 | 128 MB | Android 内核+ramdisk（**永不改动**，sha256 `8d441fc5…` 全程未变） |
-| recovery | /dev/block/sda28 / /dev/sda28 | 128 MB | **Linux 引导镜像槽位**（当前 `boot-m1b-v21.img`，overlay `m1b-ux-v14`；原 TWRP 镜像已备份成文件） |
+| recovery | /dev/block/sda28 / /dev/sda28 | 128 MB | **Linux 引导镜像槽位**（当前 `boot-m1b-v23.img`，overlay `m1b-ux-v16`；原 TWRP 镜像已备份成文件） |
 | misc | /dev/block/sda11 / /dev/sda11 | 4 MB | BCB 一次性引导指令（ABL **不**清，由 Linux init 清） |
 | super | /dev/block/sda32 / /dev/sda32 | 8.5 GiB | Android 动态分区；**内部旧 rootfs 区（偏移 4K 单元 1,596,852，1.5 GiB）保留未回收**，供回滚 |
 | userdata | /dev/block/sda34 / /dev/sda34 | **91 GiB**（原 107） | Android 用户数据；M3 缩容（PARTUUID 保留），数据完好 |

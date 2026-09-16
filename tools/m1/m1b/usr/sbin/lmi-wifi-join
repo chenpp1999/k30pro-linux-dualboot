@@ -1,35 +1,69 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# lmi-wifi-join - join a WiFi network at runtime (rewrites the wpa_supplicant
-# config from the template and restarts the service).
+# lmi-wifi-join - add or replace a WiFi network at runtime.
 #
 # usage: lmi-wifi-join <SSID> <PASSWORD|->    ("-" = open network)
 #
-# The build-time PSKs live in /etc/wpa_supplicant/wpa_supplicant.conf.template;
-# this script writes /etc/wpa_supplicant/wpa_supplicant.conf with the requested
-# network first, so a phone hotspot can be added without rebuilding the image.
+# It edits the *current* config (via the running wpa_supplicant, then saves it),
+# preserving every network already configured.  The old version regenerated the
+# config from /etc/wpa_supplicant/wpa_supplicant.conf.template, and that
+# template only carries placeholders - so a join silently replaced the
+# build-time networks with dead entries (2026-09-16).  Never do that again.
+#
+# The running supplicant is used because the old `rc-service lmi-wifi restart`
+# could not reliably replace it: lmi-wifi is a oneshot, so the previous
+# wpa_supplicant kept the control socket and kept using the stale config (the
+# new entry was never tried).
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+IFACE=${LMI_WIFI_IFACE:-wlan0}
 CONF=/etc/wpa_supplicant/wpa_supplicant.conf
-TEMPLATE=/etc/wpa_supplicant/wpa_supplicant.conf.template
-SSID=$1
-PSK=$2
+SSID=${1:-}
+PSK=${2:-}
 if [ -z "$SSID" ]; then
 	echo "usage: $0 <SSID> <PASSWORD|->" >&2
 	exit 2
 fi
-if [ "$PSK" = "-" ] || [ -z "$PSK" ]; then
-	NET="network={\n\tssid=\"$SSID\"\n\tkey_mgmt=NONE\n}"
+
+# "value" with backslashes/quotes escaped, as wpa_cli expects for ssid/psk.
+quote() { printf '"%s"' "$(printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g')"; }
+
+if wpa_cli -i "$IFACE" ping >/dev/null 2>&1; then
+	# drop an existing entry for this SSID, then add the new one and persist
+	wpa_cli -i "$IFACE" list_networks 2>/dev/null |
+		awk -F'\t' -v s="$SSID" '$2 == s { print $1 }' |
+		while read -r id; do
+			[ -n "$id" ] && wpa_cli -i "$IFACE" remove_network "$id" >/dev/null 2>&1
+		done
+	id=$(wpa_cli -i "$IFACE" add_network 2>/dev/null | tail -n 1)
+	[ -n "$id" ] || { echo "wpa_cli add_network failed" >&2; exit 1; }
+	wpa_cli -i "$IFACE" set_network "$id" ssid "$(quote "$SSID")" >/dev/null
+	if [ "$PSK" = "-" ] || [ -z "$PSK" ]; then
+		wpa_cli -i "$IFACE" set_network "$id" key_mgmt NONE >/dev/null
+	else
+		wpa_cli -i "$IFACE" set_network "$id" psk "$(quote "$PSK")" >/dev/null
+	fi
+	wpa_cli -i "$IFACE" set_network "$id" priority 20 >/dev/null
+	wpa_cli -i "$IFACE" enable_network "$id" >/dev/null
+	wpa_cli -i "$IFACE" save_config >/dev/null
+	wpa_cli -i "$IFACE" reassociate >/dev/null
+	echo "joined '$SSID' (network id $id); config saved to $CONF"
 else
-	NET="network={\n\tssid=\"$SSID\"\n\tpsk=\"$PSK\"\n\tkey_mgmt=WPA-PSK\n}"
+	# supplicant not running: append to the conf (never rebuild from the
+	# placeholder template).  The next lmi-wifi start picks it up.
+	if [ "$PSK" = "-" ] || [ -z "$PSK" ]; then
+		NET="network={\n\tssid=\"$SSID\"\n\tkey_mgmt=NONE\n\tpriority=20\n}"
+	else
+		NET="network={\n\tssid=\"$SSID\"\n\tpsk=\"$PSK\"\n\tkey_mgmt=WPA-PSK\n\tpriority=20\n}"
+	fi
+	[ -f "$CONF" ] || { mkdir -p "${CONF%/*}"; : >"$CONF"; }
+	cp -a "$CONF" "$CONF.bak.$(date +%Y%m%d%H%M%S)"
+	printf '\n' >>"$CONF"
+	printf '%b\n' "$NET" >>"$CONF"
+	chmod 600 "$CONF"
+	echo "wpa_supplicant not running; appended '$SSID' to $CONF"
+	echo "start it with: rc-service lmi-wifi start"
 fi
-{
-	echo "ctrl_interface=/var/run/wpa_supplicant"
-	echo "update_config=1"
-	printf '%b\n' "$NET"
-	[ -f "$TEMPLATE" ] && sed -n '/^network=/,$p' "$TEMPLATE"
-} > "$CONF"
-chmod 600 "$CONF"
-echo "wrote $CONF for SSID '$SSID'; restarting lmi-wifi"
-/etc/init.d/lmi-wifi restart 2>&1 | tail -2
-sleep 12
+
+sleep 8
 "$(dirname "$0")/lmi-wifi-status"
