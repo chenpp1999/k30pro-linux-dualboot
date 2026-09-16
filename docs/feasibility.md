@@ -37,6 +37,8 @@ super 有 ~2.4 GiB 空闲空间）。主要风险集中在"扩容"这一可选�
       无从接入（rfkill `bt_power` 存在但 `/sys/class/bluetooth` 始终为空）。
       要支持蓝牙必须：**重建内核**（启用 HCI-UART/VHCI 等）+ **DT BT 节点**
       （UART + `bt-en` GPIO + 稳压器）+ **QCA BT 固件** + 用户态 bluez。
+      BT 串口已确认 = `/dev/ttyHS0`（`998000.qcom,qup_uart`）；完整评估、步骤与
+      工作量见 [`bluetooth-assessment.md`](bluetooth-assessment.md)。
     - **音频**：`/dev/snd` 仅有 timer，无声卡（未配置音频链路/UCM）。
   - 不可用/实验性（其他）：GPS、距离感应、震动（本机硬件已损坏）、SDX55 modem
     （本机无 SIM，影响可忽略）。

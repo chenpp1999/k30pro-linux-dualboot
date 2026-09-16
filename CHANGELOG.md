@@ -6,6 +6,12 @@
 ## [Unreleased]
 
 ### Added
+- **`docs/bluetooth-assessment.md`：蓝牙可行性评估**（2026-09-16，实测 + 上游资料）：
+  确认 BT 串口是 `/dev/ttyHS0`（`998000.qcom,qup_uart`），BT 供电/复位节点已生效，
+  但内核未编任何用户态 HCI 传输、Android 侧也没有 QCA6390 BT 固件，且上游内核提供方
+  （`jian45154/redmi-k30-pro-postmarketos`）同样未做并把 BT 排在音频之后。给出
+  Step 0–3 的修复路径（确认固件 → 重建 LineageOS 4.19 内核 + DT BT 节点 →
+  装 `qca/*.tlv`+`qca/*.bin` → bluez）、工作量/回归风险与"本期不做"的建议。
 - **M5 一键安装地基**（设计 `docs/installer-design.md`）：
   - `tools/install/lp-metadata.py`：只读解析 `super` 的 liblp 元数据（geometry/header/
     tables，AOSP 校验和），计算未分配空闲区并支持 `select --size/--align`；已在真机

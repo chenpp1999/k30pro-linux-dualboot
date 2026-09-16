@@ -173,6 +173,9 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
     bluez**，属内核工程，非配置项。音频同理（`/dev/snd` 仅 timer）。
     注：`docs/charter.md`/`feasibility.md` 里"蓝牙可用"说的是**社区 mainline**，不是
     本项目部署的下游 4.19 内核（`docs/feasibility.md` §3 已注明）。
+    BT 串口 = `/dev/ttyHS0`（`998000.qcom,qup_uart`）；**完整评估/修复路径/工作量见
+    `docs/bluetooth-assessment.md`**（结论：需重建内核 + DT BT 节点 + 原厂 BT 固件 +
+    bluez，属独立里程碑；上游内核提供方也没做，且把 BT 排在音频之后）。
 
 ## 六之二、weston 终端/键盘实测结论（2026-09-15，补丁 0012–0019）
 
