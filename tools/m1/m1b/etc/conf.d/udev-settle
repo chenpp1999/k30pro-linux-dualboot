@@ -1,0 +1,13 @@
+# /etc/conf.d/udev-settle - cap the boot-time `udevadm settle` on lmi.
+#
+# The boot used to spend ~1 minute here: the V4L2/venus (vidc) udev worker
+# blocks on a firmware load that always fails on this device
+# (`msm_vidc: Failed to locate venus.mdt`, rc=-110 ~60 s; dmesg shows
+# "udevd[..] worker .. video33 is taking a long time").  `udevadm settle`
+# waits for it, and its default timeout is 120 s.
+#
+# Everything the desktop needs (DRM, input, USB, the super partitions) is
+# normally ready within a few seconds and the clients already retry, so cap
+# the wait at 15 s instead of waiting out the stuck worker (2026-09-16).
+# The init script only passes --timeout when this variable is set.
+udev_settle_timeout=15

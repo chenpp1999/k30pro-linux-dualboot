@@ -15,6 +15,9 @@ tools/install/firstboot/** text eol=lf
 tools/m1/m1b/etc/localtime binary
 tools/m1/m1b/usr/bin/* binary
 tools/m1/m1b/usr/libexec/* binary
+# lmi-keys is the only ELF in usr/sbin (cross-built static aarch64); keep git
+# from trying to normalise it as text.
+tools/m1/m1b/usr/sbin/lmi-keys binary
 *.patch text eol=lf
 *.dict binary
 VERSION text eol=lf

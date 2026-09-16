@@ -3,7 +3,16 @@
 //
 //  * volume up/down     -> panel backlight -/+ 10%  (no audio stack yet)
 //  * power key (short)  -> toggle screen off/on
+//  * power key (held)   -> clean reboot (default 3 s, -p to change, 0 = off)
 //  * idle timeout       -> backlight off; first touch/key restores it
+//
+// The held-power reboot is not a convenience: holding the power key long
+// enough makes the PMIC do a *hard reset* (ABL logs "PM: HARD RESET by
+// KPDPWR"), and on this phone a cold boot re-initializes the broken AW8697
+// vibrator in the bootloader, which costs ~273 s of i2c retries before the
+// Redmi logo goes away.  An in-system `reboot` is a warm reset ("PS_HOLD",
+// ~3 s).  So we turn a long press into a clean reboot well before the PMIC
+// would reset the board (2026-09-16, docs/usage.md).
 //
 // The daemon watches every /dev/input/event* device that advertises volume
 // keys or touch input, rescans for hotplug, and drives
@@ -22,6 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/reboot.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -38,6 +48,9 @@ static int nfds;
 static char backlight_dir[256] = "/sys/class/backlight/panel0-backlight";
 static int step_pct = 10;
 static int idle_secs = 300;
+static int power_hold_secs = 3;
+static double power_down_at;
+static int power_down;
 static int cur_brightness;
 static int max_brightness;
 static int min_brightness;
@@ -92,6 +105,19 @@ apply_brightness(int value)
 	write_brightness_raw(value);
 	cur_brightness = value;
 	fprintf(stderr, "lmi-keys: brightness %d/%d\n", value, max_brightness);
+}
+
+static void
+clean_reboot(void)
+{
+	/* Warm reset (PS_HOLD) - never the PMIC hard-reset / cold-boot path. */
+	fprintf(stderr, "lmi-keys: power held %.1fs -> clean reboot\n",
+		now_monotonic() - power_down_at);
+	fflush(stderr);
+	sync();
+	reboot(RB_AUTOBOOT);
+	/* not reached on success */
+	fprintf(stderr, "lmi-keys: reboot() failed\n");
 }
 
 static void
@@ -163,7 +189,7 @@ main(int argc, char *argv[])
 {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "b:s:t:h")) != -1) {
+	while ((opt = getopt(argc, argv, "b:s:t:p:h")) != -1) {
 		switch (opt) {
 		case 'b':
 			snprintf(backlight_dir, sizeof(backlight_dir), "%s", optarg);
@@ -174,10 +200,15 @@ main(int argc, char *argv[])
 		case 't':
 			idle_secs = atoi(optarg);
 			break;
+		case 'p':
+			power_hold_secs = atoi(optarg);
+			if (power_hold_secs < 0)
+				power_hold_secs = 0;
+			break;
 		default:
 			fprintf(stderr,
-				"usage: %s [-b backlight_dir] [-s step_pct] [-t idle_secs]\n",
-				argv[0]);
+				"usage: %s [-b backlight_dir] [-s step_pct] [-t idle_secs]"
+				" [-p power_hold_secs]\n", argv[0]);
 			return 1;
 		}
 	}
@@ -207,8 +238,9 @@ main(int argc, char *argv[])
 		min_brightness = max_brightness / 100;
 		if (min_brightness < 1)
 			min_brightness = 1;
-		fprintf(stderr, "lmi-keys: backlight %s cur=%d max=%d step=%d%% idle=%ds\n",
-			backlight_dir, cur_brightness, max_brightness, step_pct, idle_secs);
+		fprintf(stderr, "lmi-keys: backlight %s cur=%d max=%d step=%d%% idle=%ds"
+			" power_hold=%ds\n", backlight_dir, cur_brightness, max_brightness,
+			step_pct, idle_secs, power_hold_secs);
 	}
 
 	last_input = now_monotonic();
@@ -225,13 +257,18 @@ main(int argc, char *argv[])
 			pfd[i].events = POLLIN;
 			pfd[i].revents = 0;
 		}
-		ready = poll(pfd, nfds, SCAN_MS);
+		/* Poll faster while the power key is down so a long press is caught
+		 * well before the PMIC would do a hard reset (~10 s). */
+		ready = poll(pfd, nfds, power_down ? 250 : SCAN_MS);
 		if (ready < 0) {
 			if (errno == EINTR)
 				continue;
 			perror("poll");
 			return 1;
 		}
+		if (power_down && power_hold_secs > 0 &&
+		    now_monotonic() - power_down_at >= power_hold_secs)
+			clean_reboot();
 		if (ready == 0) {
 			rescan();
 			if (idle_secs > 0 && !dimmed &&
@@ -261,19 +298,31 @@ main(int argc, char *argv[])
 					screen_restore();
 					continue;
 				}
-				if (ev.type != EV_KEY || ev.value != 1)
+				if (ev.type != EV_KEY)
+					continue;
+				if (ev.code == KEY_POWER) {
+					if (ev.value == 1) {
+						power_down = 1;
+						power_down_at = now_monotonic();
+					} else if (ev.value == 0 && power_down) {
+						power_down = 0;
+						if (power_hold_secs <= 0 ||
+						    now_monotonic() - power_down_at < power_hold_secs) {
+							if (dimmed)
+								screen_restore();
+							else
+								screen_dim();
+						}
+					}
+					continue;
+				}
+				if (ev.value != 1)
 					continue;
 				if (ev.code == KEY_VOLUMEUP)
 					delta = max_brightness * step_pct / 100;
 				else if (ev.code == KEY_VOLUMEDOWN)
 					delta = -(max_brightness * step_pct / 100);
-				else if (ev.code == KEY_POWER) {
-					if (dimmed)
-						screen_restore();
-					else
-						screen_dim();
-					continue;
-				} else
+				else
 					continue;
 				screen_restore();
 				apply_brightness(cur_brightness + delta);

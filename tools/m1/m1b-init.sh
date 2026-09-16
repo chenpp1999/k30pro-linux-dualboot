@@ -33,7 +33,7 @@ done
 ROOT_SIZE_BLOCKS=393216
 MBOX_GAP_BLOCKS=256
 MBOX_SECTION_BLOCKS=16
-OVERLAY_VERSION=m1b-ux-v14
+OVERLAY_VERSION=m1b-ux-v15
 
 $BB mount -t proc none /proc
 $BB mount -t sysfs none /sys

@@ -65,9 +65,10 @@ printf '  USB %s   WiFi %s   电量 %s%%  电池 %s.%s°C  governor %s\n' \
 	"$usb" "$wifi" "$soc" "$(printf '%s' "$temp" | cut -c1-2)" "$(printf '%s' "$temp" | cut -c3)" "$gw"
 
 box "1. 系统切换 / 电源"
-item "回 Android" "直接重启（任意重启都回 Android）"
+item "回 Android" "lmi-reboot（或 reboot）；别长按电源键硬复位"
 item "Android→Linux" "Magisk 模块 lmi-dualboot-switch → 操作"
-item "息屏 / 唤醒" "电源键；音量键调背光；空闲 300s 自动灭背光"
+item "息屏 / 唤醒" "电源键短按；音量键调背光；空闲 300s 灭背光"
+item "长按电源键 3s" "干净重启回 Android（比电源键硬复位快约 4 分钟）"
 
 box "2. WiFi"
 item "lmi-wifi-status" "一行状态（接口/SSID/IP）"

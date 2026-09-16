@@ -48,8 +48,18 @@ LMI_SWITCH_FORCE=1  # 跳过 attestation 门禁（确认过镜像来源才用，
 ```
 
 ### Linux → Android
-**任意重启即可**：Linux 的 init 会清掉 BCB，正常/断电/强制重启都会回到 Android。
-`boot` 分区自始至终没有被改动。
+**在 Linux 里"重启"就会回 Android**：init 会清掉 BCB，`boot` 分区自始至终没被改动。
+
+```sh
+lmi-reboot        # 推荐：干净重启（等于 reboot），几秒就回 Android
+reboot            # 一样的效果
+```
+
+> ⚠️ **不要靠长按电源键硬复位**。长按会让 PMIC 做硬复位、下一次变成**冷启动**，
+> 引导器会去初始化这个机器上已损坏的 AW8697 震动芯片（i2c 重试 549 次）→
+> **卡在 Redmi logo 约 4.5 分钟**。系统内 `reboot`/`lmi-reboot` 走的是热复位
+> （PS_HOLD），约 3 秒。`lmi-keys` 现在也把"**长按电源键 3 秒**"变成一次干净重启，
+> 所以在桌面上按住电源键同样安全（短按仍是息屏/唤醒）。
 
 ### 命令行方式（不用 Magisk UI）
 ```sh
@@ -80,6 +90,10 @@ tail -f /var/log/lmi-wifi.log    # 看 bring-up 过程
   （模板 `…conf.template` 保留其它已知网络；`lmi-wifi-join` 把新网络放在最前面）。
 - **凭据不入仓库**：模板里是占位符，真实 PSK 在构建镜像时注入；换网络用上面的 `lmi-wifi-join` 即可，不必重建镜像。
 - USB 网络（NCM）与 WiFi **同时可用**：USB 固定 `172.16.42.1`，WiFi 地址由路由器分配。
+- **开机不再等 WiFi**：bring-up 会先扫一下，若配置里的网络一个都不在范围内，就立刻
+  以 `status=idle` 结束（`wpa_supplicant` 仍在后台，等网络出现会自动连上）——
+  以前会白等 60 秒并把后面的服务一起拖慢。`lmi-wifi-status` 此时显示 `state=up`
+  但没有 IP。
 - 已知问题：长时间运行后 `wlan0` 可能消失（`lmi-wifi-status` 报 *interface wlan0 missing*），
   重启 Linux 可恢复；重启服务通常不够。监测器会把这个过程记进 CSV。
 

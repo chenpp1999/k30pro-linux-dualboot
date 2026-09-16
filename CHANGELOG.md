@@ -69,6 +69,21 @@
   （payload 脚本必须 755、文本必须 LF）。
 
 ### Fixed
+- **两边切换/开机慢**（2026-09-16，实机日志定位；overlay **m1b-ux-v15**）：
+  - **Linux→Android 4.5 分钟**：长按电源键让 PMIC 硬复位（ABL `PM: HARD RESET by
+    KPDPWR`）→ 冷启动时引导器初始化本机损坏的 AW8697（i2c 重试 549 次 = 273 s）。
+    系统内 `reboot` 走 PS_HOLD 热复位（~3 s）。新增 `lmi-reboot`（干净重启脚本），
+    `lmi-keys` 现在把**长按电源键 3 s** 变成干净重启（短按仍是息屏/唤醒，`-p` 可调，
+    0 = 关闭），`lmi-help`/`docs/usage.md` 写清"别长按电源键硬复位"。
+  - **开机多等 ~1 分钟**：`udev-settle` 在等 venus/vidc 固件加载失败（rc=-110）的
+    udev worker，默认超时 120 s → 新增 `etc/conf.d/udev-settle`（`udev_settle_timeout=15`）。
+  - **开机再等 ~85 秒**：`lmi-wifi`（default runlevel 的阻塞 oneshot）在配置网络都不在
+    范围内时白等 `LMI_WPA_WAIT`（原 60 s）后退出 1，拖慢后面所有服务并被 `lmi-netwatch`
+    反复重启 → 现在先扫后等，无可连网络立即 `status=idle` 退出（`LMI_WPA_WAIT=25`，
+    `wpa_supplicant` 保留在后台，网络出现会自动连）。
+  - 证据：`/var/log/messages`（`ERROR: lmi-wifi failed to start` → 紧接 `getty`）、
+    `/var/log/lmi-wifi.log`（stage 时间戳）、Linux `dmesg`（`udevd worker ... video33
+    is taking a long time`）、ABL 日志 `uefiFast-warm.txt` / `uefiSlow-coldboot.txt`。
 - **Magisk Action 一键切换"点了没反应"**（2026-09-16，实测）：模块只从
   `/data/local/lmi-dualboot`、`/sdcard/Download/phone-server/lmi-m1b` 挑**版本号最大**的
   镜像（v11），而 `recovery` 里已是设备内重建的 v21 → 判为 FULL → v11 无

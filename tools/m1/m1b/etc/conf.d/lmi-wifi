@@ -15,7 +15,12 @@ LMI_WLAN_PRE_ON_DELAY=8
 LMI_WLAN_POST_ON_DELAY=45
 
 # Association / DHCP budgets.
-LMI_WPA_WAIT=60
+# The association wait only runs when one of the configured SSIDs is actually
+# in range (lmi-wifi-start scans first), so a short budget is enough; when
+# nothing known is around the bring-up now exits immediately (status=idle)
+# instead of burning 60 s and failing - that delay used to block the rest of
+# the default runlevel (2026-09-16, docs/usage.md).
+LMI_WPA_WAIT=25
 LMI_DHCP_TRIES=8
 LMI_DHCP_PER_TRY=5
 

@@ -133,7 +133,12 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
    写入返回 **EPERM**（限流不可用，默认关闭）；**保留 `sw_jeita_enabled=1`**。
 9. **Linux 侧没有 `/dev/block/by-name/`**，分区是 `/dev/sdaN`；`/dev/sda` 是 4096 B 逻辑扇区。
 10. **离线修补 rootfs 镜像必须先回放 journal**，否则 `e2fsck` 会静默回滚（`tools/m1/patch-rootfs-image.sh`）。
-11. 冷启动会卡 Redmi logo 4–5 分钟（aw8697 硬件问题，不可软件修复）；日常用"重启"。
+11. **冷启动卡 Redmi logo ~4.5 分钟 = 长按电源键硬复位（KPDPWR）**：ABL 的
+    `VibratorDxe` 会去初始化本机损坏的 AW8697（i2c 重试 549 次 → 273 s），
+    ABL 签名不可改，**无法软件根治**。系统内 `reboot`/`lmi-reboot` 走 PS_HOLD
+    热复位（~3 s），所以**别长按电源键硬复位**；`lmi-keys` 已把长按电源键 3 s
+    变成干净重启（overlay v15）。UEFI 日志对照：
+    `/sdcard/Download/phone-server/lmi-bootdiag/uefilogs/{uefiFast-warm,uefiSlow-coldboot}.txt`。
 12. `od` 缩写重复行 → 定长数据必须 `od -An -v -tx1`；fastboot/TWRP 后常需重插 USB；
     NCM 启动到 SSH 偶发 6–10 分钟（轮询超时给 ≥5 分钟）。
 13. **Magisk 覆盖 init `.rc` 无效**（init 解析早于 Magisk 挂载）。
@@ -144,6 +149,13 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
     `tools/m1/rebuild-image-from-device.sh` 的默认 `VERSION`（应用是一次性的，靠版本号判断）。
 16. 开工前检查 open issues，`[VFY]` 开头 = 独立验证者产出，按 `docs/ai-protocol.md` 只能
     评论 `Resolved-by:`/`Rejected:`。
+17. **开机慢的两个坑（overlay v15 修）**：
+    - `udev-settle` 会等那个卡在 venus/vidc 固件加载（必失败，rc=-110 ~60 s）的
+      udev worker，默认超时 120 s → 新增 `etc/conf.d/udev-settle`（`udev_settle_timeout=15`）；
+    - `lmi-wifi` 是 default runlevel 里的**阻塞 oneshot**，配置网络都不在范围内时白等
+      `LMI_WPA_WAIT`（原 60 s）再退出 1，把后面的服务全拖慢、还被 `lmi-netwatch` 反复重启
+      → 现在先扫后等，没有可用网络就 `status=idle` 立刻退出（`LMI_WPA_WAIT=25`）。
+    证据：`/var/log/messages`（`lmi-wifi failed` 紧接 getty）与 `/var/log/lmi-wifi.log`。
 
 ## 六之二、weston 终端/键盘实测结论（2026-09-15，补丁 0012–0019）
 

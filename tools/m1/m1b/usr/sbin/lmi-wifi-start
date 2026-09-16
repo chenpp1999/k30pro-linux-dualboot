@@ -29,7 +29,7 @@ exec >>"$LOG" 2>&1
 : "${LMI_WLAN_PRE_ON_DELAY:=8}"
 : "${LMI_WLAN_POST_ON_DELAY:=45}"
 : "${LMI_WPA_CONF:=/etc/wpa_supplicant/wpa_supplicant.conf}"
-: "${LMI_WPA_WAIT:=60}"
+: "${LMI_WPA_WAIT:=25}"
 : "${LMI_DHCP_TRIES:=8}"
 : "${LMI_DHCP_PER_TRY:=5}"
 : "${LMI_FW_DIR:=/lib/firmware/qca6390}"
@@ -217,6 +217,38 @@ if ! pgrep -f "^wpa_supplicant .*wlan0" >/dev/null 2>&1; then
     -D nl80211 2>>/var/log/wpa_supplicant.log
   sleep 2
 fi
+
+known_ssid_in_range() {
+  # print the first configured SSID that is visible, else print nothing and
+  # return non-zero.  Handles SSIDs that contain spaces.
+  [ -r "$LMI_WPA_CONF" ] || return 1
+  /sbin/wpa_cli -i wlan0 scan >/dev/null 2>&1
+  sleep 3
+  results=$(/sbin/wpa_cli -i wlan0 scan_results 2>/dev/null)
+  # awk splits on the double quote, so SSIDs that contain spaces survive.
+  found=$(awk -F'"' '/^[[:space:]]*ssid=/{print $2}' "$LMI_WPA_CONF" |
+    while IFS= read -r s; do
+      [ -n "$s" ] || continue
+      printf '%s\n' "$results" | grep -qF -- "$s" && printf '%s\n' "$s"
+    done | head -n 1)
+  [ -n "$found" ] && { printf '%s\n' "$found"; return 0; }
+  return 1
+}
+
+# Only wait for association when a configured network is in range.  Otherwise
+# this oneshot used to burn the whole LMI_WPA_WAIT (60 s) and then exit 1,
+# which delayed every later service (OpenRC starts the default runlevel
+# sequentially) and made lmi-netwatch redo the whole bring-up every couple of
+# minutes.  Leaving wpa_supplicant running is enough: it keeps scanning and
+# associates on its own once a known SSID appears (2026-09-16).
+if ! matched=$(known_ssid_in_range); then
+  STATUS=idle
+  add "no configured network in range; wpa_supplicant left running"
+  log "no configured SSID in range; exiting idle without waiting"
+  exit 0
+fi
+add "configured network in range: $matched"
+
 i=0
 state=""
 while [ "$i" -lt "$LMI_WPA_WAIT" ]; do
