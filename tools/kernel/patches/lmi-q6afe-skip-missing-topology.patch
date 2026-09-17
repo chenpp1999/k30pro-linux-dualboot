@@ -1,0 +1,17 @@
+diff --git a/techpack/audio/dsp/q6afe.c b/techpack/audio/dsp/q6afe.c
+index ef21ba94a..1613f4229 100644
+--- a/techpack/audio/dsp/q6afe.c
++++ b/techpack/audio/dsp/q6afe.c
+@@ -3390,6 +3390,12 @@ static int afe_send_port_topology_id(u16 port_id)
+ 	if (ret || !topology_id) {
+ 		pr_debug("%s: AFE port[%d] get_cal_topology[%d] invalid!\n",
+ 				__func__, port_id, topology_id);
++		/*
++		 * No AFE topology calibration (requires the userspace ACDB
++		 * loader, which this system does not have): the topology is
++		 * optional for plain PCM, so do not fail the port start.
++		 */
++		ret = 0;
+ 		goto done;
+ 	}
+ 

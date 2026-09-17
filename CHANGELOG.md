@@ -6,6 +6,17 @@
 ## [Unreleased]
 
 ### Fixed
+- **播放无声的真正原因（2026-09-17）：AFE 端口启动因缺 ACDB 标定而失败**。
+  `techpack/audio/dsp/q6afe.c: afe_send_port_topology_id()` 在没有 ACDB 标定
+  （Linux 无 `libacdbloader`）时返回 `-EINVAL` → `__afe_port_start()` 直接失败
+  （`AFE enable for port 0x1000 failed -22`）→ **RX 端口没有真正启动，MI2S 上无数据**；
+  功放（TFA9874）仍会 `tfa_dev_start success`，所以现象是"看起来在放但听不到"。
+  新增 `tools/kernel/patches/lmi-q6afe-skip-missing-topology.patch`：标定缺失时视为
+  "不设 topology"（返回 0）。实测 RX 端口 `ret 0`、`aplay` 数据通路恢复；
+  新增 payload `lmi-audio-route` + `lmi-audio` 服务（`PRI_MI2S_RX Audio Mixer
+  MultiMedia1`，下游 QTI 必须显式设路由；注意本卡 `amixer sget/scontrols` 报错，只能按
+  numid `cget/cset`）。**TX（录音）端口**在后续 enable 步骤仍被 ADSP 拒（-22），
+  需要 ACDB 标定（见 `docs/bluetooth-assessment.md` §6c.9）。
 - **音频第二轮根因（2026-09-17）：LPI pinctrl 吞掉了 clock 的 `-EPROBE_DEFER`**：
   `techpack/audio/soc/pinctrl-lpi.c` 拿到 `devm_clk_get("lpass_core_hw_vote"/
   "lpass_audio_hw_vote")` 的 **`-517(-EPROBE_DEFER)`** 时一律当成"没有这个 clk"，
