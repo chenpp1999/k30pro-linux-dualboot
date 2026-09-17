@@ -65,6 +65,9 @@ jobs:
           sh tools/tests/m5-install-test.sh
           sh tools/tests/m5-install-sim-test.sh
 
+      - name: Payload unit tests (offline, fake sysfs)
+        run: sh tools/tests/m1b-torch-test.sh
+
       - name: Markdown link check (basic)
         run: |
           set -e

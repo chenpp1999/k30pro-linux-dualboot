@@ -22,7 +22,7 @@
 
 | 模块 | 现状 | 证据 | 修复 | 成本 |
 |---|---|---|---|---|
-| **手电筒/闪光灯** | LED 在，无 UI | `/sys/class/leds/{flashlight,led:torch_0,led:torch_1,led:flash_0,…}` | 一条"切换手电筒"的脚本/入口（`echo` brightness） | **低** |
+| ~~手电筒/闪光灯~~ | ✅ **已实现**（overlay v17） | 驱动 `qcom,qpnp-flash-led-v2`；`lmi-torch toggle` + 面板手电图标（`led:torch_*` 设电流、`led:switch_*` 使能） | — | 已完成 |
 | **红外 IR** | 设备在，未使用 | `/dev/lirc0`、`/sys/class/rc/rc0`；DT 有 `qcom,ir` | 用户态 `ir-ctl`/lirc 发码 | **低** |
 | **摄像头** | v4l 节点在，未验证 | `/dev/video{0,1,32,33}` + 33 个 `v4l-subdev*` | 需要 camss/驱动 + 用户态采集与调参 | 中 |
 | 指纹（Goodix） | DT 有、无 Linux 指纹栈 | DTB 含 `goodix`；输入侧见 `uinput-goodix` | 需 libfprint 里匹配该型号的驱动（不确定） | 中 |

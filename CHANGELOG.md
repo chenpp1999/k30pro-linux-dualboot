@@ -6,6 +6,12 @@
 ## [Unreleased]
 
 ### Added
+- **手电筒（flashlight）可用**（overlay `m1b-ux-v17`）：新增 `lmi-torch`
+  （`on|off|toggle|status`，`--level`/`--seconds`/`--dry-run`，`LMI_TORCH_LEVEL`），
+  按 QPNP flash LED v2 语义**先设 `led:torch_N` 电流、再置 `led:switch_N` 使能**；
+  面板加"手电"启动器（`/usr/share/lmi/torch-icon.png` → `lmi-torch`，点一下开/再点关），
+  `lmi-help` 与 `docs/usage.md` 同步。离线测试 `tools/tests/m1b-torch-test.sh`
+  （假 sysfs，7 组，CI 运行）。硬件盘点里该项从"未接"改为"已实现"。
 - **`docs/bluetooth-assessment.md`：蓝牙可行性评估**（2026-09-16，实测 + 上游资料）：
   确认 BT 串口是 `/dev/ttyHS0`（`998000.qcom,qup_uart`），BT 供电/复位节点已生效，
   但内核未编任何用户态 HCI 传输、Android 侧也没有 QCA6390 BT 固件，且上游内核提供方

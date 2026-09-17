@@ -18,6 +18,7 @@
 | 改充电/温度策略 | 编辑 `/etc/conf.d/lmi-power` → `rc-service lmi-chargectl restart` |
 | 降低发热 | `lmi-power -s`（默认已是 `schedutil`；`-p` 切回满频） |
 | 打中文 | 点任何输入框 → 屏幕键盘弹出 → 输拼音 → 点候选字 |
+| 开手电筒 | 面板上的**手电图标**（再点一次关）；或终端 `lmi-torch toggle` |
 
 ## 1. 切换系统
 

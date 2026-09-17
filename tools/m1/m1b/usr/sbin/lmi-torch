@@ -1,0 +1,122 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# lmi-torch - flashlight (torch) control for lmi.
+#
+# The flash LEDs are driven by the PM8150L QPNP flash LED v2 driver: the level
+# goes to led:torch_N/brightness and the LED is only actually lit while the
+# matching led:switch_N is enabled (that switch is the gate; switch_0 stays 0
+# by default, which is why the torch/brightness values read non-zero while the
+# LED is off).  "on" therefore sets the torch level first, then enables the
+# switch; "off" disables the switch first, then clears the level.
+#
+# usage:
+#   lmi-torch [on|off|toggle|status] [--level N] [--seconds N] [--dry-run]
+#
+#   * default action is `toggle` (panel launcher friendly)
+#   * --level N   torch current, default 100 (clamped to max_brightness)
+#   * --seconds N turn on and schedule an automatic off after N seconds
+#   * --dry-run   print what would be written, change nothing
+#   * LMI_TORCH_SYS overrides the sysfs leds dir (tests)
+#   * LMI_TORCH_LEVEL sets the default level
+set -eu
+
+LEDS=${LMI_TORCH_SYS:-/sys/class/leds}
+LEVEL=${LMI_TORCH_LEVEL:-100}
+ACTION=
+SECONDS_OFF=
+DRY=0
+
+die() { echo "lmi-torch: $*" >&2; exit 1; }
+say() { echo "lmi-torch: $*"; }
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+	on | off | toggle | status) ACTION=$1; shift ;;
+	--level) LEVEL=$2; shift 2 ;;
+	--seconds) SECONDS_OFF=$2; shift 2 ;;
+	--dry-run) DRY=1; shift ;;
+	-h | --help) sed -n '2,26p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+	*) die "unknown option: $1 (try --help)" ;;
+	esac
+done
+[ -n "$ACTION" ] || ACTION=toggle
+
+read_val() { cat "$1" 2>/dev/null || echo ""; }
+write_val() { # $1 path, $2 value
+	if [ "$DRY" = 1 ]; then
+		say "DRY  : echo $2 > $1"
+	else
+		printf '%s\n' "$2" >"$1" || die "cannot write $1"
+	fi
+}
+
+# discover torch/switch nodes (torch_0.. ; the driver exposes two LEDs)
+torches=""
+switches=""
+for n in 0 1 2 3; do
+	[ -e "$LEDS/led:torch_$n/brightness" ] && torches="$torches $n"
+	[ -e "$LEDS/led:switch_$n/brightness" ] && switches="$switches $n"
+done
+[ -n "$torches" ] || die "no torch LEDs under $LEDS (need the qpnp-flash-led driver)"
+
+max_of() { read_val "$LEDS/led:torch_$1/max_brightness"; }
+
+clamp_level() { # $1 = requested
+	lvl=$1
+	for n in $torches; do
+		m=$(max_of "$n")
+		[ -n "$m" ] || continue
+		[ "$lvl" -le "$m" ] || lvl=$m
+	done
+	[ "$lvl" -ge 1 ] || lvl=1
+	echo "$lvl"
+}
+
+is_on() { # any switch enabled?
+	for n in $switches; do
+		v=$(read_val "$LEDS/led:switch_$n/brightness")
+		[ -n "$v" ] && [ "$v" != 0 ] && return 0
+	done
+	return 1
+}
+
+turn_on() {
+	lvl=$(clamp_level "$LEVEL")
+	for n in $torches; do write_val "$LEDS/led:torch_$n/brightness" "$lvl"; done
+	for n in $switches; do write_val "$LEDS/led:switch_$n/brightness" 1; done
+	say "torch on (level $lvl)"
+	if [ -n "$SECONDS_OFF" ]; then
+		if [ "$DRY" = 1 ]; then
+			say "DRY  : would schedule off in ${SECONDS_OFF}s"
+		else
+			nohup sh -c "sleep $SECONDS_OFF; $(readlink -f "$0") off" >/dev/null 2>&1 &
+			say "auto-off in ${SECONDS_OFF}s"
+		fi
+	fi
+}
+
+turn_off() {
+	for n in $switches; do write_val "$LEDS/led:switch_$n/brightness" 0; done
+	for n in $torches; do write_val "$LEDS/led:torch_$n/brightness" 0; done
+	say "torch off"
+}
+
+show_status() {
+	for n in $torches; do
+		printf 'led:torch_%s  brightness=%s max=%s\n' "$n" \
+			"$(read_val "$LEDS/led:torch_$n/brightness")" "$(max_of "$n")"
+	done
+	for n in $switches; do
+		printf 'led:switch_%s brightness=%s\n' "$n" \
+			"$(read_val "$LEDS/led:switch_$n/brightness")"
+	done
+	if is_on; then say "state: on"; else say "state: off"; fi
+}
+
+case "$ACTION" in
+on) turn_on ;;
+off) turn_off ;;
+toggle) if is_on; then turn_off; else turn_on; fi ;;
+status) show_status ;;
+*) die "unknown action: $ACTION" ;;
+esac

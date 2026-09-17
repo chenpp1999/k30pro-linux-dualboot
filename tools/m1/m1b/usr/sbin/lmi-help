@@ -88,6 +88,7 @@ item "降热/满频" "lmi-power -s（省电） / lmi-power -p（满频）"
 item "说明" "默认停充 80% / 恢复 70%、42/38°C"
 
 box "5. 输入 / 桌面"
+item "手电筒" "面板手电图标（或终端 lmi-torch toggle）"
 item "中文输入" "点输入框 → 拼音 → 点候选字；←/→ 翻页"
 item "快捷键栏" "Ctrl/Alt 单击=锁一次，双击=常锁"
 item "单应用全屏" "/etc/conf.d/m1-weston KIOSK=1 后重启 m1-weston"
