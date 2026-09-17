@@ -12,6 +12,13 @@
   （`jian45154/redmi-k30-pro-postmarketos`）同样未做并把 BT 排在音频之后。给出
   Step 0–3 的修复路径（确认固件 → 重建 LineageOS 4.19 内核 + DT BT 节点 →
   装 `qca/*.tlv`+`qca/*.bin` → bluez）、工作量/回归风险与"本期不做"的建议。
+- **`docs/hardware-status.md`：整机硬件盘点 + `docs/peripheral-bringup-plan.md`：外设
+  bring-up 计划**（2026-09-16 实测）：逐项列出可用（显示/触摸/键/WiFi/USB/电源温控/
+  存储/RTC）、节点在但未接（**手电筒、红外**、摄像头、指纹）、缺驱动/固件（**音频含
+  麦克风**、**蓝牙**、光感/距离 LTR、磁力计 AKM、NFC、加速度/陀螺仪（疑在 SLPI））、
+  不可修复（AW8697 震动、modem/GPS）。计划分 P0–P5（固件侦察 → 内核构建环境 → 配置/DT
+  → 固件+用户态 → 持久化 → 验收），每步带 Gate/回滚/证据，并指出音频与蓝牙**共用同一次
+  内核重建**、光感/磁力计可顺带开、手电筒/红外是不需要内核改动的便宜项。
   文档同时覆盖**音频（声卡）**：`/proc/asound/cards` 无卡、`/dev/snd` 仅 timer，
   `# CONFIG_SND_SOC_QCOM is not set` + `# CONFIG_QCOM_APR is not set`（高通音频驱动
   全关）、缺 ADSP 固件、无用户态音频栈——与蓝牙同源且**共用同一次内核重建**。

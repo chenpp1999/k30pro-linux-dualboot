@@ -245,6 +245,11 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
    `/var/log/lmi-netwatch.log`、`dmesg | grep -i cnss`、`/var/log/lmi-wifi.log` 再动手。
 5. **可选收尾**：super 内旧 rootfs 区回收（观察期后）、`docs/architecture.md` §2/§3 与
    `docs/test-plan.md` T4 回填、IME 第二页、电池 LED 提示。
+6. **外设 bring-up（新规划，未开工）**：蓝牙 + 音频（**含麦克风**）共用同一次内核重建；
+   计划 `docs/peripheral-bringup-plan.md`（P0 固件侦察 → P1 内核环境 → P2 配置/DT →
+   P3 固件+用户态 → P4 持久化 → P5 验收，Gate G1–G5）。整机硬件盘点（含光感/磁力计/
+   NFC/摄像头/红外/手电筒/指纹/GPS/modem）见 `docs/hardware-status.md`；其中**手电筒/
+   红外是两个不需要动内核的便宜项**。
 
 ## 九、新会话开工清单
 

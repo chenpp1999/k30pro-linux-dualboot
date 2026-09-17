@@ -99,7 +99,9 @@ Android + 真 Linux（Alpine/OpenRC + Weston）双系统方案。
 **调研/计划**
 - [Linux 适配全面审查](docs/linux-ux-audit-2026-09-14.md) ·
   [UX 优化实施计划](docs/linux-ux-plan-2026-09-14.md) ·
-  [蓝牙/音频可行性评估](docs/bluetooth-assessment.md) · `docs/research/`
+  [蓝牙/音频可行性评估](docs/bluetooth-assessment.md) ·
+  [硬件支持现状盘点](docs/hardware-status.md) ·
+  [外设 bring-up 计划](docs/peripheral-bringup-plan.md) · `docs/research/`
 
 ## 许可证
 
