@@ -360,6 +360,32 @@ defer 分支、hard fail 分支）拿到确切的 `ret`，就知道还缺哪个 
 > 与 mainline 的 pinctrl 类不同，别据此误判。消费者 `-110` 也**不是** pinctrl core 的
 > 错误码（core 只会给 `-EPROBE_DEFER`），是被强制 probe 后 provider 侧的连锁失败码。
 
+### 6c.8 P3 第四轮（2026-09-17 续）：**声卡出来了**；还差 userspace 混音/UCM 路由
+
+第三个根因（上一轮的 `register_card -110`）是 **TFA9874 功放的调音容器缺失**：
+`tfa98xx` 用 `request_firmware("tfa98xx.cnt")` 加载扬声器保护调音，文件不在 `/lib/firmware/`
+时内核走 sysfs fallback 等 60s 超时 → `[TFA9874] tfa98xx_probe(): Container loading requested: -110`
+→ 组件 probe 失败 → `ASoC: failed to instantiate card -110` → 机器驱动 probe 失败。
+**文件在 Android 的 `/vendor/firmware/tfa98xx.cnt`**（`firmware_mnt` = `/dev/sde51`，510 B，
+sha256 `07abfca1…`）—— 从 Android 取出后放进设备 `/lib/firmware/`（**专有固件，不入仓**；
+`docs/firmware-inventory.md` 已登记）→ **重启后可复现**：
+
+```
+[TFA9874] tfa98xx_container_loaded(): 1 nprof / Firmware init complete / codec registered (TFA)
+kona-asoc-snd ...: Sound card kona-mtp-snd-card registered
+/proc/asound/cards -> 0 [konamtpsndcard ]: kona-mtp-snd-card
+aplay -l / arecord -l  -> MultiMedia1/2、VoiceMMode1、VoIP… 全部列出；/dev/snd 里 100+ 个 PCM
+```
+**内核侧到此结束**：ADSP→locator→APR→q6core→机器驱动→编解码→声卡，全链打通。
+
+**剩下的（userspace）**：`aplay`/`arecord` 现在能打开 FE PCM 并「成功」返回，
+但**没有数据流动**（`arecord` 5s 得到 0 帧、无 wav；`aplay` 无声）——这是下游 QTI 老问题：
+FE PCM 只是前端，**必须先用混音器把路由配好**（Android 的 audio HAL 做的就是这件事）。
+下一步：为 `kona-mtp-snd-card` 提供 **UCM 配置**（`/usr/share/alsa/ucm*/…`，
+用 `amixer`/`alsactl` 设置 `msm-pcm-routing` 的 `MM_DL* → PRI_MI2S_RX` 与 TFA98xx/WCD938x
+通路），或先写个把必需 mixer 控件设好的脚本 —— 之后再 `aplay` 出声、`arecord` 录 5s
+验证麦克风。
+
 ## 7. 参考
 
 - 内核来源与配置：`jian45154/redmi-k30-pro-postmarketos` →
