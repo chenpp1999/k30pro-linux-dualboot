@@ -6,6 +6,14 @@
 ## [Unreleased]
 
 ### Added
+- **P1：下游内核可复现构建**（`tools/kernel/`，2026-09-17）：`build-kernel.sh` 按
+  LineageOS `android_kernel_xiaomi_sm8250 @ a5b3099` 浅取源码、套用配置、`LLVM=1`
+  编出 `Image`（12 分钟，clang 18.1.3）。**关键发现**：上游那 4 个 config 片段不足以
+  复现设备内核（差 49 行：SELinux 关闭、`VT`/console、`DEVTMPFS`、`USB_F_RNDIS`、
+  `QCOM_RMTFS_MEM=y`、`INIT_STACK_NONE`、`IKHEADERS` 等），故改为采用**设备实测
+  config**（`tools/kernel/config-xiaomi-lmi.aarch64`，`zcat /proc/config.gz` +
+  `olddefconfig`）作为权威配置；配方/差异/下一步（P2 开音频+蓝牙）见
+  `tools/kernel/README.md`，计划状态同步到 `docs/peripheral-bringup-plan.md`。
 - **手电筒（flashlight）可用**（overlay `m1b-ux-v17`）：新增 `lmi-torch`
   （`on|off|toggle|status`，`--level`/`--seconds`/`--dry-run`，`LMI_TORCH_LEVEL`），
   按 QPNP flash LED v2 语义**先设 `led:torch_N` 电流、再置 `led:switch_N` 使能**；

@@ -5,8 +5,9 @@ tools/m0/out/
 *.cpio.gz
 *.tar.gz
 *.apk
-kernel/
-d80/
+# top-level kernel source / d80 artifact dirs (tools/kernel/ must stay tracked)
+/kernel/
+/d80/
 __pycache__/
 *.pyc
 # IME data downloads (re-fetch with tools/m1/ime/fetch-data.sh)

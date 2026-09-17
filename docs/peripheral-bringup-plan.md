@@ -85,6 +85,13 @@ P0 固件侦察  →  P1 内核构建环境  →  P2 配置/DT 开关  →  P3 �
 `fastboot boot`（方式 A），确认**显示/触摸/WiFi/USB-NCM/SSH 全不回归**。
 不通过就停（说明工具链/配置复现有问题）。
 
+**P1 进展（2026-09-17，已完成构建）**：工具链装好（clang 18.1.3 + ld.lld），源码按 SHA
+浅取到 `a5b3099`（1.3 GB），**12 分钟**编出 `Image`（43,251,728 B）+ dtbs；配方与产物
+存进 [`tools/kernel/`](../tools/kernel/README.md)。关键发现：**上游 4 个 config 片段
+不够**（与设备 `/proc/config.gz` 差 49 行，含 SELinux 关闭、VT/console、DEVTMPFS、
+USB RNDIS、`QCOM_RMTFS_MEM=y`、IKHEADERS 等），因此**直接采用设备实测 config**
+（`tools/kernel/config-xiaomi-lmi.aarch64`）以保证"原样"复现。G2 的 RAM 引导回归见下。
+
 ### P2 打开音频 + 蓝牙（配置 + DT）（~0.5 天）
 
 **内核配置（音频，来自上游清单/该树的 `lmi/configs/m1.config`）**：
