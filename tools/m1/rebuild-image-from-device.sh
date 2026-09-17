@@ -42,6 +42,7 @@ VERSION=m1b-ux-v17
 OUT=boot-m1b-v9.img
 WORK=/root/m1b-rebuild
 MKBOOTIMG=
+EXTRACMD=
 ROUNDTRIP=1
 DRY=0
 NEWPW=
@@ -70,6 +71,7 @@ while [ $# -gt 0 ]; do
 	--out) OUT=$2; shift 2;;
 	--work) WORK=$2; shift 2;;
 	--mkbootimg) MKBOOTIMG=$2; shift 2;;
+--extra-cmdline) EXTRACMD=$2; shift 2;;
 	--root-password) NEWPW=$2; shift 2;;
 	--random-root-password) RANDPW=1; shift;;
 	--no-roundtrip) ROUNDTRIP=0; shift;;
@@ -239,6 +241,17 @@ for f in kernel ramdisk dtb cmdline; do
 	[ -f "$WORK/unpacked/$f" ] || die "unpack: missing $f"
 done
 info "unpacked:"; sed 's/^/  /' "$WORK/unpacked/fields.txt"
+
+# --- optional cmdline augmentation (--extra-cmdline) -----------------------
+# The deployed cmdline is otherwise reused byte-for-byte; a kernel parameter can
+# only reach the image through here (e.g. deferred_probe_timeout=300, required
+# for the audio chain -- docs/bluetooth-assessment.md 6c.6).  Appending it to
+# unpacked/cmdline keeps the pack() calls and the pack-back self-check
+# consistent, so no --no-roundtrip is needed.
+if [ -n "$EXTRACMD" ]; then
+	printf '%s %s\n' "$(cat "$WORK/unpacked/cmdline")" "$EXTRACMD" > "$WORK/unpacked/cmdline"
+	info "cmdline: appended '$EXTRACMD'"
+fi
 
 # --- round trip: prove the unpack/repack path on byte level ---------------
 pack() { # $1 = ramdisk file, $2 = out image
