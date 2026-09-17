@@ -45,5 +45,16 @@ set_ctrl() { # $1 = control name, $2 = value
 # Route MultiMedia1 playback to the primary MI2S (speaker over TFA9874).
 set_ctrl "PRI_MI2S_RX Audio Mixer MultiMedia1" "on,on" || exit 1
 
-echo "lmi-audio-route: playback route set (MultiMedia1 -> PRI_MI2S_RX)"
+# The FE PCM ("Playback 0 Volume" = the MultiMedia1 device volume) defaults to 0
+# (=silence) after boot, so set an audible level.  It is the only runtime volume
+# for the speaker path: the TFA9874's own gain lives in its tuning container and
+# is not exposed as a mixer control.
+VOL=${LMI_AUDIO_VOLUME:-90}
+V=$(nid "Playback 0 Volume")
+if [ -n "$V" ]; then
+	amixer -c "$CARD" cset numid="$V" "${VOL}%" unmute >/dev/null 2>&1 ||
+		amixer -c "$CARD" cset numid="$V" "$((8192 * VOL / 100))" unmute >/dev/null 2>&1
+fi
+
+echo "lmi-audio-route: playback route set (MultiMedia1 -> PRI_MI2S_RX), volume ${VOL}%"
 exit 0
