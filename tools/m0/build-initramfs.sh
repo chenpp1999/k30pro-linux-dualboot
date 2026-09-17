@@ -48,6 +48,11 @@ fi
 copy_with_libs "$BB"
 cp -L "$BB" "$ROOTFS/bin/busybox"
 chmod 755 "$ROOTFS/bin/busybox"
+# /etc/passwd gives root the shell /bin/sh, but the initramfs only shipped
+# bin/busybox: the rescue dropbear could therefore never exec a login shell
+# (every exec request died with exit 1 and no output, 2026-09-17).  Add the
+# applet link so the rescue SSH is actually usable.
+ln -sf busybox "$ROOTFS/bin/sh"
 
 copy_with_libs "$DROPBEAR"
 mkdir -p "$ROOTFS/usr/sbin"

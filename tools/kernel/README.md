@@ -31,6 +31,21 @@
 因此本目录**直接使用设备实测的 config**：`config-xiaomi-lmi.aarch64`（`zcat /proc/config.gz`
 导出后 `make olddefconfig`），这样"原样内核"能逐项对齐；P2 再在它的**副本**上改。
 
+## 必须打的补丁（**关键**，2026-09-17 踩到）
+
+上游内核包 `linux-xiaomi-lmi` 在 `a5b3099` 之上还打了两个补丁（本目录
+`patches/`，`build-kernel.sh` 会自动应用）：
+
+| 补丁 | 作用 |
+|---|---|
+| `lmi-vfs-mount-diagnostic.patch` | 加了一堆 `LMI_VFS_DIAG` 打印，但**含一处功能修复**：`do_new_mount()` 里 `if (!err && name && !fc->source) fc->source = kstrdup(name, ...)`。没有它，`mount -t ext4 /dev/sdaXX /newroot` 会因 `fc->source == NULL` 返回 **-ENOENT**（`FS_REQUIRES_DEV` 检查）→ initramfs 挂不上 rootfs，直接掉进救援 shell。 |
+| `lmi-rmtfs-mem-node.patch` | 把 DT 的 `pil_wlan_fw_region` 改成 `qcom,rmtfs-mem`（`/dev/qcom_rmtfs_mem`，rmtfs 用），会影响 base dtb。 |
+
+**实证**：第一次"干净 a5b3099"内核（无补丁）经 `fastboot boot` 后，NCM 起了但 SSH 是
+**救援 dropbear**（rootfs 口令认证失败、救援口令成功）→ 说明 rootfs 挂载失败；同时暴露
+initramfs 里 **没有 `/bin/sh`**（`/etc/passwd` 写的是 `/bin/sh`），救援 SSH 连 shell 都
+起不来。补丁应用后重新构建，得到 `Image` sha256 `98f21ff0…`。
+
 ## 用法
 
 ```sh

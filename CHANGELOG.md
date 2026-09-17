@@ -5,6 +5,17 @@
 
 ## [Unreleased]
 
+### Fixed
+- **G2 回归定位：自编内核挂不上 rootfs**（2026-09-17，实机）：按"干净 `a5b3099`"构建的
+  内核能启动（USB-NCM 起来），但 SSH 落在**救援 dropbear**（rootfs 口令失败、救援口令
+  成功）⇒ rootfs 挂载失败。根因是上游内核包 `linux-xiaomi-lmi` 还打了两个补丁我们没打，
+  其中 **`lmi-vfs-mount-diagnostic.patch` 含功能修复**：`do_new_mount()` 在 `fc->source`
+  为空时用 `name` 兜底，否则 `mount -t ext4 /dev/...` 返回 **ENOENT**（`FS_REQUIRES_DEV`）。
+  另 `lmi-rmtfs-mem-node.patch` 影响 base dtb。补丁已收入 `tools/kernel/patches/` 并由
+  `build-kernel.sh` 自动应用；重建得到 `Image` sha256 `98f21ff0…`。
+  同时修掉了暴露出来的 initramfs 缺陷：**`/bin/sh` 缺失**（`/etc/passwd` 指向 `/bin/sh`
+  但只装了 `bin/busybox`）→ 救援 SSH 永远起不了 shell，现已加 `bin/sh` 软链接。
+  实机复验见 `docs/peripheral-bringup-plan.md`（设备需物理重启后重试 G2）。
 ### Added
 - **P1：下游内核可复现构建**（`tools/kernel/`，2026-09-17）：`build-kernel.sh` 按
   LineageOS `android_kernel_xiaomi_sm8250 @ a5b3099` 浅取源码、套用配置、`LLVM=1`

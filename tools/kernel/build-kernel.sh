@@ -88,6 +88,22 @@ if ! ( cd "$SRC" && git cat-file -e "$SHA^{commit}" 2>/dev/null ); then
 fi
 echo "source: $(cd "$SRC" && git log --oneline -1)"
 
+# --- patches -----------------------------------------------------------------
+# The upstream kernel package (linux-xiaomi-lmi) applies these on top of the
+# commit.  Without the vfs-mount one, mounting the rootfs with a plain
+# `mount -t ext4 /dev/... /newroot` fails with -ENOENT (fc->source is NULL for
+# LOOKUP_FOLLOW-less legacy data), which drops the initramfs into the rescue
+# shell -- exactly the P1/G2 failure on 2026-09-17.
+for p in "$HERE"/patches/*.patch; do
+	[ -f "$p" ] || continue
+	if ( cd "$SRC" && git apply -p1 --reverse --check "$p" 2>/dev/null ); then
+		echo "patch already applied: $(basename "$p")"
+		continue
+	fi
+	( cd "$SRC" && git apply -p1 --whitespace=nowarn "$p" ) || die "failed to apply $(basename "$p")"
+	echo "applied: $(basename "$p")"
+done
+
 # --- config ------------------------------------------------------------------
 mkdir -p "$OUT"
 cp -f "$CONFIG" "$OUT/.config"
