@@ -1,0 +1,49 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# lmi-audio-route - apply the ALSA/mixer routing needed for audio on the
+# downstream QTI stack (msm-pcm-routing).
+#
+# The kernel side is complete (see docs/bluetooth-assessment.md 6c): the sound
+# card comes up as `kona-mtp-snd-card`, but the front-end PCMs (MultiMedia*)
+# do not carry data until the back-end routing is switched on.  On Android the
+# audio HAL does this; here we do the playback route explicitly:
+#
+#   MultiMedia1  ->  PRI_MI2S_RX     (the primary MI2S, where the TFA9874
+#                                     speaker amplifier sits)
+#
+# With that route a plain `aplay` plays through the speaker (verified: the
+# TFA9874 amp starts, tfa_dev_start success).  Capture needs the ACDB
+# calibration, which has no Linux loader yet (see 6c.8/6c.9), so we only set
+# the playback route here.
+#
+# Notes:
+#   * `amixer sget/scontrols` fails on this card ("Mixer ... load error"), so
+#     controls are addressed by numid, resolved by name from `amixer controls`.
+#   * Safe to run repeatedly; missing controls are skipped.
+set -u
+
+CARD=0
+
+nid() {
+	amixer -c "$CARD" controls 2>/dev/null | grep -F "$1" | head -1 |
+		sed 's/numid=//;s/,.*//'
+}
+
+set_ctrl() { # $1 = control name, $2 = value
+	id=$(nid "$1")
+	if [ -z "$id" ]; then
+		echo "lmi-audio-route: control not found: $1" >&2
+		return 1
+	fi
+	amixer -c "$CARD" cset numid="$id" "$2" >/dev/null 2>&1 || {
+		echo "lmi-audio-route: failed to set $1" >&2
+		return 1
+	}
+	return 0
+}
+
+# Route MultiMedia1 playback to the primary MI2S (speaker over TFA9874).
+set_ctrl "PRI_MI2S_RX Audio Mixer MultiMedia1" "on,on" || exit 1
+
+echo "lmi-audio-route: playback route set (MultiMedia1 -> PRI_MI2S_RX)"
+exit 0

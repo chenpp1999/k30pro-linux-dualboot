@@ -198,7 +198,7 @@ fi
 if [ "$OVERLAY_RESULT" = applied ]; then
   echo "post-overlay setup (service enablement, font cache)"
   $BB chroot /newroot /bin/sh -c \
-    '/sbin/rc-update del hwclock boot >/dev/null 2>&1; /sbin/rc-update add swclock boot >/dev/null 2>&1; /sbin/rc-update add ntpd default >/dev/null 2>&1; /sbin/rc-update add lmi-keys default >/dev/null 2>&1; /sbin/rc-update add lmi-power default >/dev/null 2>&1; /sbin/rc-update add lmi-chargectl default >/dev/null 2>&1; /sbin/rc-update add lmi-monitor default >/dev/null 2>&1; /sbin/rc-update add lmi-netwatch default >/dev/null 2>&1; /sbin/rc-update add lmi-adsp default >/dev/null 2>&1; /sbin/rc-update add pd-mapper default >/dev/null 2>&1; /usr/bin/fc-cache --system-only >/dev/null 2>&1' \
+    '/sbin/rc-update del hwclock boot >/dev/null 2>&1; /sbin/rc-update add swclock boot >/dev/null 2>&1; /sbin/rc-update add ntpd default >/dev/null 2>&1; /sbin/rc-update add lmi-keys default >/dev/null 2>&1; /sbin/rc-update add lmi-power default >/dev/null 2>&1; /sbin/rc-update add lmi-chargectl default >/dev/null 2>&1; /sbin/rc-update add lmi-monitor default >/dev/null 2>&1; /sbin/rc-update add lmi-netwatch default >/dev/null 2>&1; /sbin/rc-update add lmi-adsp default >/dev/null 2>&1; /sbin/rc-update add pd-mapper default >/dev/null 2>&1; /sbin/rc-update add lmi-audio default >/dev/null 2>&1; /usr/bin/fc-cache --system-only >/dev/null 2>&1' \
     2>>"$OVERLAY_LOG" || echo "WARN: post-overlay setup failed (see $OVERLAY_LOG)"
 fi
 $BB sync
