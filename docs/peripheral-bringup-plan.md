@@ -49,11 +49,19 @@ P0 固件侦察  →  P1 内核构建环境  →  P2 配置/DT 开关  →  P3 �
 2. **ADSP/音频**：ADSP 镜像与分段。上游记的路径是 `qcom/sm8250/adsp.mbn`；本内核是
    下游风格（`adsp.mdt` + `adsp.b*` 分段 + `adsp-loader`），以实际内核请求为准。
 
-**来源（按优先级）**：
-- 原厂 **MIUI fastboot 包 / firmware-only 包**（含 `modem`/`bluetooth`/`dsp` 镜像）；
-- 设备自身 Android 分区（本机 GPT 无 modem/dsp/bt_firmware 分区，但需在 Android 侧
-  复核是否有别的承载位置）；
-- 上游 `yuweiyuan8/firmware-xiaomi-lmi`（如有音频固件）。
+**来源（按优先级，2026-09-16 调研结论：可行）**：
+1. **公开 `linux-firmware`（首选，体积小、可分发）**：
+   - ADSP/音频：`qcom/sm8250/{adsp.mbn, adspr.jsn, adspua.jsn}`（另有 `cdsp.mbn`、
+     `a650_zap.mbn` 等同一目录）；
+   - 蓝牙（QCA6390 走 UART/`hci_qca`）：`qca/*.tlv`（rampatch）+ `qca/*.bin`（NVM），
+     具体名字由芯片回报的 ROM/SOC 版本决定（启动日志会打印 `QCA Downloading qca/xxx`；
+     QCA6390 常见 `hpbtfw*/hpnv*`，WCN3990 常见 `crbtfw*/crnv*`）。
+2. **原厂 MIUI 包（兜底，保证与本机匹配）**：`mifirm.net` 的 lmi fastboot 包或
+   upmiui 的 vendor firmware（含 modem/dsp/bluetooth）；提取方法参考 pmOS 设备的
+   `firmware-extraction` 文档（`/vendor/firmware/{adsp,cdsp,slpi,venus}.mbn` +
+   传感器 `hexagonfs/` JSON）。
+3. 设备自身 Android 分区：本机 GPT **无** `modem`/`dsp`/`bt_firmware` 分区，Linux 侧
+   `/vendor/firmware` 只有触觉 `.bin`，故不作为主来源（可在 Android 侧复核）。
 
 **交付物**：`docs/firmware-inventory.md`（文件→目标路径→大小→sha256→**来源/许可**，
 固件本体放本地/设备，不入仓）。
@@ -168,6 +176,20 @@ CONFIG_BT_HCIUART=y    CONFIG_BT_HCIUART_QCA=y    CONFIG_BT_QCA=y
 3. **设备时间窗**：P1/P2 需要多次 `fastboot boot`（每次 1–2 分钟，不改分区）；
    P4 需要一次 `recovery` 写入（会重启）。
 4. 预留 **3–5 个专注工作日**；按 Gate 推进，每步产物都留证。
+
+### 5.1 环境体检（2026-09-16，本机 WSL）
+
+| 项 | 结果 |
+|---|---|
+| Ubuntu 24.04 / WSL2 内核 6.18 | ✅ |
+| 磁盘可用 | ✅ 925 GB |
+| CPU / 内存 | 12 核 / 5.8 GB（**偏小**：内核编译需 `-j8` 左右并监控 OOM；必要时加 swap） |
+| 网络 | ✅ github / kernel.org 可达 |
+| 已有 | `git` `python3` `make` `gcc` `aarch64-linux-gnu-gcc` |
+| **缺（P1 需装）** | `clang` `lld` `llvm` `dtc` `mkbootimg`（LineageOS 脚本）`pmbootstrap`（可选） |
+
+> 结论：P1 可开工，先 `apt-get install clang lld llvm device-tree-compiler`，再取
+> `mkbootimg`（LineageOS `lineage-19.1` 版，仓库既有约束）与内核源码。
 
 ## 6. 其他硬件（本次盘点结论，详见 `hardware-status.md`）
 
