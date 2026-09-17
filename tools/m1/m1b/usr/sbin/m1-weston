@@ -166,6 +166,18 @@ while :; do
     log "weston failed to start (attempt $attempt)"
     kill_wait "$WPID" 3; WPID=''
     [ "$STOPPING" = 1 ] && exit 0
+    # A hung seatd makes libseat fail with "could not open seat" even though
+    # /run/seatd.sock still exists, and weston then restarts forever -- the
+    # panel blanks/unblanks on every retry (observed 2026-09-17).  Detect it
+    # from the weston log and restart seatd before the next attempt.
+    if [ "$attempt" -le 3 ] &&
+      tail -n 40 /var/log/weston.log 2>/dev/null |
+      grep -qiE 'libseat|could not open seat|seatd\.sock'; then
+      log "seat acquisition failed -> restarting seatd"
+      rc-service seatd restart >/dev/null 2>&1 || log "WARN: seatd restart failed"
+      sleep 2
+      continue
+    fi
     if [ "$attempt" -lt 20 ]; then
       sleep "$BACKOFF"
       continue

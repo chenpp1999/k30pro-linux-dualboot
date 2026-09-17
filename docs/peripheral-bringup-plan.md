@@ -96,15 +96,20 @@ P0 固件侦察  →  P1 内核构建环境  →  P2 配置/DT 开关  →  P3 �
    `lmi-vfs-mount-diagnostic.patch` 含 `do_new_mount()` 的 **`fc->source` 兜底修复**，
    没有它 `mount -t ext4 /dev/...` 返回 **ENOENT** → rootfs 挂不上。
 
-**G2 第一次尝试（无补丁内核）＝失败，但定位了根因**：`fastboot boot` 后内核启动
-（NCM 起、可 ping `172.16.42.1`），但 SSH 只认**救援口令**（rootfs 口令失败）⇒ 掉进
-救援 dropbear ⇒ rootfs 挂载失败。且暴露 initramfs **缺 `/bin/sh`**（救援 SSH 无法起
-shell，命令全部 exit 1 无输出）。已修：补丁收入 `tools/kernel/patches/` 并自动应用、
-`build-initramfs.sh` 增加 `bin/sh` 软链；重建出带补丁的 `Image`（sha256 `98f21ff0…`）
-并组装好 `boot-g2b.img`（59,211,776 B，sha256 `4ddbf17a…`）。
-
-> ⚠️ 首次失败时设备停在救援环境（无 shell 无法远程重启）→ **需要一次物理重启**
-> （长按电源键 ~10 s）；之后用 `boot-g2b.img` 重试 G2。
+**G2 结果（2026-09-17）＝ ✅ 通过（带补丁内核）**：
+- 第一次用"无补丁"内核：`fastboot boot` 后内核启动（NCM 起、可 ping），但 SSH 只认
+  **救援口令** ⇒ rootfs 挂载失败（根因＝缺上游补丁，见 `tools/kernel/README.md`）。
+  该次失败还暴露 initramfs **缺 `/bin/sh`**（救援 SSH 无法起 shell）。
+- 修正后（补丁 + `bin/sh` 软链）用 `boot-g2b.img` 重试：
+  - `~30 s` 拿到 rootfs SSH；`/proc/version` = `4.19.325-cip128-st12-perf-ga5b3099017ae-dirty`
+    **Ubuntu clang 18.1.3 / LLD 18.1.3**（设备原内核是 Alpine clang 22.1.8 ⇒ 证明跑的是自编内核）；
+  - 显示/weston（`socket ready after 7s`）、触摸（`fts_ts`）、USB-NCM（`usb0` `172.16.42.1`）、
+    SSH、电量/温控监控、`lmi-keys` 均正常；**WiFi 自动连上 502（`192.168.5.27`）**；
+  - 日志里可见 `LMI_VFS_DIAG ... fc_source=/dev/loop2`，正是补丁生效的证据。
+- **副作用（已处理）**：运行中 `seatd` 卡死（进程/socket 都在但连接被拒）→ weston 无限
+  重试、**屏幕灭/亮循环**；`rc-service seatd restart` 恢复。已给 `m1-weston` 加自愈：
+  失败日志命中 `libseat/could not open seat/seatd.sock` 时自动重启 seatd。
+- 此后设备可继续留在 Linux；**P2（音频+蓝牙配置/DT）在 G2 基础上开工**。
 
 ### P2 打开音频 + 蓝牙（配置 + DT）（~0.5 天）
 

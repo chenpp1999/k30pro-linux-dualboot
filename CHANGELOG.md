@@ -6,6 +6,14 @@
 ## [Unreleased]
 
 ### Fixed
+- **`m1-weston` 自愈 seatd 卡死**（2026-09-17 实测）：运行中 `seatd` 卡住（进程与
+  `/run/seatd.sock` 都在，但连接被拒）时，weston 每次启动都失败 → wrapper 无限重试 →
+  **屏幕反复灭/亮**。现在失败日志命中 `libseat`/`could not open seat`/`seatd.sock` 且
+  尝试次数 ≤3 时会自动 `rc-service seatd restart` 再重试（实测重启后 weston 立即恢复）。
+- **G2 通过（2026-09-17）**：打完上游两个补丁后，`fastboot boot boot-g2b.img` 自编内核
+  30 s 内进 rootfs，`/proc/version` 显示 **Ubuntu clang 18.1.3**（区别于设备原内核的
+  Alpine 22.1.8）；显示/触摸/WiFi（自动连 502，`192.168.5.27`）/USB-NCM/SSH/监控全部
+  正常。证据与后续（P2 音频+蓝牙）见 `docs/peripheral-bringup-plan.md`。
 - **G2 回归定位：自编内核挂不上 rootfs**（2026-09-17，实机）：按"干净 `a5b3099`"构建的
   内核能启动（USB-NCM 起来），但 SSH 落在**救援 dropbear**（rootfs 口令失败、救援口令
   成功）⇒ rootfs 挂载失败。根因是上游内核包 `linux-xiaomi-lmi` 还打了两个补丁我们没打，
