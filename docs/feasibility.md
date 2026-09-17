@@ -39,7 +39,11 @@ super 有 ~2.4 GiB 空闲空间）。主要风险集中在"扩容"这一可选�
       （UART + `bt-en` GPIO + 稳压器）+ **QCA BT 固件** + 用户态 bluez。
       BT 串口已确认 = `/dev/ttyHS0`（`998000.qcom,qup_uart`）；完整评估、步骤与
       工作量见 [`bluetooth-assessment.md`](bluetooth-assessment.md)。
-    - **音频**：`/dev/snd` 仅有 timer，无声卡（未配置音频链路/UCM）。
+    - **音频（声卡）**：`/proc/asound/cards` 无卡、`/dev/snd` 仅 timer；内核
+      `# CONFIG_SND_SOC_QCOM is not set`、`# CONFIG_QCOM_APR is not set`
+      （高通音频驱动全关），且缺 ADSP 固件、无用户态音频栈。与蓝牙同源（内核 + 固件），
+      上游把音频排在蓝牙之前；路径见
+      [`bluetooth-assessment.md`](bluetooth-assessment.md) §6。
   - 不可用/实验性（其他）：GPS、距离感应、震动（本机硬件已损坏）、SDX55 modem
     （本机无 SIM，影响可忽略）。
 

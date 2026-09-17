@@ -1,8 +1,10 @@
-# 蓝牙可行性评估（2026-09-16）
+# 蓝牙 / 音频（声卡）可行性评估（2026-09-16）
 
-> 结论：**蓝牙不是配置项，需要重建内核 + 设备树 + 固件 + bluez，属于独立里程碑。**
-> 本项目当前部署的内核里**没有编入任何用户态 HCI 传输**，所以 `bluez`/`btattach`
-> 无从接入。本文记录实测证据、可行路径、工作量与建议；**本期不做**，仅评估。
+> 结论：**蓝牙和声卡都不是配置项，需要重建内核 + 固件（+ 设备树/用户态），属于独立
+> 里程碑。** 本项目当前部署的下游 4.19 内核**没编任何用户态 HCI 传输**（蓝牙），也
+> **没编高通音频驱动**（`CONFIG_SND_SOC_QCOM` 关闭 → 无声卡）；两者都还缺固件。
+> 本文记录实测证据、可行路径、工作量与建议；**本期不做**，仅评估。
+> 音频见 §6。
 
 ## 1. 实测证据（设备 Linux 侧，2026-09-16）
 
@@ -78,7 +80,34 @@ LineageOS 分区里）+ 内核音频配置 + UCM；`/dev/snd` 目前只有 timer
 4. 另一条更省事但代价大的路：换 **mainline 内核**（BT 现成）——但会失去当前
    WiFi（cnss2/qcacld），不建议。
 
-## 6. 参考
+## 6. 附：音频（声卡）
+
+**现状实测（2026-09-16）**：
+
+| 事实 | 证据 |
+|---|---|
+| 没有声卡 | `/proc/asound/cards` → `--- no soundcards ---`；`/dev/snd` 只有 `timer` |
+| 框架在、**高通音频驱动全关** | `CONFIG_SND_SOC=y`、`CONFIG_SND_PCM=y`，但 `# CONFIG_SND_SOC_QCOM is not set`（WCD938x 编解码 / LPASS / 音频机器驱动全无） |
+| DSP 通路也关着 | `# CONFIG_QCOM_APR is not set`、`# CONFIG_SLIMBUS_MSM_CTRL is not set`；`CONFIG_SND_SOC_HDMI_CODEC=y` 但无真实卡 |
+| 设备树/平台设备已就位 | `/sys/bus/platform/devices` 有 `soc:qcom,msm-audio-apr`、`qcom,msm-adsp-loader`、`17300000.qcom,lpass`、`qcom,msm-dai-*`；`/dev/subsys_adsp`、`/dev/subsys_slpi` 存在 |
+| **没有 ADSP 固件** | `/lib/firmware` 里没有 `adsp.mdt` 及其分段；`/vendor/rfs/msm/adsp` 只有空目录（`hlos`/`shared`/…），`/vendor/dsp` 为空 —— 固件在 Android 单独分区，Linux 侧看不到 |
+| 没有用户态音频栈 | `aplay`/`amixer`/`pipewire`/`wireplumber` 全未安装 |
+
+**结论与路径**：与蓝牙同源（内核配置 + 固件），但上游把音频排在蓝牙**之前**，通常更
+容易：
+1. 重建内核时**同时**打开音频（与本文件 §3 Step 1 一次编译即可）：
+   `CONFIG_SND_SOC_QCOM=y`（含 WCD938x codec、LPASS、SM8250 机器驱动）、
+   `CONFIG_QCOM_APR=y`、`CONFIG_SND_SOC_SOUNDWIRE*`/`SLIMBUS_MSM_CTRL` 视该树而定；
+2. 装 **ADSP 固件**（`adsp.mdt` + `adsp.b*` 分段，来自原厂固件包/对应分区）到
+   `/lib/firmware/`（可能还需 `adsp*` 的子目录布局）；
+3. 用户态：`apk add alsa-utils`（先用 `aplay` 打通），再考虑 pipewire/wireplumber +
+   设备 **UCM**（`/usr/share/alsa/ucm*`，可从原厂 `acdbdata`/UCM 配置移植）。
+
+**验证标准**：`/proc/asound/cards` 出现声卡、`aplay` 能播放、`alsactl store` 后
+扬声器/听筒出声（需要有人现场听）。风险同样在**内核重建 + 固件获取**，且与蓝牙共用
+同一次内核改动 —— 建议合并为一个"外设 bring-up"里程碑一起做。
+
+## 7. 参考
 
 - 内核来源与配置：`jian45154/redmi-k30-pro-postmarketos` →
   `notes/kernel-config-2026-05-28.md`、`docs/porting-sm8250-downstream-to-postmarketos.md`

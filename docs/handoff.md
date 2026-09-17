@@ -176,6 +176,11 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
     BT 串口 = `/dev/ttyHS0`（`998000.qcom,qup_uart`）；**完整评估/修复路径/工作量见
     `docs/bluetooth-assessment.md`**（结论：需重建内核 + DT BT 节点 + 原厂 BT 固件 +
     bluez，属独立里程碑；上游内核提供方也没做，且把 BT 排在音频之后）。
+20. **声卡同样不可用（2026-09-16 实测）**：`/proc/asound/cards` 无卡、`/dev/snd` 仅
+    timer；根因与蓝牙同源——内核 `# CONFIG_SND_SOC_QCOM is not set`
+    （WCD938x/LPASS/机器驱动全无）、`# CONFIG_QCOM_APR is not set`，且缺 ADSP 固件、
+    无用户态音频栈。**与蓝牙共用同一次内核重建**，建议合并为一个"外设 bring-up"
+    里程碑；路径见 `docs/bluetooth-assessment.md` §6。
 
 ## 六之二、weston 终端/键盘实测结论（2026-09-15，补丁 0012–0019）
 

@@ -12,6 +12,9 @@
   （`jian45154/redmi-k30-pro-postmarketos`）同样未做并把 BT 排在音频之后。给出
   Step 0–3 的修复路径（确认固件 → 重建 LineageOS 4.19 内核 + DT BT 节点 →
   装 `qca/*.tlv`+`qca/*.bin` → bluez）、工作量/回归风险与"本期不做"的建议。
+  文档同时覆盖**音频（声卡）**：`/proc/asound/cards` 无卡、`/dev/snd` 仅 timer，
+  `# CONFIG_SND_SOC_QCOM is not set` + `# CONFIG_QCOM_APR is not set`（高通音频驱动
+  全关）、缺 ADSP 固件、无用户态音频栈——与蓝牙同源且**共用同一次内核重建**。
 - **M5 一键安装地基**（设计 `docs/installer-design.md`）：
   - `tools/install/lp-metadata.py`：只读解析 `super` 的 liblp 元数据（geometry/header/
     tables，AOSP 校验和），计算未分配空闲区并支持 `select --size/--align`；已在真机
