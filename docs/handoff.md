@@ -29,13 +29,20 @@
 - **P3 在 rootfs 里留下了持久状态**（都在 `/dev/sda35` 上，重启不丢）：
   - **ADSP 固件已在 `/lib/firmware/`**（`adsp.mdt` + `adsp.b00…b18` + `adspr.jsn` +
     `adspua.jsn`，22 文件 20,356,050 B，sha256 见
-    [`firmware-inventory.md`](firmware-inventory.md)）→ **从这里启动时 ADSP 会被自动加载**；
+    [`firmware-inventory.md`](firmware-inventory.md)）；
+  - **`pd-mapper` 已编译安装**（`/usr/bin/pd-mapper`，源码由
+    `tools/p3/build-pd-mapper.sh` 取上游 + 补丁原生编译）+ OpenRC 服务，且**已加入 default
+    runlevel**；实测开机后 `qrtr-lookup` 出现 `64 ... Service registry locator service`
+    （apps 侧 locator）；
+  - **`lmi-adsp` OpenRC 服务**（payload `tools/m1/m1b/etc/init.d/lmi-adsp`，已装并 enable）：
+    ADSP 由**用户态**写 `/sys/kernel/boot_adsp/boot` 触发加载（`adsp-loader` 不会自动加载），
+    顺序 ADSP → pd-mapper → 内核链；
   - 用户态：`alsa-utils`/`alsa-ucm-conf`/`qrtr`（Alpine v3.23）+
-    `rmtfs`/`pd-mapper`/`tqftpserv`（pmOS v25.06 包，装在 rootfs 里）；
-  - `/dev/qcom_rmtfs_mem1` 存在（部署内核含 `qcom,rmtfs-mem` DT 补丁）。
-  - 结论：**ADSP 已通**（`adsp: Brought out of reset`、`apr_audio_svc state[Up]`、QRTR 有
-    servreg-notif），**声卡仍未出**，根因与下一步见
-    [`bluetooth-assessment.md`](bluetooth-assessment.md) **§6c**。
+    `rmtfs`/`pd-mapper`/`tqftpserv`（pmOS v25.06 包）；`/dev/qcom_rmtfs_mem1` 存在。
+  - **实测（boot=36）**：`t=48.8s adsp: Brought out of reset` → `t=89.7s Service locator
+    initialized` → `apr_add_child_devices` → `q6core-audio`/`sound`/`bolero`/`wcd938x` 设备全建；
+    **但仍无声卡**：卡在 SWR pinctrl（`msm-cdc-pinctrl` 的 `devm_pinctrl_get` = **-110**）。
+    详见 [`bluetooth-assessment.md`](bluetooth-assessment.md) **§6c.6**、`tools/p3/README.md`。
 - **WiFi 正常**：Linux 侧会自动连上配置里的网络（SSID/IP 属于按机信息，**不入仓**）；
   `lmi-netwatch`（看门狗）在跑，`/run/lmi-netwatch.state` = `status=ok`。
 - **充电/温控在生效**：`lmi-chargectl` 把 SOC 控制在 70–80 % 锯齿（`/run/lmi-chargectl.state`），
@@ -217,6 +224,22 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
     WSL 里 `dtc -I dtb -O dts live.dtb`。另：设备 UFS LUN 在 Linux 侧同样是
     `/dev/sda…/sdf`，`firmware_mnt`(vfat) = **`/dev/sde51`**、`dsp` = `sde49`、
     `bluetooth` = `sde35`（P3 就是从这里取固件的）。
+23. **ADSP 不会自己启动**：`adsp-loader` 只在**用户态**写 `/sys/kernel/boot_adsp/boot` 时才
+    `subsystem_get("adsp")`（Android 是 vendor init 写的）。而且固件在 **rootfs** 里，
+    内核启动早期那次加载尝试必然失败（rootfs 还没挂）→ 必须由 OpenRC 服务做
+    （payload `lmi-adsp`，`after localmount`、`before pd-mapper`）。写 `1` 是**幂等**的
+    （已 LOADED 时驱动直接返回）。
+24. **`supervise-daemon` 默认 `respawn-max=5`**：服务在开机早期短暂失败（例如 PD 地图还没就绪）
+    会**永久退出且不再重启**——`pd-mapper` 就这样静默消失过一次。我们的 `pd-mapper` unit
+    设了 `respawn_max=0`；自愈类服务（`m1-weston` 用 shell 循环，不受影响）遇到类似症状时
+    先看 `/var/log/messages` 里的 `supervise-daemon ... too many times, exiting`。
+25. **`snd_event` / SWR pinctrl 是音频的下一道坎**（2026-09-17 实测）：ADSP 起来后
+    `msm-cdc-pinctrl` 的 `devm_pinctrl_get()` 返回 **-110(ETIMEDOUT)**
+    （`tx/rx_swr_clk_data_pinctrl`、`cdc_dmic01/23_pinctrl` 全部 probe 失败）→
+    `tx_macro/rx_macro: failed to get swr pin state` → `sound` 节点不绑 `kona-asoc-snd` →
+    **无声卡**。相关代码：`techpack/audio/asoc/codecs/msm-cdc-pinctrl.c:228`、
+    `techpack/audio/soc/pinctrl-lpi.c:774/800`、`techpack/audio/soc/snd_event.c`；
+    日志线索 `snd_event_notify: No snd dev entry found`。
 
 ## 六之二、weston 终端/键盘实测结论（2026-09-15，补丁 0012–0019）
 
@@ -281,16 +304,17 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
    `/var/log/lmi-netwatch.log`、`dmesg | grep -i cnss`、`/var/log/lmi-wifi.log` 再动手。
 5. **可选收尾**：super 内旧 rootfs 区回收（观察期后）、`docs/architecture.md` §2/§3 与
    `docs/test-plan.md` T4 回填、IME 第二页、电池 LED 提示。
-6. **P3 音频（下一步，已收敛）**：ADSP 已能启动、APR 已通、固件已部署 —— **只差 apps 侧
-   `servreg` locator**。要做：
-   - 把 `pd-mapper` 移植/补丁成**不依赖 remoteproc**、直接读 `*.jsn`（地图内容已知：
-     `avs/audio` → `domain=adsp`/`subdomain=audio_pd`/`qmi_instance_id=74`；Android 自带
-     `/vendor/bin/pd-mapper` 就是这做法，但它是 bionic 二进制）；
-   - 让 `pd-mapper`/`rmtfs`/`tqftpserv` 随 boot 起（OpenRC；`rmtfs` 依赖
-     `/dev/qcom_rmtfs_mem1`，已具备）；
-   - **重启**后按 `docs/bluetooth-assessment.md` §6c.4 验证（`qrtr-lookup` 出 `service 0x40`
-     → `q6core-audio`/`sound` 设备 → `/proc/asound/cards` → `aplay`/`arecord` 含麦克风）。
-   - 蓝牙**已证伪，别再碰**（§6b）。工具 `tools/p3/`；固件清单 `docs/firmware-inventory.md`。
+6. **P3 音频（下一步＝解决 SWR pinctrl 的 -110）**：上半场已完成并可复现 —— 固件就位、
+   `lmi-adsp` 触发 ADSP、`pd-mapper` 提供 apps 侧 locator、内核 `Service locator initialized`
+   → `apr_add_child_devices` → `q6core-audio`/`sound`/`bolero`/`wcd938x` 设备全部创建、
+   `kona-asoc-snd` 也 probe 了。**只差 SWR pinctrl**：`msm-cdc-pinctrl` 的
+   `devm_pinctrl_get()` 返回 -110 → `tx/rx_macro: failed to get swr pin state` →
+   `sound` 不绑定 → 无声卡。
+   下一步：① 开 `CONFIG_DYNAMIC_DEBUG`（或临时 printk）定位 `devm_pinctrl_get` 里
+   ETIMEDOUT 的确切来源（`techpack/audio/soc/pinctrl-lpi.c` 是提供者；
+   `snd_event_notify: No snd dev entry found` 是线索）；② 修好后 `aplay -l`/`arecord -l`
+   并试出声/录音（含麦克风）。蓝牙**已证伪，别再碰**（§6b）。
+   工具 `tools/p3/`；固件清单 `docs/firmware-inventory.md`。
 7. **把本会话在仓库里、但尚未进设备的修复做成持久化镜像（overlay v17→v18）**：
    `lmi-torch`、`m1-weston`（seatd 自愈）在 repo 里但**没进镜像**；注意
    `build-initramfs.sh` 的 `/bin/sh` 软链修复**只对"从零构建 initramfs"生效**，

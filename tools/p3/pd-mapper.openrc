@@ -1,0 +1,31 @@
+#!/sbin/openrc-run
+# SPDX-License-Identifier: MIT
+# OpenRC service for pd-mapper: the apps-side SERVREG_LOC (QMI 0x40) service the
+# kernel's audio PDR chain needs (docs/bluetooth-assessment.md 6c).  Built by
+# tools/p3/build-pd-mapper.sh from the pinned upstream + downstream patch.
+supervisor=supervise-daemon
+
+name="pd-mapper"
+description="Qualcomm PD mapper (servreg locator over QRTR)"
+
+command="/usr/bin/pd-mapper"
+command_args="${PD_MAPPER_ARGS:-}"
+
+# pd-mapper scans a directory for the PD map JSONs (*.jsn / *.jsn.xz).  This
+# kernel has no /sys/class/remoteproc, so the firmware directory is scanned
+# directly; override in /etc/conf.d/pd-mapper.
+PD_MAPPER_FIRMWARE_DIR="${PD_MAPPER_FIRMWARE_DIR:-/lib/firmware}"
+export PD_MAPPER_FIRMWARE_DIR
+
+respawn_delay=1
+# Do not give up: at boot pd-mapper may briefly start before the PD maps are in
+# place (or before the ADSP is up); the default respawn-max (5) then kills the
+# supervisor for good and the locator never appears (observed 2026-09-17).
+respawn_max=0
+
+depend() {
+	need localmount
+	after udev-settle
+	use qrtr-ns
+	before rmtfs tqftpserv
+}

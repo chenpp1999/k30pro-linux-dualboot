@@ -6,6 +6,24 @@
 ## [Unreleased]
 
 ### Changed
+- **P3 音频第二轮（2026-09-17，实机）：apps 侧 locator 已打通，卡在 SWR pinctrl（-110）**：
+  - 新增 `tools/p3/pd-mapper-downstream.patch`（针对
+    `linux-msm/pd-mapper@5ecd2fe`：remoteproc 缺失时直接扫 `*.jsn`；
+    按下游内核的 `(0x40, 0x01, 0x01)` 发布）+ `tools/p3/build-pd-mapper.sh`
+    （**设备内原生 musl 编译**、装 OpenRC 服务，支持 `--source` 离线构建）。
+    实测 `qrtr-lookup` 出现 `64 1 1 1 ... Service registry locator service`，内核
+    `service_locator` 随即完成：`init_service_locator: Service locator initialized`。
+  - 由此**内核链真正跑通**：`apr_add_child_devices → q6core_probe` 创建了
+    `q6core-audio`/`sound`/`bolero-cdc`/`wcd938x-codec`/SWR pinctrl 等子设备，
+    `kona-asoc-snd` 也 probe 到 `populate_snd_card_dailinks`（对比第一轮"子设备全缺"）。
+  - **发现 ADSP 必须由用户态触发加载**：`adsp-loader` 只在写 `/sys/kernel/boot_adsp/boot`
+    时 `subsystem_get("adsp")`（Android 的 vendor init 就是这么做的），且固件在 rootfs，
+    内核启动早期的尝试必然失败。新增 payload 服务 `lmi-adsp`
+    （`before pd-mapper`，并加入 `m1b-init.sh` 的 `rc-update` 列表）；实测开机
+    `t=48.8s adsp: Brought out of reset` → `t=89.7s Service locator initialized`。
+  - **新阻塞（下一步）**：`msm-cdc-pinctrl` 的 `devm_pinctrl_get()` 返回 **-110(ETIMEDOUT)**
+    → `tx_macro/rx_macro: failed to get swr pin state` → `sound` 节点不绑 `kona-asoc-snd`
+    → **仍无声卡**。证据与代码位置见 `docs/bluetooth-assessment.md` §6c.6。
 - **P3 音频（2026-09-17，实机）：ADSP 已通，声卡未出，根因收敛到 `pd-mapper`**：
   ADSP 固件本机自带（`/vendor/firmware_mnt/image`，22 文件 20,356,050 B），部署到
   `/lib/firmware/` 后，`/sys/kernel/boot_adsp/boot` 写 `1` 即可让 ADSP 启动：
@@ -54,6 +72,12 @@
   但只装了 `bin/busybox`）→ 救援 SSH 永远起不了 shell，现已加 `bin/sh` 软链接。
   实机复验见 `docs/peripheral-bringup-plan.md`（设备需物理重启后重试 G2）。
 ### Added
+- **P3 音频：pd-mapper 下游补丁 + 原生构建 + ADSP 引导服务**（2026-09-17）：
+  `tools/p3/pd-mapper-downstream.patch`、`tools/p3/build-pd-mapper.sh`、
+  `tools/p3/pd-mapper.openrc`（`respawn_max=0` —— 默认的 5 次会把开机早期短暂失败的
+  supervisor 永久杀掉，实测复现）、`tools/p3/pd-mapper.confd`；
+  payload `tools/m1/m1b/etc/init.d/lmi-adsp`（用户态触发 ADSP 加载）。
+  固件清单与工具见上一条。
 - **P3 音频工具与固件清单**（2026-09-17）：
   - `docs/firmware-inventory.md`（**P0 交付物**）：本机自带固件的来源/目标路径/大小/
     **逐文件 sha256**/许可 —— ADSP 分段 22 文件（`adsp.mdt` + `adsp.b00…b18` +

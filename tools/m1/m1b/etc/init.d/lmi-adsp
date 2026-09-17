@@ -1,0 +1,56 @@
+#!/sbin/openrc-run
+# SPDX-License-Identifier: MIT
+# Boot the ADSP (audio DSP).
+#
+# The msm-4.19 `adsp-loader` does NOT load the firmware on its own: the load is
+# triggered when userspace writes 1 to /sys/kernel/boot_adsp/boot (on Android the
+# vendor init does exactly that).  Without it the ADSP stays down, the APR audio
+# channel never comes up and the whole audio PDR chain stalls.
+#
+# The firmware lives in the rootfs (/lib/firmware/adsp.mdt + adsp.b*, installed
+# by tools/p3/install-adsp-firmware.sh), so this must run after localmount -- the
+# kernel's boot-time PIL attempt happens before the rootfs exists and fails.
+#
+# Ordering: the kernel's audio service_locator waits (up to 50 min) for the
+# apps-side servreg locator (pd-mapper), and the audio notifier only reports UP
+# once the ADSP's servreg-notif is reachable, so the ADSP must be up before (or
+# around) pd-mapper/tqftpserv start.
+#
+# See docs/bluetooth-assessment.md 6c for the full chain.
+name="lmi-adsp"
+description="Load the ADSP firmware and boot the audio DSP"
+
+depend() {
+	need localmount
+	after udev-settle
+	before pd-mapper rmtfs tqftpserv
+}
+
+ADSP_BOOT=/sys/kernel/boot_adsp/boot
+ADSP_FW=/lib/firmware/adsp.mdt
+
+start() {
+	ebegin "Booting the ADSP (audio DSP)"
+	if [ ! -r "$ADSP_FW" ]; then
+		eend 1 "$ADSP_FW not found (firmware not installed; see tools/p3/)"
+		return 1
+	fi
+	if [ ! -w "$ADSP_BOOT" ]; then
+		eend 1 "$ADSP_BOOT not writable (adsp-loader not bound?)"
+		return 1
+	fi
+	if ! echo 1 > "$ADSP_BOOT"; then
+		eend 1 "failed to write $ADSP_BOOT"
+		return 1
+	fi
+	# Give the DSP a moment to bring up its QRTR services (servreg-notif) so
+	# that services started after us (pd-mapper, tqftpserv) see it.
+	sleep 3
+	eend 0 "ADSP boot requested"
+}
+
+stop() {
+	# The ADSP is left running: it backs voice/WiFi coexistence, and stopping
+	# it here would not reset anything meaningful.
+	eend 0
+}

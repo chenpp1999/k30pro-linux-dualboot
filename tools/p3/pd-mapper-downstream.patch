@@ -1,0 +1,109 @@
+diff --git a/pd-mapper.c b/pd-mapper.c
+index 1167e02..de3529d 100644
+--- a/pd-mapper.c
++++ b/pd-mapper.c
+@@ -272,6 +272,63 @@ static char *known_extensions[] = {
+   NULL,
+ };
+ 
++static bool is_json_name(const char *name)
++{
++	size_t len = strlen(name);
++	int i;
++
++	for (i = 0; known_extensions[i]; i++) {
++		size_t elen = strlen(known_extensions[i]);
++
++		if (len > elen && !strcmp(name + len - elen, known_extensions[i]))
++			return true;
++	}
++
++	return false;
++}
++
++/*
++ * Add every *.jsn / *.jsn.xz found in @dir to the map set.
++ *
++ * Used when /sys/class/remoteproc is unavailable -- e.g. the QTI PIL loader on
++ * msm-4.19 downstream kernels -- where there is no per-rproc firmware path to
++ * derive the JSON directory from.  PD_MAPPER_FIRMWARE_DIR overrides the
++ * default (FIRMWARE_BASE, i.e. /lib/firmware/).
++ */
++static int pd_scan_dir(struct assoc *json_set, const char *dir)
++{
++	char json_path[PATH_MAX];
++	struct dirent *de;
++	DIR *d;
++
++	d = opendir(dir);
++	if (!d) {
++		warn("failed to open pd map directory %s", dir);
++		return -1;
++	}
++
++	while ((de = readdir(d)) != NULL) {
++		if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
++			continue;
++
++		if (!is_json_name(de->d_name))
++			continue;
++
++		if (strlen(dir) + 1 + strlen(de->d_name) + 1 > sizeof(json_path))
++			continue;
++
++		strcpy(json_path, dir);
++		strcat(json_path, "/");
++		strcat(json_path, de->d_name);
++
++		assoc_set(json_set, json_path, NULL);
++	}
++
++	closedir(d);
++
++	return 0;
++}
++
+ static int pd_enumerate_jsons(struct assoc *json_set)
+ {
+ 	char firmware_value[PATH_MAX];
+@@ -291,8 +348,18 @@ static int pd_enumerate_jsons(struct assoc *json_set)
+ 
+ 	class_fd = open("/sys/class/remoteproc", O_RDONLY | O_DIRECTORY);
+ 	if (class_fd < 0) {
+-		warn("failed to open remoteproc class");
+-		return -1;
++		const char *dir = getenv("PD_MAPPER_FIRMWARE_DIR");
++
++		/*
++		 * Some kernels do not expose the remoteproc class: there is no
++		 * per-rproc firmware path to derive the JSON directory from, so
++		 * scan the firmware directory directly instead.
++		 */
++		if (!dir)
++			dir = FIRMWARE_BASE;
++
++		warn("no remoteproc class; scanning %s for pd maps", dir);
++		return pd_scan_dir(json_set, dir);
+ 	}
+ 
+ 	class_dir = fdopendir(class_fd);
+diff --git a/servreg_loc.h b/servreg_loc.h
+index 2ac5faa..b5eeff8 100644
+--- a/servreg_loc.h
++++ b/servreg_loc.h
+@@ -7,8 +7,13 @@
+ #include "libqrtr.h"
+ 
+ #define SERVREG_QMI_SERVICE 64
+-#define SERVREG_QMI_VERSION 257
+-#define SERVREG_QMI_INSTANCE 0
++/*
++ * The downstream msm-4.19 service_locator looks the publisher up with
++ * SERVREG_LOC_SERVICE_VERS_V01 (0x01) / SERVREG_LOC_SERVICE_INSTANCE_ID (1),
++ * so publish exactly that tuple (upstream pd-mapper uses 0x101 / 0).
++ */
++#define SERVREG_QMI_VERSION 1
++#define SERVREG_QMI_INSTANCE 1
+ #define QMI_RESULT_SUCCESS 0
+ #define QMI_RESULT_FAILURE 1
+ #define QMI_ERR_NONE 0

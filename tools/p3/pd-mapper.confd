@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT
+# pd-mapper (apps-side servreg locator) -- see docs/bluetooth-assessment.md 6c.
+
+# Directory scanned for PD map JSONs (*.jsn / *.jsn.xz).  The ADSP firmware's
+# adspr.jsn / adspua.jsn are installed next to adsp.mdt in /lib/firmware, so the
+# default works; point this elsewhere to override.
+PD_MAPPER_FIRMWARE_DIR="/lib/firmware"
+export PD_MAPPER_FIRMWARE_DIR
+
+# Extra pd-mapper command line arguments (none needed by default).
+PD_MAPPER_ARGS=""

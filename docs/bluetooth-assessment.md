@@ -222,14 +222,22 @@ boot: audio_pdr module_init → get_service_location("audio_pdr_adsp","avs/audio
 部署内核的 `/proc/config.gz`：`# CONFIG_REMOTEPROC is not set`（用的是下游 `MSM_PIL`/
 `subsys-pil-tz`）→ **没有 `/sys/class/remoteproc`**，linux-msm 版 `pd-mapper` 直接放弃。
 
-### 6c.4 下一步（已收敛，建议按此实现）
+### 6c.4 下一步（已收敛，工具已实现）
 
-1. **移植/补丁 `pd-mapper`**：让它不必依赖 remoteproc —— 直接读一个目录下的 `*.jsn`
-   （我们要的文件就是 `adspr.jsn` + `adspua.jsn`，格式一致），其余（QML/QMI locator 服务、
-   JSON 解析、notif 代理）照用。地图内容已知：
-   `domain=adsp / subdomain=audio_pd / qmi_instance_id=74`、`provider=avs, service=audio`。
-   先例：Android 自己的 pd-mapper 就是这么工作的（无需 remoteproc）。
-2. 让 `pd-mapper`/`rmtfs`/`tqftpserv` **随 boot 起**（OpenRC，且在 ADSP 起来之前），
+1. **补丁并原生编译 `pd-mapper`** —— 已实现：`tools/p3/pd-mapper-downstream.patch`
+   针对上游 `linux-msm/pd-mapper@5ecd2fe…` 打两处：
+   - `/sys/class/remoteproc` 打不开时**直接扫 `PD_MAPPER_FIRMWARE_DIR`（默认 `/lib/firmware`）
+     里的 `*.jsn`**（我们要的就是 `adspr.jsn` + `adspua.jsn`，格式一致），其余
+     （QMI locator 服务、JSON 解析）照用；先例：Android 自己的 `/vendor/bin/pd-mapper`
+     也是扫固件目录的 `*.jsn`（`strings` 证据见 §6c.3），无需 remoteproc；
+   - 发布元组改成 **`(service 0x40, version 0x01, instance 1)`**（上游是 `0x101/0`）——
+     内核 `service-locator.c` 的查找是 `SERVREG_LOC_SERVICE_VERS_V01=0x01` +
+     `SERVREG_LOC_SERVICE_INSTANCE_ID=1`，必须一致（`service-locator.c:23,271`）。
+   编译/安装：`tools/p3/build-pd-mapper.sh`（**设备内原生 musl**，装 `/usr/bin/pd-mapper`
+   + OpenRC 服务 `pd-mapper`）；地图内容：`avs/audio` →
+   `domain=adsp / subdomain=audio_pd / qmi_instance_id=74`。
+2. 让 `pd-mapper`/`rmtfs`/`tqftpserv` **随 boot 起**（OpenRC；`pd-mapper` 的 unit 由
+   `tools/p3/` 提供，`rmtfs`/`tqftpserv` 可先用 pmOS v25.06 的包），
    `service_locator.enable=1` **已在** `tools/m1/kernel-cmdline-m1b.txt` 里（无需改）。
 3. 复验：`qrtr-lookup` 出现 **service 0x40**；`dmesg` 出现
    `Service locator initialized` → `adv/audio` UP → `q6core-audio`/`sound` 设备出现 →
@@ -253,6 +261,51 @@ boot: audio_pdr module_init → get_service_location("audio_pdr_adsp","avs/audio
   `dsp` = `sde49`，`bluetooth` = `sde35`。
 - `lssh.py` 会把设备 stdout 原样写进 Windows 控制台（gbk）——**含二进制/非 UTF-8 的输出
   会让它抛 `UnicodeEncodeError`**。对策：设备侧 `... > /root/out.txt`，再用 `lcp.py get` 取回。
+
+### 6c.6 P3 第二轮（2026-09-17 续）：locator 已通，卡在 SWR pinctrl（-110）
+
+按 §6c.4 实现并实机跑通，**上一轮的阻塞（apps 侧 locator）已解决**，并暴露出下一环：
+
+**已通（本次实机，boot=35/36）**
+1. `pd-mapper` 补丁 + **设备内原生编译**成功（`tools/p3/build-pd-mapper.sh`，musl/aarch64），
+   以 `(0x40, 0x01, 0x01)` 发布 → `qrtr-lookup` 出现
+   **`64 1 1 1 ... Service registry locator service`**。
+2. **内核 locator 链完成**：
+   ```
+   [ 89.690338] servloc: service_locator_new_server: Connection established with the Service locator
+   [ 89.690356] servloc: init_service_locator: Service locator initialized
+   [ 89.798616]  q6core_probe+0x84/0x120      <- Workqueue: events apr_add_child_devices
+   [ 89.790524] kona-asoc-snd ...:sound: populate_snd_card_dailinks: Using pri_mi2s_rx_tfa9874_dai_links
+   ```
+   → `apr_adsp_up() → of_platform_populate()` 真的跑了，`q6core-audio`/`sound`/`bolero-cdc`/
+   `wcd938x-codec`/各 SWR pinctrl 子设备**都被创建**，机器驱动也 probe 了。
+3. **ADSP 必须由用户态触发加载**（重要）：`adsp-loader` 只在写
+   `/sys/kernel/boot_adsp/boot` 时才 `subsystem_get("adsp")`（Android 是 vendor init 写的）。
+   已加 OpenRC 服务 `lmi-adsp`（payload：`tools/m1/m1b/etc/init.d/lmi-adsp`，`
+   before pd-mapper`，并加进 `m1b-init.sh` 的 `rc-update` 列表）→ 实测开机
+   `t=48.8s adsp: Brought out of reset` → `t=89.7s Service locator initialized`。
+   启动顺序：**ADSP → pd-mapper（locator）→ 内核链**。
+4. `pd-mapper` 的 OpenRC unit 修了一个真坑：`supervise-daemon` 默认 `respawn-max=5`，
+   开机时若短暂失败会**永久退出** → 现在 `respawn_max=0`（实测复现过）。
+
+**剩余阻塞（下一轮从这里开始）**：`sound` 节点仍未绑定 `kona-asoc-snd`、**仍无声卡**。
+dmesg 指向 SWR pinctrl：
+```
+msm-cdc-pinctrl ...:tx_swr_clk_data_pinctrl: msm_cdc_pinctrl_probe: Cannot get cdc gpio pinctrl:-110
+msm-cdc-pinctrl: probe of ...:tx_swr_clk_data_pinctrl failed with error -110
+（rx_swr_clk_data_pinctrl / cdc_dmic01 / cdc_dmic23 同样 -110）
+tx_macro tx-macro: tx_macro_probe: failed to get swr pin state
+rx_macro rx-macro: rx_macro_probe: failed to get swr pin state
+qcom-lpi-pinctrl ...:lpi_pinctrl@33c0000: snd_event_notify: No snd dev entry found
+```
+- `-110 = ETIMEDOUT`，来自 `msm-cdc-pinctrl.c:228 devm_pinctrl_get(&pdev->dev)`；消费者节点
+  的 `pinctrl-0/1` 指向 LPI pinctrl（`techpack/audio/soc/pinctrl-lpi.c`）的状态。
+- 提供者侧线索：`pinctrl-lpi.c:774 devm_pinctrl_register()`、`:800 snd_event_client_register()`，
+  而日志里 `snd_event_notify: No snd dev entry found` 说明 **snd_event 注册/通知路径没走通**
+  （`techpack/audio/soc/snd_event.c`）——很可能是 provider 注册顺序/snd_event 依赖导致的
+  ETIMEDOUT，而非 DT 缺失（DT 里 `lpi_pinctrl@33c0000` 与 `aud_active/aud_sleep` 状态都在）。
+- 打开 `CONFIG_DYNAMIC_DEBUG`（或临时加 printk）确认 `devm_pinctrl_get` 里 ETIMEDOUT 的
+  确切来源，是下一轮的第一步。
 
 ## 7. 参考
 

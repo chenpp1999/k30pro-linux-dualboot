@@ -4,20 +4,23 @@
 [`docs/bluetooth-assessment.md`](../../docs/bluetooth-assessment.md) §6c；
 固件来源与 sha256 见 [`docs/firmware-inventory.md`](../../docs/firmware-inventory.md)。
 
-## 现状（2026-09-17 实测）
+## 现状（2026-09-17 P3 第二轮实测）
 
 | 环节 | 状态 |
 |---|---|
 | ADSP 固件（本机自带，22 文件） | ✅ 已抽取，sha256 入仓（清单 `adsp-firmware.sha256`） |
-| ADSP 加载/启动（`subsystem_get("adsp")`） | ✅ `adsp: Brought out of reset` |
+| ADSP 加载/启动 | ✅ 但**必须用户态触发**：写 `/sys/kernel/boot_adsp/boot` → OpenRC 服务 `lmi-adsp`（在 payload `tools/m1/m1b/etc/init.d/lmi-adsp`） |
 | QRTR / APR 通道 | ✅ `qcom_smd_qrtr_probe`、`apr_audio_svc state[Up]` |
-| 内核音频驱动/DT | ✅ 全部编入并绑定（`kona-asoc-snd`、`wcd938x_codec`、`bolero`、`msm-dai-*`…） |
-| **apps 侧 `SERVREG_LOC`（0x40）= `pd-mapper`** | ❌ **阻塞**：linux-msm 版需要 `/sys/class/remoteproc`（本下游内核没有） |
-| 声卡 | ❌ 未出现（`audio_apr` 的 DT 子设备只在 ADSP-up 通知里创建） |
+| 内核音频驱动/DT | ✅ 编入；ADSP-up 后 `apr_add_child_devices` 会创建 `q6core-audio`/`sound`/`bolero`/`wcd938x` |
+| apps 侧 `SERVREG_LOC`（0x40）= `pd-mapper` | ✅ **已解决**：本目录补丁 + `build-pd-mapper.sh` → 内核 `Service locator initialized` |
+| **SWR pinctrl（`msm-cdc-pinctrl`）** | ❌ **当前阻塞**：`devm_pinctrl_get` = **-110** → `tx/rx_macro: failed to get swr pin state` → `sound` 不绑 `kona-asoc-snd` |
+| 声卡 | ❌ 未出现（`/proc/asound/cards` 空） |
 
-**下一步**：移植/补丁 `pd-mapper`，让它直接读 `*.jsn`（不依赖 remoteproc）。
-地图内容已知：`avs/audio` → `domain=adsp`、`subdomain=audio_pd`、`qmi_instance_id=74`
-（Android 自带 `/vendor/bin/pd-mapper` 就是这么做的，但它是 bionic 二进制）。
+**下一步**：查 `msm-cdc-pinctrl.c:228 devm_pinctrl_get()` 的 -110 来源 —— 提供者是
+`techpack/audio/soc/pinctrl-lpi.c`（`:774 devm_pinctrl_register` / `:800 snd_event_client_register`，
+日志有 `snd_event_notify: No snd dev entry found`）。最省事：开 `CONFIG_DYNAMIC_DEBUG`
+或临时 printk 定位。完整证据链见
+[`docs/bluetooth-assessment.md`](../../docs/bluetooth-assessment.md) §6c.6。
 
 ## 工具
 
@@ -28,9 +31,20 @@ tools/p3/extract-adsp-firmware.sh --out "$TEMP/opencode/p3/fw" [--serial <serial
 # 设备 Linux 侧（root；--boot 只写 adsp-loader 的一次性 sysfs，不动分区）
 tools/p3/install-adsp-firmware.sh --from <dir> [--boot] [--dry-run]
 
+# 设备 Linux 侧：编译 + 安装 pd-mapper（原生 musl；含 OpenRC 服务）
+tools/p3/build-pd-mapper.sh [--dry-run]
+
 # 设备 Linux 侧（只读体检：逐环节报告哪一环断了）
 tools/p3/audio-probe.sh
 ```
+
+补丁要点（`pd-mapper-downstream.patch`，针对上游
+`linux-msm/pd-mapper@5ecd2fe926aca7abfe40724177f63b942cff3947`）：
+
+| 改动 | 原因 |
+|---|---|
+| `/sys/class/remoteproc` 打不开时**直接扫 `PD_MAPPER_FIRMWARE_DIR`（默认 `/lib/firmware`）里的 `*.jsn`** | 本下游内核用 QTI PIL，`CONFIG_REMOTEPROC` 未开 → 上游逻辑拿到的是 `ENOENT`（`no pd maps available`） |
+| 发布元组 `(service 0x40, version 0x01, instance 1)`（上游是 `0x101 / 0`） | 内核 `service_locator.c` 的查找是 `SERVREG_LOC_SERVICE_VERS_V01=0x01` / `SERVREG_LOC_SERVICE_INSTANCE_ID=1`，必须严格一致 |
 
 固件**不入仓**：`--out`/`--from` 指向本机暂存目录或设备 `/lib/firmware`，
 仓库里只有 sha256 清单（`SECURITY.md`）。
@@ -50,7 +64,12 @@ rc-service rmtfs start; rc-service pd-mapper start; rc-service tqftpserv start
 
 ## 复验顺序
 
-1. `tools/p3/audio-probe.sh` —— 看 §1–§4 是否全绿（固件/ADSP/QRTR）。
-2. 修好 `pd-mapper` 后**必须重启**再验（`service_locator.c` 的 `service_timedout`
-   是一次性粘滞标志，热插拔不会重试）。
-3. 声卡出现后：`aplay -l` / `arecord -l`，再低音量出声与 `arecord` 录音。
+1. `tools/p3/install-adsp-firmware.sh --from <dir-on-device>`（固件 + 校验）。
+2. `tools/p3/build-pd-mapper.sh [--source <pristine-tree>]`（编译安装 pd-mapper + OpenRC 服务；
+   设备无网时先在 PC 导出上游源码再 `--source`）。
+3. 确认 OpenRC 里 `lmi-adsp` 与 `pd-mapper` 都在 `default` runlevel
+   （`rc-update show default`）；`lmi-adsp` 必须在 `pd-mapper` 之前。
+4. **重启**（`service_locator` 的一次性等待只在开机生效），然后 `tools/p3/audio-probe.sh`：
+   §1–§4 应全绿，`qrtr-lookup` 同时出现 `0x42`（ADSP）与 **`0x40`（locator）**。
+5. 声卡出现后：`aplay -l` / `arecord -l`，再低音量出声与 `arecord` 录音
+   （当前还卡在 SWR pinctrl，见上表）。
