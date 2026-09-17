@@ -76,7 +76,14 @@ wsl -u root -e sh tools/kernel/build-kernel.sh --config /root/kbuild/config-p2.a
    组装 `boot-g2.img`，`fastboot boot`（**零写入**）验证显示/触摸/WiFi/USB/SSH 不回归，
    并用 `/proc/version` 里的 **clang 版本**（设备是 Alpine 22.1.8，自编是 Ubuntu 18.1.3）
    证明跑的是自编内核。
-2. P2 再在 config 副本上打开音频/蓝牙：
+2. P2（2026-09-17 实测后修订）：**音频不用改 config**——`techpack/audio`（`asoc/kona.c`、
+   `wcd938x`、`bolero`、SoundWire）由 `ARCH_KONA=y` 经 `konaauto.conf` 无条件编译，DT
+   routing 也在；阻塞是运行时（ADSP 固件 + QRDR/PDR 服务），归 P3。**蓝牙本内核不可行**：
+   Android 的 `kona-perf_defconfig` 只开 `CONFIG_BT_SLIM_QCA6390`（高通私有 SLIMbus），
+   树里 `hci_qca` 只支持 serdev 且 `btqca` 无 QCA6390；实测开 UART HCI 后 `hci0` 能建但
+   打开即在 `qca_setup()` 崩溃（`hu->serdev == NULL`）。详见
+   `docs/bluetooth-assessment.md` §6b。
+   以下 mainline 符号仅作历史参考：
    - 音频：`SND_SOC_QCOM`、`SND_SOC_QDSP6`、`SND_SOC_SM8250`、`SND_SOC_WCD938X(_SDW)`、
      `SND_SOC_LPASS_{RX,TX,VA}_MACRO`、`SND_SOC_TFA9874`、`QCOM_APR`、`SOUNDWIRE(_QCOM)`、
      `QCOM_PDR_HELPERS/MSG`、`QCOM_SYSMON`、`QCOM_Q6V5_PAS`；

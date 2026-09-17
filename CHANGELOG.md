@@ -5,6 +5,15 @@
 
 ## [Unreleased]
 
+### Changed
+- **P2 结论（2026-09-17，实机）**：
+  - **蓝牙**：本内核 QCA6390 BT 走高通私有 SLIMbus 路径（Android `kona-perf_defconfig`
+    也只开 `CONFIG_BT_SLIM_QCA6390`）；开 `BT_HCIUART(_QCA)` 后 `hci0` 会出现、芯片会
+    上电，但打开即在 `qca_setup()` 崩溃（该下游 `hci_qca` 只支持 serdev，`hu->serdev==NULL`），
+    且 `btqca` 无 QCA6390 实现 → **P2 取消蓝牙**（详见 `docs/bluetooth-assessment.md` §6b）。
+  - **音频**：发现 `techpack/audio`（kona 机器驱动 + wcd938x/bolero + SoundWire）**已被
+    `ARCH_KONA` 无条件编进内核**，DT routing 也在 → 音频**不需要改 config**，阻塞在运行时
+    （ADSP 固件 + QRTR/PDR + `pd-mapper`/`rmtfs`）→ 转入 P3（固件+用户态）。
 ### Fixed
 - **`m1-weston` 自愈 seatd 卡死**（2026-09-17 实测）：运行中 `seatd` 卡住（进程与
   `/run/seatd.sock` 都在，但连接被拒）时，weston 每次启动都失败 → wrapper 无限重试 →

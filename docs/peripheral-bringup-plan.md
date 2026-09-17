@@ -113,7 +113,15 @@ P0 固件侦察  →  P1 内核构建环境  →  P2 配置/DT 开关  →  P3 �
 
 ### P2 打开音频 + 蓝牙（配置 + DT）（~0.5 天）
 
-**内核配置（音频，来自上游清单/该树的 `lmi/configs/m1.config`）**：
+**P2 实测（2026-09-17）：音频其实不需要改 config** —— 这套下游内核的音频在
+`techpack/audio/`，由 `ARCH_KONA=y` 经 `konaauto.conf` **无条件导出并编译**
+（`out/techpack/audio/**/*.o` 已在），机器驱动 `asoc/kona.c`、编解码 `wcd938x`/`bolero`、
+SLIM/SoundWire 都在，且 `lmi-audio-overlay.dtsi` 里已有完整 routing。所以**音频卡不起来是
+运行时问题**：ADSP 未启动 + 服务层（QRTR/PDR、`pd-mapper`/`rmtfs`）缺失 → 归入 **P3（固件 +
+用户态）**：把 ADSP 固件（`qcom/sm8250/adsp.mbn` 等）放到 `/lib/firmware/`，起 `pd-mapper`/
+`rmtfs`/`tqftpserv`，再验证 `/proc/asound/cards` 出现声卡（含麦克风采集）。
+
+下面那串 mainline 符号（`SND_SOC_QCOM`/`WCD938X`…）在本下游树里**不存在**，仅作参考留档：
 ```
 CONFIG_SOUNDWIRE=y           CONFIG_SOUNDWIRE_QCOM=y
 CONFIG_QCOM_PDR_HELPERS=y    CONFIG_QCOM_PDR_MSG=y
@@ -125,11 +133,12 @@ CONFIG_SND_SOC_WCD938X=y     CONFIG_SND_SOC_WCD938X_SDW=y
 CONFIG_SND_SOC_LPASS_RX_MACRO=y  CONFIG_SND_SOC_LPASS_TX_MACRO=y
 CONFIG_SND_SOC_LPASS_VA_MACRO=y  CONFIG_SND_SOC_TFA9874=y
 ```
-**内核配置（蓝牙）**：
-```
-CONFIG_BT_HCIUART=y    CONFIG_BT_HCIUART_QCA=y    CONFIG_BT_QCA=y
-（若该树有 CONFIG_BT_HCIUART_SERDEV 一并开；诊断期可开 CONFIG_BT_HCIVHCI）
-```
+**内核配置（蓝牙）—— ❌ 已证伪（2026-09-17，见 `bluetooth-assessment.md` §6b）**：
+本内核的 QCA6390 蓝牙走高通私有 SLIMbus BT/FM 路径（Android 的 `kona-perf_defconfig`
+也只有 `CONFIG_BT=y`+`CONFIG_BT_SLIM_QCA6390=y`），树里的 `hci_qca` 只支持 serdev 且
+`btqca` 无 QCA6390。实测开 `BT_HCIUART(_QCA)` 后 `hci0` 能出现、芯片能上电，但一打开就
+在 `qca_setup()`（`hu->serdev == NULL`）崩溃。**P2 取消 BT**；要做只能复刻厂商 SLIM-HCI
+或换 mainline（会失去 WiFi）。
 **设备树**：在 `998000.qcom,qup_uart`（= `ttyHS0`）下加 BT 子节点
 `bluetooth { compatible = "qcom,qca6390-bt"; ... }`，复用现有 `/vendor/bt_qca6390` 的
 稳压器与 `bt-en`/`reset`/`sw_ctrl` GPIO（具体属性名以本树 `hci_qca`/`btqca` 的 dt-bindings

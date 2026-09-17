@@ -107,6 +107,36 @@ LineageOS 分区里）+ 内核音频配置 + UCM；`/dev/snd` 目前只有 timer
 扬声器/听筒出声（需要有人现场听）。风险同样在**内核重建 + 固件获取**，且与蓝牙共用
 同一次内核改动 —— 建议合并为一个"外设 bring-up"里程碑一起做。
 
+## 6b. P2 实测复验（2026-09-17）——结论：本内核上不可行
+
+按 §3 Step 1 试了"标准 Linux 路径"，结果**否定了该路径**，并查明了原因：
+
+1. 打开 `SERIAL_DEV_BUS`（`BT_HCIUART_SERDEV` 的硬依赖）+ `BT_HCIUART` +
+   `BT_HCIUART_QCA` + `BT_QCA`，编出内核并 `fastboot boot`（`Image` sha256 `b0f57baf…`）。
+   → `hci0` **出现了**并绑定 `ttyHS0`，`bt_power` 也把 5 路稳压器依次上电
+   （`bt_vreg_enable: … successful`）；但**一打开就内核崩溃**：
+   ```
+   Workqueue: hci0 hci_power_on
+   pc : qca_setup+0x3c/0x6c0   lr : hci_uart_setup → hci_dev_do_open → hci_power_on
+   ```
+   源码原因（`drivers/bluetooth/hci_qca.c:1151`）：
+   ```c
+   qcadev = serdev_device_get_drvdata(hu->serdev);   /* tty/btattach 路径下 hu->serdev == NULL */
+   ```
+   即**这个下游 `hci_qca` 只支持 serdev 路径**，`btattach`（tty/N_HCI）会空指针。
+2. 而且树里的 `btqca` **根本没有 QCA6390**（`enum qca_btsoc_type` 只到 `QCA_WCN3990`），
+   `hci_qca` 的 DT 匹配也只有 `qcom,qca6174-bt`/`qcom,wcn3990-bt` → 即使走 serdev 也没有
+   QCA6390 的初始化/固件下载实现。
+3. **决定性证据**：本机 **Android 自己的 `kona-perf_defconfig` 里 BT 只有**
+   `CONFIG_BT=y` + `CONFIG_BT_SLIM_QCA6390=y`（没有 UART/USB HCI）。也就是说该平台的
+   QCA6390 蓝牙走高通**私有 SLIMbus BT/FM**（`btfm_slim`/`btfm_slim_slave`）路径，与
+   标准 Linux 的 `hci_qca` 完全不是一回事；`btfm_slim*.c` 里也没有 `hci_register_dev`
+   （它是 SLIM slave/codec，不是 HCI 传输）。
+
+**结论**：在这套下游 4.19 内核上，蓝牙**不是配置能解决的**，要复刻高通私有 SLIM-HCI
+（或换 mainline 内核——但会失去 cnss2 WiFi）。**P2 的 BT 分支就此关闭**（保留本节证据，
+避免后人重复）。曾经打开 BT 的尝试也让 `btattach` 卡在 D 状态、`hci0` 卡死，需一次重启清除。
+
 ## 7. 参考
 
 - 内核来源与配置：`jian45154/redmi-k30-pro-postmarketos` →
