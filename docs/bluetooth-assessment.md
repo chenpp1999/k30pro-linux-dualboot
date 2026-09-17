@@ -288,24 +288,29 @@ boot: audio_pdr module_init → get_service_location("audio_pdr_adsp","avs/audio
 4. `pd-mapper` 的 OpenRC unit 修了一个真坑：`supervise-daemon` 默认 `respawn-max=5`，
    开机时若短暂失败会**永久退出** → 现在 `respawn_max=0`（实测复现过）。
 
-**剩余阻塞（下一轮从这里开始）**：`sound` 节点仍未绑定 `kona-asoc-snd`、**仍无声卡**。
-dmesg 指向 SWR pinctrl：
-```
-msm-cdc-pinctrl ...:tx_swr_clk_data_pinctrl: msm_cdc_pinctrl_probe: Cannot get cdc gpio pinctrl:-110
-msm-cdc-pinctrl: probe of ...:tx_swr_clk_data_pinctrl failed with error -110
-（rx_swr_clk_data_pinctrl / cdc_dmic01 / cdc_dmic23 同样 -110）
-tx_macro tx-macro: tx_macro_probe: failed to get swr pin state
-rx_macro rx-macro: rx_macro_probe: failed to get swr pin state
-qcom-lpi-pinctrl ...:lpi_pinctrl@33c0000: snd_event_notify: No snd dev entry found
-```
-- `-110 = ETIMEDOUT`，来自 `msm-cdc-pinctrl.c:228 devm_pinctrl_get(&pdev->dev)`；消费者节点
-  的 `pinctrl-0/1` 指向 LPI pinctrl（`techpack/audio/soc/pinctrl-lpi.c`）的状态。
-- 提供者侧线索：`pinctrl-lpi.c:774 devm_pinctrl_register()`、`:800 snd_event_client_register()`，
-  而日志里 `snd_event_notify: No snd dev entry found` 说明 **snd_event 注册/通知路径没走通**
-  （`techpack/audio/soc/snd_event.c`）——很可能是 provider 注册顺序/snd_event 依赖导致的
-  ETIMEDOUT，而非 DT 缺失（DT 里 `lpi_pinctrl@33c0000` 与 `aud_active/aud_sleep` 状态都在）。
-- 打开 `CONFIG_DYNAMIC_DEBUG`（或临时加 printk）确认 `devm_pinctrl_get` 里 ETIMEDOUT 的
-  确切来源，是下一轮的第一步。
+**剩余阻塞的根因已定位（2026-09-17 续）—— 是 deferred-probe 超时，不是 DT/驱动缺失**：
+
+`drivers/base/dd.c`：`CONFIG_MODULES` 打开时内核默认 **`deferred_probe_timeout = 30`（秒）**，
+超时后 `deferred_probe_timeout = 0`，此后**任何 `-EPROBE_DEFER` 都被强制忽略**并打
+`deferred probe timeout, ignoring dependency`（`driver_deferred_probe_check_state()`），
+被强制的 probe 一旦失败就**不再重试**。
+
+我们的音频链要等 rootfs 里的固件 + 用户态的 `lmi-adsp`/`pd-mapper`，**最早 t≈89s**才
+`of_platform_populate` 出 `q6core-audio` 的那批子设备 —— 早已过了 t=30s 的超时窗口。
+于是同一批里**最后创建**的 provider（`lpi_pinctrl@33c0000` → `qcom-lpi-pinctrl`，实测它
+**绑定成功**）还没就绪，前面 4 个消费者（`tx/rx_swr_clk_data_pinctrl`、`cdc_dmic01/23_pinctrl`）
+就被强制 probe → `devm_pinctrl_get()` 返回 **-110** → `tx/rx_macro: failed to get swr pin state`
+→ `sound` 不绑 `kona-asoc-snd` → 无声卡。
+
+**修复（一行 cmdline，已入库）**：在 `tools/m1/kernel-cmdline-m1b.txt` 加
+**`deferred_probe_timeout=300`**（给链 300s；`0`/负数 = 永不超时，即等于无 modules 内核的
+默认语义）。改用新 cmdline 的镜像后用 `fastboot boot`（零写入）即可验证：
+`sound` 绑定 → `/proc/asound/cards` → `aplay -l`/`arecord -l` → 出声/录音。
+
+> 注：provider 绑定成功但 `/sys/class/pinctrl/` 不存在 —— 该 LPI pinctrl 走的是
+> Qualcomm 私有路径（`techpack/audio/soc/pinctrl-lpi.c` 自己 `devm_pinctrl_register`），
+> 与 mainline 的 pinctrl 类不同，别据此误判。消费者 `-110` 也**不是** pinctrl core 的
+> 错误码（core 只会给 `-EPROBE_DEFER`），是被强制 probe 后 provider 侧的连锁失败码。
 
 ## 7. 参考
 

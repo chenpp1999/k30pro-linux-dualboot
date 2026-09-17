@@ -5,6 +5,19 @@
 
 ## [Unreleased]
 
+### Fixed
+- **音频无声卡的根因＝`deferred_probe_timeout`（2026-09-17 定位并入库修复）**：
+  `drivers/base/dd.c` 在 `CONFIG_MODULES` 下默认 **30 秒**的 deferred-probe 超时；超时后
+  任何 `-EPROBE_DEFER` 都被**强制忽略**（`deferred probe timeout, ignoring dependency`）
+  且被强制的 probe 不再重试。而我们的音频链（ADSP 固件在 rootfs + 用户态 `lmi-adsp`/
+  `pd-mapper`）最早 **t≈89s** 才 `of_platform_populate` 出 `q6core-audio` 子设备 ——
+  同一批里**最后**创建的 provider（`lpi_pinctrl@33c0000`，实测绑定成功）还没就绪，
+  前面的 4 个 `msm-cdc-pinctrl` 消费者就被强制 probe → `devm_pinctrl_get()` = **-110**
+  → `tx/rx_macro: failed to get swr pin state` → `sound` 不绑 `kona-asoc-snd` → 无声卡。
+  修复：`tools/m1/kernel-cmdline-m1b.txt` 加 **`deferred_probe_timeout=300`**
+  （0/负数＝永不超时）。**下一轮**：用带新 cmdline 的镜像 `fastboot boot`（零写入）复验
+  `/proc/asound/cards` 与 `aplay`/`arecord`。证据见 `docs/bluetooth-assessment.md` §6c.6。
+
 ### Changed
 - **P3 音频第二轮（2026-09-17，实机）：apps 侧 locator 已打通，卡在 SWR pinctrl（-110）**：
   - 新增 `tools/p3/pd-mapper-downstream.patch`（针对

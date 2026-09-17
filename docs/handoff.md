@@ -233,13 +233,20 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
     会**永久退出且不再重启**——`pd-mapper` 就这样静默消失过一次。我们的 `pd-mapper` unit
     设了 `respawn_max=0`；自愈类服务（`m1-weston` 用 shell 循环，不受影响）遇到类似症状时
     先看 `/var/log/messages` 里的 `supervise-daemon ... too many times, exiting`。
-25. **`snd_event` / SWR pinctrl 是音频的下一道坎**（2026-09-17 实测）：ADSP 起来后
-    `msm-cdc-pinctrl` 的 `devm_pinctrl_get()` 返回 **-110(ETIMEDOUT)**
-    （`tx/rx_swr_clk_data_pinctrl`、`cdc_dmic01/23_pinctrl` 全部 probe 失败）→
-    `tx_macro/rx_macro: failed to get swr pin state` → `sound` 节点不绑 `kona-asoc-snd` →
-    **无声卡**。相关代码：`techpack/audio/asoc/codecs/msm-cdc-pinctrl.c:228`、
-    `techpack/audio/soc/pinctrl-lpi.c:774/800`、`techpack/audio/soc/snd_event.c`；
-    日志线索 `snd_event_notify: No snd dev entry found`。
+25. **音频的 -110 是 `deferred_probe_timeout` 造成的**（2026-09-17 定位）：
+    `drivers/base/dd.c` 在 `CONFIG_MODULES` 下默认 **`deferred_probe_timeout = 30` 秒**，
+    超时后任何 `-EPROBE_DEFER` 都被**强制忽略**（`deferred probe timeout, ignoring dependency`）
+    且不再重试。我们的音频链受"固件在 rootfs + 用户态服务"限制，最早 **t≈89s** 才创建
+    `q6core-audio` 的子设备 —— 同一批里最后创建的 provider（`lpi_pinctrl@33c0000`，
+    实测**绑定成功**）还没就绪，前面的 `msm-cdc-pinctrl` 消费者就被强制 probe →
+    `devm_pinctrl_get()` = **-110** → `tx/rx_macro: failed to get swr pin state` →
+    `sound` 不绑 `kona-asoc-snd` → 无声卡。
+    **修复已入库**：`tools/m1/kernel-cmdline-m1b.txt` 加 **`deferred_probe_timeout=300`**
+    （0/负数 = 永不超时）→ **需要一枚新 cmdline 的引导镜像**（设备内
+    `rebuild-image-from-device.sh` 复用旧 cmdline，要加 `--cmdline` 支持或改
+    `unpacked/cmdline`），再用 **`fastboot boot`（零写入）**验证：`sound` 绑定 →
+    `/proc/asound/cards` → `aplay -l`/`arecord -l` → 出声/录音（含麦克风）。
+    排查提示：该内核**没编 `CONFIG_DYNAMIC_DEBUG`**，动态调试打不开，只能靠 printk 或推理。
 
 ## 六之二、weston 终端/键盘实测结论（2026-09-15，补丁 0012–0019）
 
@@ -304,16 +311,17 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
    `/var/log/lmi-netwatch.log`、`dmesg | grep -i cnss`、`/var/log/lmi-wifi.log` 再动手。
 5. **可选收尾**：super 内旧 rootfs 区回收（观察期后）、`docs/architecture.md` §2/§3 与
    `docs/test-plan.md` T4 回填、IME 第二页、电池 LED 提示。
-6. **P3 音频（下一步＝解决 SWR pinctrl 的 -110）**：上半场已完成并可复现 —— 固件就位、
-   `lmi-adsp` 触发 ADSP、`pd-mapper` 提供 apps 侧 locator、内核 `Service locator initialized`
-   → `apr_add_child_devices` → `q6core-audio`/`sound`/`bolero`/`wcd938x` 设备全部创建、
-   `kona-asoc-snd` 也 probe 了。**只差 SWR pinctrl**：`msm-cdc-pinctrl` 的
-   `devm_pinctrl_get()` 返回 -110 → `tx/rx_macro: failed to get swr pin state` →
-   `sound` 不绑定 → 无声卡。
-   下一步：① 开 `CONFIG_DYNAMIC_DEBUG`（或临时 printk）定位 `devm_pinctrl_get` 里
-   ETIMEDOUT 的确切来源（`techpack/audio/soc/pinctrl-lpi.c` 是提供者；
-   `snd_event_notify: No snd dev entry found` 是线索）；② 修好后 `aplay -l`/`arecord -l`
-   并试出声/录音（含麦克风）。蓝牙**已证伪，别再碰**（§6b）。
+6. **P3 音频（下一步＝换新 cmdline 的镜像复验声卡）**：整条链已经跑通并可复现 ——
+   固件就位、`lmi-adsp` 触发 ADSP、`pd-mapper` 提供 apps 侧 locator、内核
+   `Service locator initialized` → `apr_add_child_devices` → `q6core-audio`/`sound`/
+   `bolero-cdc`/`wcd938x` 设备创建、`kona-asoc-snd` probe。
+   最后一道坎已定位为 **`deferred_probe_timeout`（默认 30s）**：音频设备要到 t≈89s 才创建，
+   超时窗口早已关闭 → provider（LPI pinctrl，实测绑定成功）来不及就绪，消费者被强制 probe
+   而 -110。**修复已入库**（cmdline 加 `deferred_probe_timeout=300`）。
+   下一步：① 用带新 cmdline 的镜像（设备内重建时覆盖 `unpacked/cmdline`，或给
+   `rebuild-image-from-device.sh` 加 `--cmdline`）；② `fastboot boot`（零写入）验证
+   `sound` 绑定 + `/proc/asound/cards` + `aplay -l`/`arecord -l`；③ 出声/录音（麦克风）
+   通过后再谈 overlay v18 持久化。蓝牙**已证伪，别再碰**（§6b）。
    工具 `tools/p3/`；固件清单 `docs/firmware-inventory.md`。
 7. **把本会话在仓库里、但尚未进设备的修复做成持久化镜像（overlay v17→v18）**：
    `lmi-torch`、`m1-weston`（seatd 自愈）在 repo 里但**没进镜像**；注意
