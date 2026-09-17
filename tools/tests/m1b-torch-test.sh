@@ -68,6 +68,31 @@ else
 	ok "refuses when the flash LED nodes are absent"
 fi
 
+echo "== T8: a stubborn switch write is retried and reported (needs non-root)"
+# the driver occasionally rejects a switch write and accepts it on retry, so the
+# script must retry instead of aborting on the first failure.
+run off >/dev/null 2>&1 || true
+if [ "$(id -u)" = 0 ]; then
+	ok "skipped (running as root: chmod cannot block writes)"
+else
+	chmod 000 "$LEDS/led:switch_0/brightness"
+	if run on --retries 2 >"$TMP/stubborn.out" 2>&1; then
+		fail "on succeeded although the switch is not writable"
+	else
+		ok "on fails (non-zero) when the switch stays unwritable"
+	fi
+	grep -q "WARN: cannot write" "$TMP/stubborn.out" && ok "warns about the failed write" \
+		|| fail "no write warning: $(cat "$TMP/stubborn.out")"
+	# off must stay best-effort even while the switch is still unwritable
+	if run off --retries 2 >/dev/null 2>&1; then
+		ok "off is best-effort and still exits 0"
+	else
+		fail "off exited non-zero on a stubborn switch"
+	fi
+	chmod 644 "$LEDS/led:switch_0/brightness"
+	run off >/dev/null 2>&1 || true
+fi
+
 if [ "$fails" -gt 0 ]; then
 	echo "m1b torch tests: $fails failure(s)"
 	exit 1
