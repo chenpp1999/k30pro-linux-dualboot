@@ -307,6 +307,12 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
    `docs/acceptance/*`、`docs/install-guide.md`、`docs/m1b-rebuild-on-device.md`、
    `docs/m1b-thermal-charging.md`、`docs/m3-repart-plan.md`。
 3. 检查 open issues（`[VFY]` = 验证者产出）+ `git log --oneline -10` 对照 §八。
+   > **待办（2026-09-17 遗留）**：#20/#21/#22 的修复都已落地并推送到 `origin/main`
+   > （#20 → `76c8566`；#21/#22 → `e503ad4`，提交信息带 `Refs: #21 #22 (verifier)`），
+   > 但该会话的 GitHub 令牌**没有 issue 写权限**（`add_issue_comment` 返回 403
+   > `Resource not accessible by personal access token`），所以 **`Resolved-by:` 评论尚未贴出**。
+   > 下次用有 `issues:write` 的令牌补帖（正文可从 `git show e503ad4` 的描述与各 issue 的
+   > 修复点整理）。另外 **#18 需要一次 `workflow_dispatch`** 才能端到端验证 CI。
 
 可直接粘贴给新会话的提示词：
 
