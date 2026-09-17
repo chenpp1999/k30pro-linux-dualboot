@@ -101,14 +101,18 @@ Android + 真 Linux（Alpine/OpenRC + Weston）双系统方案。
   [UX 优化实施计划](docs/linux-ux-plan-2026-09-14.md) ·
   [蓝牙/音频可行性评估](docs/bluetooth-assessment.md) ·
   [硬件支持现状盘点](docs/hardware-status.md) ·
-  [外设 bring-up 计划](docs/peripheral-bringup-plan.md) · `docs/research/`
+  [外设 bring-up 计划](docs/peripheral-bringup-plan.md) ·
+  [固件清单（来源/sha256/许可）](docs/firmware-inventory.md) · `docs/research/`
 
 ## 许可证
 
 - 工具链、脚本、App：MIT，见 [LICENSE](LICENSE)
 - 内核相关补丁 / DTS：GPL-2.0-only（沿用 Linux 内核许可）
-- 中文词典数据：拼音数据 MIT、`rime-essay-simp`/`rime-luna-pinyin` LGPL-3.0、
-  CC-CEDICT CC BY-SA 4.0（见 `tools/m1/ime/README.md`）
+- 第三方字体（WenQuanYi Zen Hei，GPL-2.0+字体例外）与中文词典数据
+  （拼音数据 MIT、`rime-essay-simp`/`rime-luna-pinyin` LGPL-3.0、CC-CEDICT CC BY-SA 4.0）：
+  汇总与再分发义务见 [THIRD_PARTY.md](THIRD_PARTY.md)
+- 设备专有固件（ADSP/CDSP/SLPI/Venus、QCA6390 BT）**不在本仓库**，见
+  [docs/firmware-inventory.md](docs/firmware-inventory.md) §4
 
 ## 免责声明
 

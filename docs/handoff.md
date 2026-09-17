@@ -1,4 +1,4 @@
-# 开发交接（Handoff）— 2026-09-16（v1.0 已发布；M5 地基 + 开关机提速）
+# 开发交接（Handoff）— 2026-09-17（v1.0 已发布；P3 音频：ADSP 已通，卡在 pd-mapper）
 
 > 给接手本项目的 AI 会话/开发者：阅读顺序 = `AGENTS.md` → `docs/ai-protocol.md` → 本文，
 > 再按需深入 `docs/`。所有结论以**仓库 + 设备实测**为准，不依赖任何会话记忆。
@@ -18,14 +18,25 @@
 | 桌面/终端体验 | ✅ 指纹拖动滚动、键盘避让、单窗口、`lmi-help`、WiFi 看门狗 | `docs/usage.md` |
 | M4 | ✅ v1.0 已发布（tag `v1.0.0`） | `docs/release-v1.0.0.md`、`docs/reproduce.md` |
 | M5 | 🚧 一键安装：PC 一键已实现，离线模拟全绿，**真机端到端待验证** | `docs/install-guide.md`、`docs/installer-design.md`、`tools/tests/m5-*.sh` |
+| 外设 bring-up（P0–P3） | 🚧 手电筒 ✅（overlay v17）；蓝牙 ❌ 已证伪；**音频：ADSP 已通、声卡待 pd-mapper** | `docs/{peripheral-bringup-plan,bluetooth-assessment,firmware-inventory}.md`、`tools/{p3,kernel}/` |
 
-## 二、设备当前状态（2026-09-16，实测）
+## 二、设备当前状态（2026-09-17，实测）
 
-- **运行中**：手机**当前在 Android**（2026-09-16 会话末从 Linux 重启回来）；
+- **运行中**：手机**当前在 Android**（2026-09-17 P3 会话末从 Linux 重启回来，adb 正常）；
   `recovery` = **`boot-m1b-v23.img`**（sha256 `c01efe45…`，**overlay `m1b-ux-v16`**，回读校验通过）；
-  rootfs 在 **`/dev/sda35`（`lnx`）**。引导账本 `boot=30`、`overlay=applied`（v16 已落盘）。
+  rootfs 在 **`/dev/sda35`（`lnx`）**。引导账本 **`boot=34`、`overlay=applied`**（v16 已落盘）。
   v15/v16 的内容与实测数据见 §六 第 11/17/18 条与 `CHANGELOG.md`。
-- **WiFi 正常**：Linux 侧会自动连上配置里的网络（本机为 502），SSID/IP 属于按机信息（**不入仓**）；
+- **P3 在 rootfs 里留下了持久状态**（都在 `/dev/sda35` 上，重启不丢）：
+  - **ADSP 固件已在 `/lib/firmware/`**（`adsp.mdt` + `adsp.b00…b18` + `adspr.jsn` +
+    `adspua.jsn`，22 文件 20,356,050 B，sha256 见
+    [`firmware-inventory.md`](firmware-inventory.md)）→ **从这里启动时 ADSP 会被自动加载**；
+  - 用户态：`alsa-utils`/`alsa-ucm-conf`/`qrtr`（Alpine v3.23）+
+    `rmtfs`/`pd-mapper`/`tqftpserv`（pmOS v25.06 包，装在 rootfs 里）；
+  - `/dev/qcom_rmtfs_mem1` 存在（部署内核含 `qcom,rmtfs-mem` DT 补丁）。
+  - 结论：**ADSP 已通**（`adsp: Brought out of reset`、`apr_audio_svc state[Up]`、QRTR 有
+    servreg-notif），**声卡仍未出**，根因与下一步见
+    [`bluetooth-assessment.md`](bluetooth-assessment.md) **§6c**。
+- **WiFi 正常**：Linux 侧会自动连上配置里的网络（SSID/IP 属于按机信息，**不入仓**）；
   `lmi-netwatch`（看门狗）在跑，`/run/lmi-netwatch.state` = `status=ok`。
 - **充电/温控在生效**：`lmi-chargectl` 把 SOC 控制在 70–80 % 锯齿（`/run/lmi-chargectl.state`），
   governor = `schedutil`；监控 `lmi-monitor` + 面板 `http://172.16.42.1:8080/` 正常。
@@ -176,11 +187,36 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
     BT 串口 = `/dev/ttyHS0`（`998000.qcom,qup_uart`）；**完整评估/修复路径/工作量见
     `docs/bluetooth-assessment.md`**（结论：需重建内核 + DT BT 节点 + 原厂 BT 固件 +
     bluez，属独立里程碑；上游内核提供方也没做，且把 BT 排在音频之后）。
-20. **声卡同样不可用（2026-09-16 实测）**：`/proc/asound/cards` 无卡、`/dev/snd` 仅
-    timer；根因与蓝牙同源——内核 `# CONFIG_SND_SOC_QCOM is not set`
-    （WCD938x/LPASS/机器驱动全无）、`# CONFIG_QCOM_APR is not set`，且缺 ADSP 固件、
-    无用户态音频栈。**与蓝牙共用同一次内核重建**，建议合并为一个"外设 bring-up"
-    里程碑；路径见 `docs/bluetooth-assessment.md` §6。
+20. **声卡：不是配置项，而是"ADSP-up 通知链"缺一环**（2026-09-17 P3 实测，**已修正 09-16 的
+    旧判断**）。旧说法"内核没编高通音频驱动"是**错的**：`adsp-loader`/`audio_apr`/
+    `q6core_audio`/`kona-asoc-snd`/`wcd938x_codec`/`bolero-codec`/`swr-wcd`/`msm-pcm-*`/
+    `msm-dai-*` **全都编入并绑定**，DT 节点也齐全。真正的阻塞：
+    - `audio_apr` 的 DT 子设备（含 `q6core-audio` → `sound`）**只在 `apr_adsp_up()`
+      里创建**（`techpack/audio/ipc/apr.c` → `of_platform_populate`），
+      而它要收到音频 notifier 的 "up"；
+    - 该 notifier 需要内核 `service_locator` 先解析 `avs/audio`，即 **apps 侧
+      `SERVREG_LOC`(QMI 0x40) 服务** —— 只能由 `pd-mapper` 提供；
+    - linux-msm 版 `pd-mapper`（Alpine/pmOS 包）**依赖 `/sys/class/remoteproc`**，本下游
+      内核 `CONFIG_REMOTEPROC` 未开 → 直接退出（`no pd maps available`）。
+    **下一步**：移植/补丁 `pd-mapper` 改读 `*.jsn`（地图已知：`avs/audio` →
+    `domain=adsp/subdomain=audio_pd/qmi_instance_id=74`）→ 重启复验。ADSP 固件本机就有
+    （`/vendor/firmware_mnt/image`），已部署到 `/lib/firmware/`。**完整根因链/源码位置/
+    踩坑见 `docs/bluetooth-assessment.md` §6c**；工具见 `tools/p3/`；固件 sha256 见
+    `docs/firmware-inventory.md`。
+21. **P3 音频调试四坑（都踩过）**：
+    - **别用 `dmesg -c` 清日志**再起 ADSP —— module_init 阶段的 `service_locator`/`audio_pdr`
+      报错正是最需要的证据，清了就只能重启复现；
+    - `service_locator.c` 的 **`service_timedout` 是一次性粘滞标志**：超时窗口（3,000,000 ms）
+      内没等到 locator 服务，本次开机**永不重试** → 改完 `pd-mapper` 必须**重启**才能验；
+    - **起 ADSP ≠ 出声卡**：手动 `echo 1 > /sys/kernel/boot_adsp/boot`（或 `.../ssr` 重启）
+      都不会补建 `q6core`/`sound` 设备，除非 locator 已通；
+    - `lssh.py` 把设备 stdout 原样写进 Windows 控制台（gbk）——**含非 UTF-8/二进制会
+      `UnicodeEncodeError`**：设备侧 `... > /root/out.txt`，再 `lcp.py get` 取回。
+22. **busybox `find` 在 `/proc/device-tree` 上不可靠**（返回空结果，`find ... -name compatible`
+    会骗你"节点不存在"）。要核对 DT：`cp /sys/firmware/fdt /root/live.dtb` 拉回来，
+    WSL 里 `dtc -I dtb -O dts live.dtb`。另：设备 UFS LUN 在 Linux 侧同样是
+    `/dev/sda…/sdf`，`firmware_mnt`(vfat) = **`/dev/sde51`**、`dsp` = `sde49`、
+    `bluetooth` = `sde35`（P3 就是从这里取固件的）。
 
 ## 六之二、weston 终端/键盘实测结论（2026-09-15，补丁 0012–0019）
 
@@ -245,27 +281,46 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
    `/var/log/lmi-netwatch.log`、`dmesg | grep -i cnss`、`/var/log/lmi-wifi.log` 再动手。
 5. **可选收尾**：super 内旧 rootfs 区回收（观察期后）、`docs/architecture.md` §2/§3 与
    `docs/test-plan.md` T4 回填、IME 第二页、电池 LED 提示。
-6. **外设 bring-up（新规划，未开工）**：蓝牙 + 音频（**含麦克风**）共用同一次内核重建；
-   计划 `docs/peripheral-bringup-plan.md`（P0 固件侦察 → P1 内核环境 → P2 配置/DT →
-   P3 固件+用户态 → P4 持久化 → P5 验收，Gate G1–G5）。整机硬件盘点（含光感/磁力计/
-   NFC/摄像头/红外/手电筒/指纹/GPS/modem）见 `docs/hardware-status.md`；其中**手电筒/
-   红外是两个不需要动内核的便宜项**。
+6. **P3 音频（下一步，已收敛）**：ADSP 已能启动、APR 已通、固件已部署 —— **只差 apps 侧
+   `servreg` locator**。要做：
+   - 把 `pd-mapper` 移植/补丁成**不依赖 remoteproc**、直接读 `*.jsn`（地图内容已知：
+     `avs/audio` → `domain=adsp`/`subdomain=audio_pd`/`qmi_instance_id=74`；Android 自带
+     `/vendor/bin/pd-mapper` 就是这做法，但它是 bionic 二进制）；
+   - 让 `pd-mapper`/`rmtfs`/`tqftpserv` 随 boot 起（OpenRC；`rmtfs` 依赖
+     `/dev/qcom_rmtfs_mem1`，已具备）；
+   - **重启**后按 `docs/bluetooth-assessment.md` §6c.4 验证（`qrtr-lookup` 出 `service 0x40`
+     → `q6core-audio`/`sound` 设备 → `/proc/asound/cards` → `aplay`/`arecord` 含麦克风）。
+   - 蓝牙**已证伪，别再碰**（§6b）。工具 `tools/p3/`；固件清单 `docs/firmware-inventory.md`。
+7. **把本会话在仓库里、但尚未进设备的修复做成持久化镜像（overlay v17→v18）**：
+   `lmi-torch`、`m1-weston`（seatd 自愈）在 repo 里但**没进镜像**；注意
+   `build-initramfs.sh` 的 `/bin/sh` 软链修复**只对"从零构建 initramfs"生效**，
+   设备内 `rebuild-image-from-device.sh` 复用部署镜像的 ramdisk，**要单独把 `bin/sh`
+   加进 ramdisk 树**（否则救援 SSH 依旧不可用）。步骤见 §五 A；保留 v23 回滚。
 
 ## 九、新会话开工清单
 
-1. `git pull --ff-only`，确认 HEAD = `origin/main`（≥ `8d26a65`，即 v1.0 之后的 M5 系列）。
-2. 读 `AGENTS.md` → `docs/ai-protocol.md` → 本文 → 按任务进 `docs/acceptance/*`、
-   `docs/install-guide.md`、`docs/installer-design.md`、`docs/m1b-rebuild-on-device.md`、
+1. `git pull --ff-only`，确认 HEAD = `origin/main`（≥ `798078c`；P3 会话再加一个提交）。
+2. 读 `AGENTS.md` → `docs/ai-protocol.md` → 本文 → 按任务进
+   `docs/peripheral-bringup-plan.md`、`docs/bluetooth-assessment.md`（**§6b/§6c 是外设的
+   权威结论**）、`docs/firmware-inventory.md`、`docs/hardware-status.md`、
+   `tools/kernel/README.md`、`tools/p3/README.md`；以及
+   `docs/acceptance/*`、`docs/install-guide.md`、`docs/m1b-rebuild-on-device.md`、
    `docs/m1b-thermal-charging.md`、`docs/m3-repart-plan.md`。
 3. 检查 open issues（`[VFY]` = 验证者产出）+ `git log --oneline -10` 对照 §八。
 
 可直接粘贴给新会话的提示词：
 
 > 你在开发仓库 `k30pro-linux-dualboot`（Redmi K30 Pro 双系统）。先读 `AGENTS.md` →
-> `docs/ai-protocol.md` → `docs/handoff.md`，再 `git pull` 并确认 HEAD 与 `origin/main`
-> 一致（≥ `8d26a65`）。当前：M0–M4 已完成、**v1.0.0 已发布**；M3 扩容已在本机执行
-> （rootfs 在 `/dev/sda35`/`lnx`，镜像 `boot-m1b-v21`，overlay `m1b-ux-v14`）；Linux UX +
-> 中文输入法 + 快捷键栏 + 电源温控监控均已落地。**M5 一键安装**：PC 侧（`tools/install/`）
-> 已实现、离线模拟全绿，**真机端到端安装待验证**。任务：按 §八推进——真机安装演练（破坏性，
-> 需负责人 + 测试机，先 `check`/`plan`/`--dry-run`）、外部复现（G5）、回馈上游、WiFi 根因。
+> `docs/ai-protocol.md` → `docs/handoff.md`（权威现状）→ `docs/peripheral-bringup-plan.md`
+> → `docs/bluetooth-assessment.md`（§6b 蓝牙已证伪、§6c 音频已收敛）→
+> `docs/firmware-inventory.md` → `tools/kernel/README.md` → `tools/p3/README.md`，
+> 再 `git pull` 并确认 HEAD 与 `origin/main` 一致（≥ `798078c`）。
+> 现状：M0–M4 + v1.0.0 已完成；M5 一键安装 PC 侧已实现、**真机端到端待验证**；
+> 外设：手电筒 ✅、**蓝牙不可行**、**音频 ADSP 已通但声卡未出**（卡在 apps 侧
+> `servreg` locator = `pd-mapper` 依赖 `/sys/class/remoteproc`，本下游内核没有）。
+> 任务：按 handoff §八 推进——**首选 P3：移植/补丁 `pd-mapper` 免 remoteproc、直接读
+> `*.jsn`（地图已知 `avs/audio`→`adsp/audio_pd`/inst 74），随 boot 起 `pd-mapper`/
+> `rmtfs`/`tqftpserv`，重启复验 `/proc/asound/cards` + `arecord`（麦克风）**；
+> 其次 overlay v17→v18（torch + `m1-weston` seatd 自愈 + ramdisk `bin/sh`）；其余
+> 真机安装演练（破坏性，需负责人）、G5 外部复现、回馈上游、WiFi 根因。
 > 收到后先复述计划再动手。

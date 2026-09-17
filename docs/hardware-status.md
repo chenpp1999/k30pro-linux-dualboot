@@ -31,8 +31,8 @@
 
 | 模块 | 现状 | 证据 | 修复路径 | 可行性 |
 |---|---|---|---|---|
-| **音频：扬声器/听筒/耳机 + 麦克风** | **无声卡**（录制同样无从谈起） | `/proc/asound/cards` 无卡；`/dev/snd` 仅 timer；`# CONFIG_SND_SOC_QCOM is not set`、`# CONFIG_QCOM_APR is not set` | 内核开 Qualcomm ASoC（WCD938x/LPASS/QDSP6/APR/SoundWire）+ ADSP 固件 + UCM；用户态 alsa-utils/pipewire | **中**（与蓝牙同一次内核重建） |
-| **蓝牙** | 无 HCI 控制器 | `# CONFIG_BT_HCIUART is not set`；只有 `BT_SLIM_QCA6390`；`rfkill bt_power` 可 unblock 但 `/sys/class/bluetooth` 空；BT 串口 = `/dev/ttyHS0` | 内核 `BT_HCIUART(_QCA)/BT_QCA` + DT BT 节点 + `qca/*.tlv|*.bin` 固件 + bluez | **中** |
+| **音频：扬声器/听筒/耳机 + 麦克风** | **无声卡**（ADSP 已能启动，见下） | `/proc/asound/cards` 无卡；`/dev/snd` 仅 timer；**内核音频驱动其实全在**（`adsp-loader`/`audio_apr`/`q6core_audio`/`kona-asoc-snd`/`wcd938x_codec`/`bolero-codec`/`swr-wcd`/`msm-dai-*` 都已编入并绑定，DT 节点齐全）；ADSP 固件已就位且 `adsp: Brought out of reset`、`apr_audio_svc state[Up]` | **卡在运行时**：`audio_apr` 的 DT 子设备只在 ADSP-up 通知里创建，而该链需要 apps 侧 `SERVREG_LOC`(0x40)=`pd-mapper`；本下游内核无 `/sys/class/remoteproc` → linux-msm 版 pd-mapper 退出。**要移植/补丁 pd-mapper 读 `*.jsn`**（地图已知：`avs/audio`→`adsp/audio_pd/inst 74`）。详见 `bluetooth-assessment.md` §6c、`firmware-inventory.md`、`tools/p3/` | **中**（不需要重建内核，P2 已证伪"缺 config"） |
+| **蓝牙** | 无 HCI 控制器 | `# CONFIG_BT_HCIUART is not set`；只有 `BT_SLIM_QCA6390`；`rfkill bt_power` 可 unblock 但 `/sys/class/bluetooth` 空；BT 串口 = `/dev/ttyHS0` | ~~内核 `BT_HCIUART(_QCA)/BT_QCA` + DT BT 节点 + 固件 + bluez~~ **实测不可行**：平台走高通私有 SLIMbus BT，开 UART HCI 后 `hci0` 一打开即在 `qca_setup()` 崩溃（`hu->serdev==NULL`，且 `btqca` 无 QCA6390） | **不可行**（`bluetooth-assessment.md` §6b；BT 固件其实有 `htbtfw*.tlv`/`htnv*.bin`） |
 | 环境光 / 距离（LTR） | 无 iio 设备 | iio 只有 PMIC vadc；DT 含 `ltr` 节点 | 内核启用该 i2c 光感/距离驱动 | 低-中（同一次内核重建） |
 | 磁力计（AKM） | 无 iio 设备 | DT 含 `akm0` | 同上 | 低-中 |
 | NFC | 无节点 | 无 `/dev/nfc*`、无 `/sys/class/nfc`；DT 有 `nxp` 痕迹 | 驱动 + NFC 固件（原厂） | 中-高 |
@@ -52,4 +52,8 @@
 
 - 本表只反映**当前部署的预编译内核**；如果在 `peripheral-bringup-plan.md` 的 P2 里重建
   内核，**音频/蓝牙/光感/磁力计**可以在同一次改动里一起开（成本主要是那次内核构建）。
+  —— **2026-09-17 更新**：P2/P3 实测后**音频不需要重建内核**（驱动全在，卡在 pd-mapper，
+  见上表），**蓝牙不可行**（`bluetooth-assessment.md` §6b）。
+  **专有固件本机就有**（`/vendor/firmware_mnt/image`，含 ADSP 分段与 QCA6390 BT
+  `htbtfw*.tlv`/`htnv*.bin`）—— 见 `firmware-inventory.md`。
 - "便宜项"（手电筒、红外）**不需要内核改动**，可以作为独立小任务随时做。

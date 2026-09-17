@@ -163,6 +163,31 @@ CONFIG_SND_SOC_LPASS_VA_MACRO=y  CONFIG_SND_SOC_TFA9874=y
 **交付物**：`tools/m1/m1b/` 载荷里的**用户态与配置**（服务、UCM 配置模板；**固件不进
 仓库**，用本地注入脚本，参照现有 WiFi 凭据的注入方式）。
 
+**P3 实测（2026-09-17）——ADSP 已通，G4 未过（卡在 pd-mapper）**：
+- **固件**：本机自带（无需原厂包），来源/22 个文件/sha256 见
+  [`firmware-inventory.md`](firmware-inventory.md)；已部署到设备 `/lib/firmware/`。
+- **ADSP 已能启动**（`/sys/kernel/boot_adsp/boot` → `subsystem_get("adsp")`）：dmesg
+  `adsp: Brought out of reset` + `adsprpc ... adsp subsystem is up` + `qcom_smd_qrtr_probe`
+  + `apr_tal_rpmsg ... Channel[apr_audio_svc] state[Up]`（**APR 音频通道 Up**）。
+- **内核音频栈完整**（不是缺配置/缺驱动）：`adsp-loader`/`audio_apr`/`q6core_audio`/
+  `kona-asoc-snd`/`wcd938x_codec`/`bolero-codec`/`swr-wcd`/`msm-pcm-*`/`msm-dai-*` 都已编入
+  且绑定；DT 里 `q6core-audio`/`sound`/`bolero-cdc`/`wcd938x-codec` 全在。
+- **阻塞点**：`audio_apr` 的 DT 子节点只在 ADSP "up" 通知里
+  （`apr.c: apr_adsp_up() → of_platform_populate`）创建，而该通知链要求 **apps 侧
+  `SERVREG_LOC`（QMI 0x40）服务 = `pd-mapper`**；linux-msm 版 `pd-mapper` 依赖
+  `/sys/class/remoteproc`（本下游内核 `CONFIG_REMOTEPROC` 未开）→ 直接退出
+  （`no pd maps available`）。Android 的 `/vendor/bin/pd-mapper` 不需要 remoteproc
+  （改扫固件目录里的 `*.jsn`），但它是 bionic 二进制。
+- **下一步已收敛**：移植/补丁 `pd-mapper` 改读 `*.jsn`（地图内容已知：
+  `avs/audio` → `domain=adsp/subdomain=audio_pd/qmi_instance_id=74`），随 boot 起
+  `pd-mapper`/`rmtfs`/`tqftpserv`，然后重启复验（`service_locator` 的 `service_timedout`
+  是粘滞的，必须重启）。完整根因链/源码位置/踩坑见
+  [`bluetooth-assessment.md`](bluetooth-assessment.md) §6c。
+- 已就绪：`alsa-utils`/`alsa-ucm-conf`（Alpine v3.23）、pmOS v25.06 的
+  `rmtfs`/`pd-mapper`/`tqftpserv` 可装入 rootfs；`/dev/qcom_rmtfs_mem1` 存在，
+  `tqftpserv` 已验证（QRTR 里有 TFTP）。
+- **P3 工具**：`tools/p3/{extract-adsp-firmware.sh,install-adsp-firmware.sh,audio-probe.sh}`。
+
 **Gate G4**（需现场观察）：
 - 扬声器/听筒 `aplay` 出声（低音量、可一键停止）；
 - **麦克风 `arecord` 能录到声音**（`arecord -l` 列出 capture PCM；录 5 s 回放确认）；

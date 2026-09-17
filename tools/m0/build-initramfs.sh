@@ -95,7 +95,18 @@ printf 'root:x:0:\n' > "$ROOTFS/etc/group"
 chmod 600 "$ROOTFS/etc/shadow"
 chmod 700 "$ROOTFS/root"
 
-# deterministic packaging (issue #8): sorted file order + gzip -n (no name/mtime)
-( cd "$ROOTFS" && LC_ALL=C find . | LC_ALL=C sort | cpio -o -H newc 2>/dev/null | gzip -n -9 ) > "$WORKDIR/initramfs.cpio.gz"
+# Packaging (issue #8, issue #22): sorted file order + gzip -n (no name/mtime)
+# remove two sources of variance, but cpio's newc header still records each
+# file's mtime/inode, so the archive is only truly byte-reproducible when cpio
+# can zero them (GNU cpio >= 2.12 `--reproducible`). Fall back loudly otherwise
+# instead of claiming determinism we do not have.
+if cpio --help 2>&1 | grep -q -- '--reproducible'; then
+	( cd "$ROOTFS" && LC_ALL=C find . | LC_ALL=C sort |
+		cpio -o -H newc --reproducible 2>/dev/null | gzip -n -9 ) > "$WORKDIR/initramfs.cpio.gz"
+else
+	echo "build-initramfs: NOTE: cpio lacks --reproducible; archive bytes depend on file mtimes/inodes (issue #22)" >&2
+	( cd "$ROOTFS" && LC_ALL=C find . | LC_ALL=C sort |
+		cpio -o -H newc 2>/dev/null | gzip -n -9 ) > "$WORKDIR/initramfs.cpio.gz"
+fi
 ls -l "$WORKDIR/initramfs.cpio.gz"
 sha256sum "$WORKDIR/initramfs.cpio.gz"

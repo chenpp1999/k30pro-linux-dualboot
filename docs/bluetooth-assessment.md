@@ -137,6 +137,123 @@ LineageOS 分区里）+ 内核音频配置 + UCM；`/dev/snd` 目前只有 timer
 （或换 mainline 内核——但会失去 cnss2 WiFi）。**P2 的 BT 分支就此关闭**（保留本节证据，
 避免后人重复）。曾经打开 BT 的尝试也让 `btattach` 卡在 D 状态、`hci0` 卡死，需一次重启清除。
 
+## 6c. P3 音频实测（2026-09-17）——ADSP 已通，卡在 apps 侧 servreg locator
+
+`docs/peripheral-bringup-plan.md` **P3** 的实机结果。**注意：§6b 的结论只针对蓝牙；
+音频与它无关**（P2 已证明音频不需要改内核 config）。本节全部是实机证据。
+
+### 6c.0 一句话结论
+
+**声卡出不来的直接原因是：`audio_apr` 的 DT 子节点（含 `q6core-audio` → `sound`）只在
+ADSP "up" 通知时由 `of_platform_populate()` 创建；而这个通知链要求 apps 侧存在
+`SERVREG_LOC`（QMI 0x40）服务 —— 它只能由 `pd-mapper` 提供。本下游内核没有
+`/sys/class/remoteproc`，linux-msm 版 `pd-mapper` 因此拒绝启动。既有 ADSP 固件、
+ADSP 能启动、QRTR/APR 都通，只差这一个 locator。**
+
+### 6c.1 已完成（每步都有证据）
+
+1. **ADSP 固件**：本机自带，见 [`firmware-inventory.md`](firmware-inventory.md)
+   （`/vendor/firmware_mnt/image/{adsp.mdt,adsp.b00..b18}`，22 文件 20,356,050 B，
+   sha256 已记录）→ 放 `/lib/firmware/`（rootfs 持久）。
+2. **ADSP 能加载并启动**（`/sys/kernel/boot_adsp/boot` 写 `1`，即 `adsp-loader`
+   的 `subsystem_get("adsp")`）：
+   ```
+   subsys-pil-tz 17300000.qcom,lpass: adsp: loading from 0x000000008bb00000 to 0x000000008e000000
+   subsys-pil-tz 17300000.qcom,lpass: adsp: Brought out of reset
+   subsys-pil-tz 17300000.qcom,lpass: adsp: Power/Clock ready interrupt received
+   subsys-pil-tz 17300000.qcom,lpass: Subsystem error monitoring/handling services are up
+   adsprpc: fastrpc_restart_notifier_cb: adsp subsystem is up
+   qcom_smd_qrtr_probe: SMD QRTR driver probed
+   apr_tal_rpmsg qcom,glink:adsp.apr_audio_svc.-1.-1: apr_tal_rpmsg_probe: Channel[apr_audio_svc] state[Up]
+   sysmon-qmi: ssctl_new_server: Connection established between QMI handle and adsp's SSCTL service
+   ```
+   → **APR 音频通道已 Up**；`qrtr-lookup` 能看到 ADSP(node 5) 的服务
+   （servreg-notif 0x42/inst 74、SLIMbus 控制、Subsystem control、Thermal…）。
+3. **内核音频栈是完整的、且已绑定**（推翻"缺驱动"的猜测）：
+   `/sys/bus/platform/drivers/` 有 `adsp-loader`、`audio_apr`、`q6core_audio`、
+   `kona-asoc-snd`、`wcd938x_codec`、`bolero-codec`、`bolero-clk-rsc-mngr`、`swr-wcd`、
+   `wcd-dsp-mgr`、`msm-lsm-client`、`msm-pcm-*`、`msm-dai-*`、`msm-stub-codec`；
+   `/sys/bus/platform/drivers/audio_apr` 已绑定 `soc:qcom,msm-audio-apr`，
+   `msm-pcm-routing`/`msm-dai-q6` 也都绑定；TFA9874 功放在 probe 时注册了 DAI。
+   DT（`/sys/firmware/fdt` 反编译核对）里 `qcom,q6core-audio`、`sound`
+   (`compatible = "qcom,kona-asoc-snd"`)、`bolero-cdc`、`wcd938x-codec`、各 SWR macro
+   全都在且使能；`qcom,firmware-name = "adsp"`。**唯一的缺口是没有对应 platform device**：
+   `soc:qcom,msm-audio-apr` 名下**没有任何子设备**，`kona-asoc-snd`/`q6core_audio`/
+   `wcd938x_codec`/`bolero-codec` 四个驱动目录里只有 `uevent`（无设备可绑）。
+4. **用户态就位**：`alsa-utils`/`alsa-ucm-conf`（Alpine v3.23 main）已装；pmOS v25.06 的
+   `rmtfs`/`pd-mapper`/`tqftpserv`（+openrc）可正常装进 Alpine 3.23 rootfs；
+   `tqftpserv` 正常（`qrtr-lookup` 里有 `4096 ... TFTP`）；`rmtfs` 所需的
+   `/dev/qcom_rmtfs_mem1` 存在（DT 的 `qcom,rmtfs-mem` 补丁在部署内核里）。
+
+### 6c.2 根因链（源码级）
+
+```
+boot: audio_pdr module_init → get_service_location("audio_pdr_adsp","avs/audio")
+        → pd_locator_work → init_service_locator()（service-locator.c:236）
+        → qmi_add_lookup(SERVREG_LOC_SERVICE_ID_V01=0x40, ver 1, instance)
+        → 等待 apps 侧 0x40 服务出现（超时 3,000,000 ms）
+                    ↑ 只能由 pd-mapper 提供
+        → LOCATOR_UP → audio_pdr_locator_callback 填 domain_list（name/instance）
+        → NOTIFY(FRAMEWORK_UP) → audio_notifier_pdr_callback
+        → audio_notifer_reg_all_clients()  ← 注册 apr 的 adsp_service_nb
+        → service_notifier 向 ADSP 的 servreg-notif(0x42) 订阅 "avs/audio"/inst 74
+        → ADSP 报 state UP → audio_notifer_service_cb → AUDIO_NOTIFIER_SERVICE_UP
+        → apr_notifier_service_cb → apr_adsp_up()（apr.c:306）
+        → schedule_work(apr_add_child_devices) → of_platform_populate(msm-audio-apr)
+        → 创建 q6core-audio → sound 等设备 → kona-asoc-snd probe → snd_soc_register_card
+```
+
+关键源码位置（`LineageOS/android_kernel_xiaomi_sm8250 @ a5b3099`）：
+- `techpack/audio/ipc/apr.c:306` `apr_adsp_up()` → `:294 apr_add_child_devices()`
+  （**子设备只在这里创建**；`apr_probe` 不 populate）；
+- `techpack/audio/dsp/audio_pdr.c:154` `get_service_location(...)`（module_init 调用一次）；
+- `drivers/soc/qcom/service-locator.c:236/297`、`drivers/soc/qcom/service-notifier.c`；
+- `techpack/audio/dsp/audio_notifier.c:399` `audio_notifer_pdr_callback`
+  （**FRAMEWORK_UP 时会 `audio_notifer_reg_all_clients()`**，所以只要 locator 起来，
+  顺序问题会自愈）。
+
+### 6c.3 为什么 `pd-mapper` 起不来
+
+| | linux-msm 版（Alpine/pmOS 包） | Android 的 `/vendor/bin/pd-mapper` |
+|---|---|---|
+| 发现 PD 地图 | 扫 `/sys/class/remoteproc`（取每个 rproc 的固件路径） | 扫固件目录里的 **`*.jsn`**（`strings`：`/vendor/firmware/image`、`.jsn`、`sr_domain`、`sr_service`、`qmi_instance_id`） |
+| 本机结果 | **失败**：`pd-mapper: failed to open remoteproc class: No such file or directory` → `no pd maps available` → 进程退出 | 不适用（bionic：`/system/bin/linker64` + `liblog.so`，不能直接跑在 musl rootfs 上） |
+
+部署内核的 `/proc/config.gz`：`# CONFIG_REMOTEPROC is not set`（用的是下游 `MSM_PIL`/
+`subsys-pil-tz`）→ **没有 `/sys/class/remoteproc`**，linux-msm 版 `pd-mapper` 直接放弃。
+
+### 6c.4 下一步（已收敛，建议按此实现）
+
+1. **移植/补丁 `pd-mapper`**：让它不必依赖 remoteproc —— 直接读一个目录下的 `*.jsn`
+   （我们要的文件就是 `adspr.jsn` + `adspua.jsn`，格式一致），其余（QML/QMI locator 服务、
+   JSON 解析、notif 代理）照用。地图内容已知：
+   `domain=adsp / subdomain=audio_pd / qmi_instance_id=74`、`provider=avs, service=audio`。
+   先例：Android 自己的 pd-mapper 就是这么工作的（无需 remoteproc）。
+2. 让 `pd-mapper`/`rmtfs`/`tqftpserv` **随 boot 起**（OpenRC，且在 ADSP 起来之前），
+   `service_locator.enable=1` **已在** `tools/m1/kernel-cmdline-m1b.txt` 里（无需改）。
+3. 复验：`qrtr-lookup` 出现 **service 0x40**；`dmesg` 出现
+   `Service locator initialized` → `adv/audio` UP → `q6core-audio`/`sound` 设备出现 →
+   `/proc/asound/cards` 有声卡（期望 `kona-mtp-snd-card`/`Xiaomi lmi`）→ `aplay -l`/
+   `arecord -l` → 出声/录音。
+4. 若声卡仍不出：按 §6c.2 的每一环打断点（`pr_debug` 需 `CONFIG_DYNAMIC_DEBUG`，本内核没开）。
+
+### 6c.5 踩坑记录（避免重复）
+
+- **不要用 `dmesg -c` 清日志**再起 ADSP —— 会清掉 module_init 阶段的
+  `service_locator`/`audio_pdr` 报错，正是最需要的那几条。
+- `service_locator.c` 的 `service_timedout` 是**一次性粘滞标志**：若在超时窗口内没等到
+  locator 服务，本次开机内**不再重试**（`init_service_locator()` 直接 `-ETIME`）。
+  所以改完 pd-mapper 必须**重启**才能验证，不能指望热插拔。
+- **ADSP 起来 ≠ 声卡起来**：`apr_adsp_up()` 只在收到 notifier "up" 时跑；手动
+  `echo 1 > /sys/kernel/boot_adsp/ssr` 重启 ADSP 也不会补建子设备（除非 locator 已通）。
+- busybox `find` 在 `/proc/device-tree` 上不可靠（返回空）；要核对 DT 请
+  `cp /sys/firmware/fdt` 出来后用 `dtc -I dtb -O dts` 反编译。
+- 设备 `sde*`/`sdf*` 这些 UFS LUN 在 Linux 侧**也是** `/dev/sde*`、`/dev/sdf*`
+  （`/dev/sda`…`/dev/sdf` 都在）；`fw_dev` 的 `firmware_mnt` = **`/dev/sde51`**，
+  `dsp` = `sde49`，`bluetooth` = `sde35`。
+- `lssh.py` 会把设备 stdout 原样写进 Windows 控制台（gbk）——**含二进制/非 UTF-8 的输出
+  会让它抛 `UnicodeEncodeError`**。对策：设备侧 `... > /root/out.txt`，再用 `lcp.py get` 取回。
+
 ## 7. 参考
 
 - 内核来源与配置：`jian45154/redmi-k30-pro-postmarketos` →

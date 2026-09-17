@@ -6,6 +6,26 @@
 ## [Unreleased]
 
 ### Changed
+- **P3 音频（2026-09-17，实机）：ADSP 已通，声卡未出，根因收敛到 `pd-mapper`**：
+  ADSP 固件本机自带（`/vendor/firmware_mnt/image`，22 文件 20,356,050 B），部署到
+  `/lib/firmware/` 后，`/sys/kernel/boot_adsp/boot` 写 `1` 即可让 ADSP 启动：
+  dmesg 出 `adsp: Brought out of reset`、`adsprpc ... adsp subsystem is up`、
+  `qcom_smd_qrtr_probe`、**`apr_tal_rpmsg ... Channel[apr_audio_svc] state[Up]`**。
+  **同时修正 09-16 的旧判断**：内核音频栈并不缺驱动 —— `adsp-loader`/`audio_apr`/
+  `q6core_audio`/`kona-asoc-snd`/`wcd938x_codec`/`bolero-codec`/`swr-wcd`/`msm-pcm-*`/
+  `msm-dai-*` 全都编入并绑定，DT（`q6core-audio`/`sound`/`bolero-cdc`/`wcd938x-codec`）
+  也齐全；声卡出不来的真正原因是 **`audio_apr` 的 DT 子设备只在 ADSP "up" 通知里
+  `of_platform_populate()` 创建**，而该通知链要求 apps 侧 `SERVREG_LOC`(QMI 0x40) 服务，
+  只能由 `pd-mapper` 提供；linux-msm 版 `pd-mapper` 需要 `/sys/class/remoteproc`
+  （本下游内核 `CONFIG_REMOTEPROC` 未开）→ 直接退出（`no pd maps available`）。
+  下一步（已收敛）：移植/补丁 `pd-mapper` 免 remoteproc、直接读 `*.jsn`（地图内容已知：
+  `avs/audio` → `domain=adsp`/`subdomain=audio_pd`/`qmi_instance_id=74`）。
+  完整根因链/源码位置/踩坑见 `docs/bluetooth-assessment.md` §6c。
+- **勘误：蓝牙固件其实是有的**（2026-09-17 实测）：`/vendor/bt_firmware`（`/dev/block/sde35`
+  `bluetooth` 分区）里有 `htbtfw10/20.tlv` + `htnv10/20.bin`。此前
+  `docs/bluetooth-assessment.md` §1/§6b 说"Android 侧没有 QCA6390 BT 固件"，是因为当时
+  该分区未挂载/为空。**BT 结论不变**（平台走私有 SLIMbus、`hci_qca` 只支持 serdev 且
+  `btqca` 无 QCA6390）。
 - **P2 结论（2026-09-17，实机）**：
   - **蓝牙**：本内核 QCA6390 BT 走高通私有 SLIMbus 路径（Android `kona-perf_defconfig`
     也只开 `CONFIG_BT_SLIM_QCA6390`）；开 `BT_HCIUART(_QCA)` 后 `hci0` 会出现、芯片会
@@ -34,6 +54,18 @@
   但只装了 `bin/busybox`）→ 救援 SSH 永远起不了 shell，现已加 `bin/sh` 软链接。
   实机复验见 `docs/peripheral-bringup-plan.md`（设备需物理重启后重试 G2）。
 ### Added
+- **P3 音频工具与固件清单**（2026-09-17）：
+  - `docs/firmware-inventory.md`（**P0 交付物**）：本机自带固件的来源/目标路径/大小/
+    **逐文件 sha256**/许可 —— ADSP 分段 22 文件（`adsp.mdt` + `adsp.b00…b18` +
+    `adspr.jsn`/`adspua.jsn`）、CDSP/SLPI/Venus、QCA6390 BT（存档）；明确固件**不入仓**。
+    其中 `adspua.jsn` 就是音频 PD 地图（`adsp`/`audio_pd`/`qmi_instance_id=74`、
+    provider `avs`/service `audio`）。
+  - `tools/p3/adsp-firmware.sha256`（校验清单，两处工具共用）+
+    `tools/p3/{extract-adsp-firmware.sh,install-adsp-firmware.sh,audio-probe.sh}`：
+    PC 侧只读抽取（adb，设备侧也做 sha256 校验）、设备侧安装校验（`--boot` 只写
+    adsp-loader 的 sysfs，不动分区）、只读体检（逐环节报告 firmware→ADSP→QRTR→locator→card
+    哪一环断了）。`tools/p3/README.md` 给出用户态安装（`alsa-utils`/`qrtr` +
+    pmOS v25.06 的 `rmtfs`/`pd-mapper`/`tqftpserv`）与复验顺序。
 - **P1：下游内核可复现构建**（`tools/kernel/`，2026-09-17）：`build-kernel.sh` 按
   LineageOS `android_kernel_xiaomi_sm8250 @ a5b3099` 浅取源码、套用配置、`LLVM=1`
   编出 `Image`（12 分钟，clang 18.1.3）。**关键发现**：上游那 4 个 config 片段不足以
@@ -213,6 +245,11 @@
   但 `/sys/class/bluetooth` 始终为空）。已更新 `docs/feasibility.md` §3、
   `docs/linux-ux-audit-2026-09-14.md` B6、`docs/handoff.md` §六 第 19 条，说明
   "要支持需重建内核 + DT BT 节点 + QCA BT 固件 + bluez"，避免后续会话重复排查。
+
+### Security
+- **隐私清理补漏**（2026-09-17）：`docs/handoff.md` §二 里仍留着一处**真实 WiFi SSID**
+  （隐私政策要求 SSID 一律不入仓，`SECURITY.md`），已在改版该节时改为占位说明；
+  提交前跑 `tools/ci/checks.sh` 第 4 项（本轮同时确认 `tools/p3/*` 无凭据/标识符）。
 
 ## [1.0.0] - 2026-09-15
 
