@@ -6,6 +6,23 @@
 ## [Unreleased]
 
 ### Fixed
+- **音频第二轮根因（2026-09-17）：LPI pinctrl 吞掉了 clock 的 `-EPROBE_DEFER`**：
+  `techpack/audio/soc/pinctrl-lpi.c` 拿到 `devm_clk_get("lpass_core_hw_vote"/
+  "lpass_audio_hw_vote")` 的 **`-517(-EPROBE_DEFER)`** 时一律当成"没有这个 clk"，
+  置 NULL 并 `ret = 0` —— 而 provider（`vote_lpass_core_hw`/`vote_lpass_audio_hw`，
+  `qcom,audio-ref-clk`）是**同一批 `of_platform_populate` 里后创建**的。
+  后果链：vote 永远开不了 → `lpi_gpio_read/write: core hw vote clk is not enabled` →
+  SWR master 读不到 codec 逻辑地址（-22）→ `wcd938x-slave` 绑不上 → `sound` 不绑 →
+  **无声卡**。新增 `tools/kernel/patches/lmi-lpi-pinctrl-defer-hw-vote.patch`
+  （`-EPROBE_DEFER` 走 `err_defer` 正常延迟重试），`build-kernel.sh` 自动应用。
+  用**插桩内核**实测（无 `CONFIG_DYNAMIC_DEBUG`，靠临时 printk）：`core_hw_vote=1
+  audio_hw_vote=1`、`hw_vote_enable ret=0`、`core hw vote clk not enabled` 计数 **0**、
+  **两个** `wcd938x-slave.*` + `tx/rx/va-macro` + `swr-wcd` 全部绑定。
+  **剩余**：`sound` 仍未绑定、无 `/proc/asound/cards`（机器驱动在
+  `msm_init_aux_dev: found 1 AUX codecs` 之后失败且**静默** —— `kona.c` 把
+  `-EPROBE_DEFER` + `codec_reg_done` 改写成 `-EINVAL` 且不打日志）；
+  已备好带 printk 的**诊断镜像** `%TEMP%\opencode\p3\boot-m1b-v27diag.img`。
+  详见 `docs/bluetooth-assessment.md` §6c.7。
 - **音频无声卡的根因＝`deferred_probe_timeout`（2026-09-17 定位并入库修复）**：
   `drivers/base/dd.c` 在 `CONFIG_MODULES` 下默认 **30 秒**的 deferred-probe 超时；超时后
   任何 `-EPROBE_DEFER` 都被**强制忽略**（`deferred probe timeout, ignoring dependency`）

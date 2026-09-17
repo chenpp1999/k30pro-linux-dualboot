@@ -262,6 +262,54 @@ boot: audio_pdr module_init → get_service_location("audio_pdr_adsp","avs/audio
 - `lssh.py` 会把设备 stdout 原样写进 Windows 控制台（gbk）——**含二进制/非 UTF-8 的输出
   会让它抛 `UnicodeEncodeError`**。对策：设备侧 `... > /root/out.txt`，再用 `lcp.py get` 取回。
 
+### 6c.7 P3 第三轮（2026-09-17 续）：SWR pinctrl 的 -110 已解决，音量卡在 LPI vote
+
+**根因（两条，都已修/已定位）**
+
+1. **`-110` 不是 pinctrl 的问题，是 deferred-probe 超时**：`drivers/base/dd.c` 在
+   `CONFIG_MODULES` 下默认 **`deferred_probe_timeout = 30s`**，超时后任何 `-EPROBE_DEFER`
+   都被强制忽略（`deferred probe timeout, ignoring dependency`）且不再重试。音频设备要到
+   t≈89s 才创建（固件在 rootfs + 用户态 `lmi-adsp`/`pd-mapper`）→ 同批里**最后**创建的
+   provider 还没就绪就被强制 probe。
+   **修复**：`tools/m1/kernel-cmdline-m1b.txt` 加 `deferred_probe_timeout=300`
+   （设备内重建镜像用 `tools/m1/rebuild-image-from-device.sh --extra-cmdline ...`）。
+   实测：`tx_swr_clk_data_pinctrl` 绑定、`tx/rx/va-macro` 绑定、`swr-wcd` 控制器绑定、
+   SoundWire 总线与 `wcd938x-slave` 设备都出现。
+
+2. **LPI pinctrl 吞掉了 clock 的 `-EPROBE_DEFER`**（决定性，已用插桩内核证实）：
+   ```
+   LMI_DBG devm_clk_get lpass_core_hw_vote ret=-517      (-517 = -EPROBE_DEFER)
+   LMI_DBG lpi probe: core_hw_vote=0 audio_hw_vote=0
+   LMI_DBG hw_vote_enable ret=0 ... 然后 lpi_gpio_read: core hw vote clk is not enabled
+   ```
+   provider 是同一批 `of_platform_populate` 里**后**创建的 `vote_lpass_core_hw`/
+   `vote_lpass_audio_hw`（`qcom,audio-ref-clk`，DT 里就在 `lpi_pinctrl@33c0000` 之后）。
+   `techpack/audio/soc/pinctrl-lpi.c` 把 `IS_ERR()` 一律当成"没有这个 clk"，置 NULL 且
+   `ret = 0`，于是 vote 永远开不了 → SWR master 读不到 codec 逻辑地址（-22）→
+   `wcd938x-slave` 绑不上 → `sound` 不绑 → 无声卡。
+   **修复**：`tools/kernel/patches/lmi-lpi-pinctrl-defer-hw-vote.patch`（`-EPROBE_DEFER`
+   走 `err_defer` 正常延迟重试）。
+   实测（插桩内核）：`core_hw_vote=1 audio_hw_vote=1`、`hw_vote_enable ret=0`、
+   `core hw vote clk not enabled` 计数 **0**、**两个** `wcd938x-slave.*` 都绑定成功、
+   `wcd938x_codec: bound wcd938x-slave.d0117022{3,4}`、`tx/rx_macro: register macro successful`。
+
+**状态**：`sound` 设备仍**未绑定** `kona-asoc-snd`（`driver` 符号链接是悬空的），
+`/proc/asound/cards` 仍为空；机器驱动的 probe 跑到了
+`msm_init_aux_dev: found 1 AUX codecs registered with ALSA core` 之后失败，
+**但没有任何报错** —— 因为 `kona.c` 的 `devm_snd_soc_register_card()` 返回
+`-EPROBE_DEFER` 且 `codec_reg_done` 为真时会被改写成 `-EINVAL` 且**不打日志**。
+
+**下一步**：用**诊断内核**（`kona.c` 里加了三处 printk：register_card 的返回值、
+defer 分支、hard fail 分支）拿到确切的 `ret`，就知道还缺哪个 component。
+镜像已在 PC 备好：`%TEMP%\opencode\p3\boot-m1b-v27diag.img`
+（= 部署镜像的 ramdisk/dtb/dtbo + 诊断内核 + 含 `deferred_probe_timeout=300` 的 cmdline）。
+
+> **插桩经验**：该内核**没编 `CONFIG_DYNAMIC_DEBUG`**，动态调试不可用；改动用
+> `tools/kernel/build-kernel.sh` 同一棵树（`/root/kbuild/linux-sm8250`）增量
+> `make O=/root/kbuild/out ARCH=arm64 LLVM=1 -j4 Image` 只需 1–2 分钟。
+> 编辑源码时**别用正则替换里的 `\\n`/`\t` 去拼 C 字符串**（会把 `\n` 写成真换行，
+> 编译器报 `missing terminating '"'`）；用整段精确文本替换并断言只有 1 处匹配。
+
 ### 6c.6 P3 第二轮（2026-09-17 续）：locator 已通，卡在 SWR pinctrl（-110）
 
 按 §6c.4 实现并实机跑通，**上一轮的阻塞（apps 侧 locator）已解决**，并暴露出下一环：

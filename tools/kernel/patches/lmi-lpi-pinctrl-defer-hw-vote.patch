@@ -1,0 +1,47 @@
+--- a/techpack/audio/soc/pinctrl-lpi.c	2026-09-17 22:31:46.161162128 +0800
++++ b/techpack/audio/soc/pinctrl-lpi.c	2026-09-17 22:31:46.169778093 +0800
+@@ -813,6 +813,17 @@
+ 		dev_dbg(&pdev->dev, "%s: clk get %s failed %d\n",
+ 			__func__, "lpass_core_hw_vote", ret);
+ 		lpass_core_hw_vote = NULL;
++		/*
++		 * A clock provider that is not up yet (the sibling
++		 * qcom,audio-ref-clk vote nodes are registered after this
++		 * pinctrl in the same of_platform_populate batch) returns
++		 * -EPROBE_DEFER.  Do NOT swallow it into NULL: without the
++		 * vote clock lpi_gpio_read/write fail, the SWR master can
++		 * not read the codec logical address and the sound card
++		 * never registers.
++		 */
++		if (ret == -EPROBE_DEFER)
++			goto err_defer;
+ 		ret = 0;
+ 	}
+ 	state->lpass_core_hw_vote = lpass_core_hw_vote;
+@@ -824,6 +835,17 @@
+ 		dev_dbg(&pdev->dev, "%s: clk get %s failed %d\n",
+ 			__func__, "lpass_audio_hw_vote", ret);
+ 		lpass_audio_hw_vote = NULL;
++		/*
++		 * A clock provider that is not up yet (the sibling
++		 * qcom,audio-ref-clk vote nodes are registered after this
++		 * pinctrl in the same of_platform_populate batch) returns
++		 * -EPROBE_DEFER.  Do NOT swallow it into NULL: without the
++		 * vote clock lpi_gpio_read/write fail, the SWR master can
++		 * not read the codec logical address and the sound card
++		 * never registers.
++		 */
++		if (ret == -EPROBE_DEFER)
++			goto err_defer;
+ 		ret = 0;
+ 	}
+ 	state->lpass_audio_hw_vote = lpass_audio_hw_vote;
+@@ -836,6 +858,8 @@
+ 
+ 	return 0;
+ 
++err_defer:
++	snd_event_client_deregister(&pdev->dev);
+ err_snd_evt:
+ 	audio_notifier_deregister("lpi_tlmm");
+ err_range:

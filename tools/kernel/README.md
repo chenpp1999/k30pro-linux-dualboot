@@ -40,6 +40,7 @@
 |---|---|
 | `lmi-vfs-mount-diagnostic.patch` | 加了一堆 `LMI_VFS_DIAG` 打印，但**含一处功能修复**：`do_new_mount()` 里 `if (!err && name && !fc->source) fc->source = kstrdup(name, ...)`。没有它，`mount -t ext4 /dev/sdaXX /newroot` 会因 `fc->source == NULL` 返回 **-ENOENT**（`FS_REQUIRES_DEV` 检查）→ initramfs 挂不上 rootfs，直接掉进救援 shell。 |
 | `lmi-rmtfs-mem-node.patch` | 把 DT 的 `pil_wlan_fw_region` 改成 `qcom,rmtfs-mem`（`/dev/qcom_rmtfs_mem`，rmtfs 用），会影响 base dtb。 |
+| `lmi-lpi-pinctrl-defer-hw-vote.patch` | **音频必需（2026-09-17 加）**：`techpack/audio/soc/pinctrl-lpi.c` 原本把 `devm_clk_get("lpass_core_hw_vote"/"lpass_audio_hw_vote")` 的 **`-EPROBE_DEFER` 吞成 NULL**（provider 是同批 `of_platform_populate` 里**后**创建的 `vote_lpass_*`）。结果：vote 永远开不了 → `lpi_gpio_read/write: core hw vote clk is not enabled` → SWR master 读不到 codec 逻辑地址（-22）→ `wcd938x-slave` 绑不上 → **无声卡**。现在 `-EPROBE_DEFER` 会走 `err_defer` 正常延迟重试。 |
 
 **实证**：第一次"干净 a5b3099"内核（无补丁）经 `fastboot boot` 后，NCM 起了但 SSH 是
 **救援 dropbear**（rootfs 口令认证失败、救援口令成功）→ 说明 rootfs 挂载失败；同时暴露

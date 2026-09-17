@@ -311,18 +311,30 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
    `/var/log/lmi-netwatch.log`、`dmesg | grep -i cnss`、`/var/log/lmi-wifi.log` 再动手。
 5. **可选收尾**：super 内旧 rootfs 区回收（观察期后）、`docs/architecture.md` §2/§3 与
    `docs/test-plan.md` T4 回填、IME 第二页、电池 LED 提示。
-6. **P3 音频（下一步＝换新 cmdline 的镜像复验声卡）**：整条链已经跑通并可复现 ——
-   固件就位、`lmi-adsp` 触发 ADSP、`pd-mapper` 提供 apps 侧 locator、内核
-   `Service locator initialized` → `apr_add_child_devices` → `q6core-audio`/`sound`/
-   `bolero-cdc`/`wcd938x` 设备创建、`kona-asoc-snd` probe。
-   最后一道坎已定位为 **`deferred_probe_timeout`（默认 30s）**：音频设备要到 t≈89s 才创建，
-   超时窗口早已关闭 → provider（LPI pinctrl，实测绑定成功）来不及就绪，消费者被强制 probe
-   而 -110。**修复已入库**（cmdline 加 `deferred_probe_timeout=300`）。
-   下一步：① 用带新 cmdline 的镜像（设备内重建时覆盖 `unpacked/cmdline`，或给
-   `rebuild-image-from-device.sh` 加 `--cmdline`）；② `fastboot boot`（零写入）验证
-   `sound` 绑定 + `/proc/asound/cards` + `aplay -l`/`arecord -l`；③ 出声/录音（麦克风）
-   通过后再谈 overlay v18 持久化。蓝牙**已证伪，别再碰**（§6b）。
-   工具 `tools/p3/`；固件清单 `docs/firmware-inventory.md`。
+6. **P3 音频（下一步＝诊断内核跑一轮，拿到 `kona.c` register_card 的返回码）**：
+   本轮把两个真根因都修了并实测：
+   - ① `deferred_probe_timeout` 默认 30s（`CONFIG_MODULES`）导致音频设备（t≈89s 才创建）
+     被强制 probe → `msm-cdc-pinctrl` 的 `-110`。**修复**：cmdline 加
+     `deferred_probe_timeout=300`（`tools/m1/kernel-cmdline-m1b.txt` +
+     `rebuild-image-from-device.sh --extra-cmdline`）。
+   - ② `techpack/audio/soc/pinctrl-lpi.c` 把 `devm_clk_get` 的 **`-EPROBE_DEFER` 吞成 NULL**
+     （provider `vote_lpass_*` 是同批里后创建的）→ LPI vote 永远开不了 →
+     `lpi_gpio_read/write: core hw vote clk is not enabled` → SWR 读不到 codec 地址（-22）→
+     `wcd938x-slave` 绑不上 → 无声卡。**修复**：
+     `tools/kernel/patches/lmi-lpi-pinctrl-defer-hw-vote.patch`（会被 `build-kernel.sh`
+     自动应用）。
+   - 实测（插桩内核）：`core_hw_vote=1 audio_hw_vote=1`、`hw_vote_enable ret=0`、
+     `core hw vote clk not enabled` 计数 0、**两个** `wcd938x-slave.*` 与
+     `tx/rx/va-macro`、`swr-wcd` 全部绑定。
+   - **仍差最后一步**：`sound` 未绑定 `kona-asoc-snd`（`driver` 链接悬空）、无 `/proc/asound/cards`。
+     机器驱动跑到 `msm_init_aux_dev: found 1 AUX codecs` 之后失败但**不报错**
+     （`-EPROBE_DEFER` + `codec_reg_done` → 静默改写成 `-EINVAL`）。
+   **下一步**：`fastboot boot` PC 上备好的**诊断镜像**
+   `%TEMP%\opencode\p3\boot-m1b-v27diag.img`（部署 ramdisk/dtb/dtbo + 带 printk 的内核 +
+   含 `deferred_probe_timeout=300` 的 cmdline）→ 看 `LMI_DBG register_card ...` 的返回码 →
+   按缺失的 component 继续。之后 `aplay -l`/`arecord -l` 出声/录音（麦克风），
+   全绿再谈 overlay v18 持久化。蓝牙**已证伪，别再碰**（§6b）。
+   完整证据链见 `docs/bluetooth-assessment.md` §6c.6/§6c.7；工具 `tools/p3/`、`tools/kernel/`。
 7. **把本会话在仓库里、但尚未进设备的修复做成持久化镜像（overlay v17→v18）**：
    `lmi-torch`、`m1-weston`（seatd 自愈）在 repo 里但**没进镜像**；注意
    `build-initramfs.sh` 的 `/bin/sh` 软链修复**只对"从零构建 initramfs"生效**，
