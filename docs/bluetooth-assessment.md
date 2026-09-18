@@ -432,6 +432,26 @@ FE PCM 只是前端，**必须先用混音器把路由配好**（Android 的 aud
   `&dai_mi2s0`（`qcom,msm-mi2s-rx-lines = <1>`）与 `pri_mi2s_sd*_active` 的实际 pinctrl
   状态，以及在 Android 下对比该功放的寄存器/状态。
 
+**排查已排除的项（2026-09-18 续，用开启 `CONFIG_DEBUG_FS` 的调试内核）**：
+
+- DAPM（播放 1 kHz 时）：`Primary MI2S Playback: On in 1 out 1`、
+  **`AIF Playback-1-34: On in 1 out 1`**（TFA9874 的 AIF 播放 widget 已上电且连接到 MI2S）
+  → 机器驱动/DAPM 侧没有断点。
+- 引脚复用（`/sys/kernel/debug/pinctrl/f000000.pinctrl/pinmux-pins`）：
+  `pin 138/139/140/141 = mi2s0_sck/data0/data1/ws`，owner 均为
+  `soc:qcom,msm-dai-q6-mi2s-prim` → **MI2S 引脚确实复用了**，SO 侧信号会到引脚。
+- 因此"无声"只剩 **TFA9874 功放内部状态/接口格式** 未查（寄存器 dump 已存
+  `%TEMP%\opencode\m5\g2\tfa-regs.txt`，256 字节寄存器 0x00–0xFF；驱动字段名在
+  `techpack/audio/asoc/codecs/tfa9874/inc/tfa9874_tfafieldnames.h`）。下一步：解码
+  `SYS_CTRL`/`STATUS`/`I2S*` 寄存器，并在 Android 播放同一声源时 dump 同样的寄存器做对照。
+
+> 调试内核配方（本次验证可用）：把 `tools/kernel/config-xiaomi-lmi.aarch64` 复制一份，
+> 打开 `CONFIG_DEBUG_FS=y`、`CONFIG_DYNAMIC_DEBUG=y`、`CONFIG_DEBUG_PINCTRL=y`，然后
+> `tools/kernel/build-kernel.sh --config <该文件>`（约 2 分钟增量）。开机后
+> `mkdir -p /sys/kernel/debug && mount -t debugfs debugfs /sys/kernel/debug` 即可访问
+> `asoc/*/*/dapm/*`（widget 状态）、`pinctrl/*/pinmux-pins`、`regmap/1-0034/registers`（TFA）。
+> 注意：debug 内核约 48.8 MB（产品内核 43.2 MB），只用于排查，不要刷入。
+
 **客观听音验证法（不靠人耳）**：用手机自己的麦克风边放边录（`/root/phone-loop.sh`），
 对 1 kHz 做 Goertzel：听筒 `1kHz≈23`、扬声器 `1kHz=0.0`。PC 麦克风不可靠
 （默认输入/输出常是虚拟设备，阳性对照都测不出）。
