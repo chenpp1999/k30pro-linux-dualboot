@@ -36,7 +36,21 @@ tools/p3/build-pd-mapper.sh [--dry-run]
 
 # 设备 Linux 侧（只读体检：逐环节报告哪一环断了）
 tools/p3/audio-probe.sh
+
+# PC/WSL 侧：静态 aarch64 TFA9874 寄存器工具（Android 无 i2c-tools/debugfs）
+# 交叉编译（WSL: aarch64-linux-gnu-gcc）后 push 到 /data/local/tmp，用 Magisk su 跑
+tools/p3/build-tfa-regs-aarch64.sh /tmp/tfa-regs
+#   tfa-regs scan [maxbus]                       # 找 0x34 所在 i2c 总线（lmi = 1）
+#   tfa-regs i2c 1 0x00 0x20 0x21=0x2890         # 读/写寄存器（8 位地址+16 位大端）
+#   tfa-regs misc /dev/tfa_reg /dev/tfa_rw 0x00  # 驱动 misc 节点（Android 同名）
+#   tfa-regs dump 1 0x00 0x100                   # 全量 dump
 ```
+
+**音频链的启动顺序坑（2026-09-18 实测定根因）**：`lmi-qrtr-ns`（用户态 QRTR 名字
+服务，D80 rootfs 自带 `/usr/sbin/lmi-qrtr-ns`）必须开机运行，否则 `pd-mapper` 的
+SERVREG_LOC 注册不出去、内核 `servloc` 永不初始化 → **无声卡**。服务/顺序修复见
+`tools/m1/m1b/etc/init.d/{lmi-qrtr-ns,rmtfs,lmi-adsp}` 与
+`docs/bluetooth-assessment.md` §6c.10。
 
 补丁要点（`pd-mapper-downstream.patch`，针对上游
 `linux-msm/pd-mapper@5ecd2fe926aca7abfe40724177f63b942cff3947`）：

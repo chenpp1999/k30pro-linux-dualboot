@@ -1,0 +1,40 @@
+#!/sbin/openrc-run
+supervisor=supervise-daemon
+# SPDX-License-Identifier: MIT
+# Override for the pmOS `rmtfs` package service.
+#
+# Why this file is in the payload: the package's init script adds `-s`
+# (sync the mss remoteproc with rmtfs) unless the /usr/lib/preload qipcrtr
+# shim is installed.  This downstream kernel has no /sys/class/remoteproc, so
+# `-s` makes rmtfs exit immediately -> the ADSP never gets its PD maps ->
+# the audio chain stalls.  Keep the same behaviour as the package but without
+# `-s`.
+name="RMTFS"
+description="Qualcomm remote file system service"
+
+command="/usr/sbin/rmtfs"
+
+command_args=""
+if [ -z "$rmtfs_files_path" ]; then
+	command_args="$command_args -P"
+else
+	command_args="$command_args -o $rmtfs_files_path"
+fi
+if [ "$rmtfs_avoid_writing" = "true" ]; then
+	command_args="$command_args -r"
+fi
+
+respawn_delay=1
+respawn_max=0
+
+# Downstream hacks: use libqipcrtr4msmipc.so when present (only then add the
+# package's LD_PRELOAD / -s behaviour).
+if [ -f /usr/lib/preload/libqipcrtr4msmipc.so ]; then
+	export LD_PRELOAD=/usr/lib/preload/libqipcrtr4msmipc.so
+fi
+
+depend() {
+	before networkmanager ofono modemmanager
+	after udev-settle
+	use qrtr-ns
+}

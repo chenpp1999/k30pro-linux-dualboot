@@ -11,10 +11,12 @@
 # by tools/p3/install-adsp-firmware.sh), so this must run after localmount -- the
 # kernel's boot-time PIL attempt happens before the rootfs exists and fails.
 #
-# Ordering: the kernel's audio service_locator waits (up to 50 min) for the
-# apps-side servreg locator (pd-mapper), and the audio notifier only reports UP
-# once the ADSP's servreg-notif is reachable, so the ADSP must be up before (or
-# around) pd-mapper/tqftpserv start.
+# Ordering (updated 2026-09-18): the QRTR name service (lmi-qrtr-ns), pd-mapper
+# (SERVREG_LOC) and the file servers (rmtfs/tqftpserv) all provide services the
+# ADSP-side PD bring-up needs, so they start first.  The kernel's
+# service_locator waits up to 50 min for the apps-side locator, so a late
+# pd-mapper is survivable, but a *missing* qrtr-ns is not: without it the
+# locator never initializes and there is no q6core / sound card at all.
 #
 # See docs/bluetooth-assessment.md 6c for the full chain.
 name="lmi-adsp"
@@ -22,8 +24,7 @@ description="Load the ADSP firmware and boot the audio DSP"
 
 depend() {
 	need localmount
-	after udev-settle
-	before pd-mapper rmtfs tqftpserv
+	after udev-settle lmi-qrtr-ns pd-mapper rmtfs tqftpserv
 }
 
 ADSP_BOOT=/sys/kernel/boot_adsp/boot

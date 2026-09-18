@@ -528,6 +528,88 @@ FE PCM 只是前端，**必须先用混音器把路由配好**（Android 的 aud
 （设备回 `OKAY`），再 `download:<hex 大小>` → 数据 → `boot` 正常 RAM 引导
 （`%TEMP%\opencode\m5\g2\fb-client.py`）。`boot` 的数据只进内存，不写分区。
 
+### 6c.10 P3 第六轮（2026-09-18）：Android 侧寄存器对照完成；找到并修复"开机无声卡"的真根因（QRTR NS）；扬声器仍无声
+
+本轮把 §6c.9 指定的"唯一剩余动作"（Android 侧实时寄存器对照）做完了，并且**在排查
+过程中找到并修掉了一个此前一直没被发现的开机链路故障**。
+
+**1. Android 侧实时寄存器对照（结论：功放配置与 Linux 完全一致，没有差异）**
+
+- 工具：`tools/p3/tfa-regs-android.c` + `tools/p3/build-tfa-regs-aarch64.sh`（WSL
+  `aarch64-linux-gnu-gcc -static` 交叉编译，770 KB 静态 aarch64；支持
+  `i2c <bus>`（`I2C_SLAVE_FORCE`）与 `misc <reg 节点> <rw 节点>` 两条路径，寄存器 =
+  8 位地址 + 16 位大端；`scan` 会扫出 0x34 所在总线）。push 到
+  `/data/local/tmp` 用 Magisk `su` 执行即可；Android 上 TFA 也在 **i2c-1 / 0x34**。
+- **Android 播放时**（铃声选择器预览 = MediaPlayer → AudioFlinger →
+  `AUDIO_DEVICE_OUT_SPEAKER`，HAL 播放线程活动、`pcm9p` RUNNING、`Playback 9
+  Volume` 可读回）dump 0x34 与 Linux 播放时 dump 逐字段比对：
+  - **所有配置寄存器完全一致**：`0x00=0x0018`（PWDN=0、AMPE=1、DCA=1）、
+    `0x02=0x21e8`、`0x10=0x0016`、`0x13=0x850f`、`0x20=0x2890`、`0x21=0xc1f1`
+    （TDME/TDM 帧格式字段全同）。
+  - 差异只在**遥测**：`0x15` BATS（750↔772）、`0x16` TEMPS（35↔39）、`0x17`
+    VDDPS（451↔499）；`0x40` 中断锁存：两边都有 **ISTTDMER=1**（Linux 还多一个
+    ISTNOCLK，属开机锁存）。
+  - **Android 的 HAL 从不打开 `/dev/tfa_*`**（fd 扫描）：功放配置在两边 100% 来自
+    内核驱动 + `tfa98xx.cnt` 容器 —— 功放侧不存在"Android 配了、Linux 没配"的东西。
+- Android HAL 的扬声器路由（`tinymix` 空闲/播放 diff）：FE = **MultiMedia5**
+  （Android 上 `pcm9p`，`/proc/asound/pcm` 00-09），BE =
+  `PRI_MI2S_RX Audio Mixer MultiMedia5` On，播放时唯一变化的控件是
+  `PRIM_MI2S_RX Format`：S16_LE → **S24_LE**（与 Linux 的 `lmi-audio-route` 相同）；
+  FE 流格式 S24_3LE / 2ch / 48k。FE 音量是 `Playback 9 Volume`（默认 0，HAL 开流后
+  才置位）。
+- **Linux 侧按 Android 原样复刻**：FE MultiMedia5（`plughw:0,9`，hw_params 实测
+  `S24_3LE/2ch/48000`）、BE `MultiMedia5` On、`Playback 9 Volume=8192`（流打开期间
+  置位并回读确认）、同一容器配置 —— **自环 1 kHz power 仍为 0.0**（同次开机听筒
+  阳性对照 = 17.5）。即：把 Android 在内核/ALSA 层可见的一切都对齐了，Linux 扬声器
+  依旧无声。
+- 声学旁证（手机自录自测，PC 麦克风不可用）：Android 铃声预览"有活动音轨但录音窗口
+  RMS 不变"、CIT 的听筒/扬声器测试音也无法在录音中找到相应 1 kHz 能量；**目前无法
+  在 Android 上证实扬声器真的出声**（需要人耳确认）。听筒/麦克风在两边都正常。
+  下一步优先级：**先让人耳确认 Android 扬声器是否正常**：
+  - 若 Android 有声 → 差异只可能在 HAL/ADSP 标定（Linux 缺 ACDB 拓扑标定、或 HAL
+    经 `ADSP Stream Cmd` 下发的运行参数），需要沿 `q6afe.c`/`adm` 标定链继续挖；
+  - 若 Android 也无声 → 说明问题不限于 Linux（共享的 TFA/MI2S 数据链路或硬件），
+    排查方向转向 MI2S 帧/TDM 硬伤与功放输出级。
+
+**2. 真根因：开机时没有 QRTR 名字服务（`lmi-qrtr-ns`），整条音频链卡死**
+
+本轮发现：**卡在 `pd-mapper` 之前还有一环 —— QRTR 名字服务（NS）**。这个下游 4.19
+内核没有内核态 QRTR NS，QMI 服务在 `AF_QIPCRTR` 上的注册/查找都需要用户态
+`lmi-qrtr-ns`（现成的静态二进制 `/usr/sbin/lmi-qrtr-ns`，`[-f] [-s] [<node-id>]`）。
+它没有被任何 OpenRC 服务启动（前几轮是会话里手工起过，所以有时"能出声卡"）。现象与
+验证：
+
+- 冷启动（无 NS）：`adsp: Brought out of reset`（t≈49s）之后**永远**不出现
+  `servloc: Service locator initialized`，`qrtr-lookup` 只有内核线程、没有任何
+  apps 侧服务；`q6core`/`sound` 设备不创建 → 无声卡。
+- 手工起 NS 后**几秒内**：`servloc: Service locator initialized` →
+  `service_locator_new_server` → `q6core-audio`/`sound` 全部创建 → **声卡出现**
+  （`/proc/asound/cards`），且此后听筒 1 kHz 自环正常（power 17.5）、麦克风正常。
+- 为什么之前偶发能出声卡：`lmi-adsp` 之后的内核 `service_locator` 有 50 分钟等待窗
+  （`servloc` 里 `service_timedout` 粘滞），只要 NS 在窗口内起来就还能补救；且
+  `deferred_probe_timeout=300` 之后才创建的 `q6core` 子设备会被强制 probe，SWR
+  pinctrl/宏会因 provider 未就绪而永久失败（表现为 `failed to get swr pin state`），
+  所以**补救 SSR 也常常救不回来**（本会话实测：无 NS 时重启 ADSP 3 次均无声卡）。
+
+**已落地的修复（设备 rootfs 已生效 + 入仓）**：
+
+| 项 | 内容 |
+|---|---|
+| 新服务 | `tools/m1/m1b/etc/init.d/lmi-qrtr-ns`（supervise-daemon，`respawn_max=0`，`before pd-mapper rmtfs tqftpserv`） |
+| 启用 | 设备上 `rc-update add lmi-qrtr-ns default`（连同 `rmtfs`/`tqftpserv`） |
+| rmtfs 坑 | pmOS 包的服务脚本会加 `-s`（与 mss remoteproc 同步）；本内核没有 `/sys/class/remoteproc` → rmtfs 立即退出。payload 覆盖件 `tools/m1/m1b/etc/init.d/rmtfs` 去掉 `-s` |
+| 顺序 | `lmi-adsp` 改为 `after udev-settle lmi-qrtr-ns pd-mapper rmtfs tqftpserv` |
+
+**复验（本会话实测）**：冷启动后无需任何手工干预，`/proc/asound/cards` 出现
+`kona-mtp-snd-card`；`lmi-qrtr-ns`/`pd-mapper`/`rmtfs`/`tqftpserv` 全在
+default runlevel 且运行中。
+
+**当前状态一句话**：麦克风 ✅、听筒 ✅、开机自动出声卡 ✅；**扬声器（PRI_MI2S_RX →
+TFA9874）在 Linux 上仍无声**，且已在 ALSA/容器层面与 Android 逐字段对齐 —— 剩余
+疑点集中在 ADSP 标定（ACDB/HAL 侧参数）与 MI2S 帧硬伤，需要"Android 扬声器是否真的
+有声"这个人耳结论来决定往哪边挖。
+
+
 ## 7. 参考
 
 - 内核来源与配置：`jian45154/redmi-k30-pro-postmarketos` →

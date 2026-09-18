@@ -1,0 +1,31 @@
+#!/sbin/openrc-run
+supervisor=supervise-daemon
+# SPDX-License-Identifier: MIT
+# QRTR name service (userspace).
+#
+# This downstream 4.19 kernel has no in-kernel QRTR name service: without the
+# userspace NS daemon, QMI service registration/lookup over AF_QIPCRTR does not
+# work, so pd-mapper's SERVREG_LOC (0x40) service is invisible to the kernel's
+# servloc driver -> the audio service_locator never initializes -> no q6core
+# device -> no sound card.  (Found 2026-09-18: starting this daemon made the
+# sound card appear seconds later; booting without it left the card absent
+# forever.)
+#
+# The binary is a statically linked build of the qrtr *userspace* NS daemon
+# (usage: lmi-qrtr-ns [-f] [-s] [<node-id>]) installed at /usr/sbin/lmi-qrtr-ns.
+#
+# Ordering: must be running before anything that registers a QMI service over
+# QRTR (pd-mapper, rmtfs, tqftpserv).
+name="lmi-qrtr-ns"
+description="QRTR name service (userspace NS daemon)"
+
+command="/usr/sbin/lmi-qrtr-ns"
+
+respawn_delay=1
+respawn_max=0
+
+depend() {
+	need localmount
+	after udev-settle
+	before pd-mapper rmtfs tqftpserv
+}

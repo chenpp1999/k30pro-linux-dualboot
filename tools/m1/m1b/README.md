@@ -43,6 +43,17 @@ shipped to the device through the one-shot overlay applied by
 | `usr/sbin/lmi-keys` | **new**: static musl daemon (`tools/m1/lmi-keys.c`) — volume keys → backlight ±10%, power key toggles screen, idle (`-t 300`) turns the backlight off (Weston's `--idle-time` only drops the CRTC) |
 | `etc/init.d/lmi-keys` | OpenRC service for the daemon (`command_args="-t 300"`) |
 
+### Audio chain (2026-09-18, see docs/bluetooth-assessment.md §6c.10)
+
+| path | role |
+|---|---|
+| `etc/init.d/lmi-qrtr-ns` | **new**: userspace QRTR name service. **Required**: this downstream kernel has no in-kernel QRTR NS, so without it QMI service registration/lookup fails → `pd-mapper`'s SERVREG_LOC is invisible → the kernel `servloc` never initializes → no `q6core`/`sound`, i.e. **no sound card at all**. `before pd-mapper rmtfs tqftpserv`, `respawn_max=0` |
+| `etc/init.d/rmtfs` | **override** of the pmOS package service: drop the `-s` argument (the package adds it unless the qipcrtr preload shim exists; this kernel has no `/sys/class/remoteproc`, so `-s` makes rmtfs exit immediately and the ADSP never gets its PD maps) |
+| `etc/init.d/lmi-adsp` | ordering updated: `after udev-settle lmi-qrtr-ns pd-mapper rmtfs tqftpserv` |
+
+Both `lmi-qrtr-ns` and `rmtfs`/`tqftpserv` must be in the `default` runlevel
+(`rc-update add … default`); the overlay post-step adds them.
+
 The patched clients are built by `tools/m1/build-weston-clients.sh` (on device;
 meson must use `-Dprefix=/usr`, see the script header and the audit §6).
 

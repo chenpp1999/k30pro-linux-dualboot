@@ -6,6 +6,27 @@
 ## [Unreleased]
 
 ### Fixed
+- **"开机无声卡"的真根因：QRTR 名字服务没在开机时启动（2026-09-18）**。这个下游
+  4.19 内核没有内核态 QRTR NS，QMI 服务在 `AF_QIPCRTR` 上的注册/查找全靠用户态
+  `/usr/sbin/lmi-qrtr-ns`；此前它只被会话手工起过，**没有任何 OpenRC 服务**。
+  没有它：`pd-mapper` 的 SERVREG_LOC 对内核不可见 → `servloc: Service locator
+  initialized` 永不出现 → `q6core`/`sound` 不创建 → 无声卡（且 `deferred_probe_timeout`
+  过后再重启 ADSP 也救不回来）。修复：
+  - 新增 payload `tools/m1/m1b/etc/init.d/lmi-qrtr-ns`（`respawn_max=0`，
+    `before pd-mapper rmtfs tqftpserv`）；
+  - payload 覆盖 `etc/init.d/rmtfs`：pmOS 包会加 `-s`（本内核无
+    `/sys/class/remoteproc` → rmtfs 立即退出）→ 去掉 `-s`；
+  - `lmi-adsp` 顺序改为 `after udev-settle lmi-qrtr-ns pd-mapper rmtfs tqftpserv`；
+  - `m1b-init.sh` 启动项加上 `lmi-qrtr-ns`/`rmtfs`/`tqftpserv`，overlay 版本 v20。
+  实测：起 NS 后数秒内声卡出现；冷启动无需手工干预即有 `kona-mtp-snd-card`。
+- **Android 侧实时寄存器对照（2026-09-18）**：新增静态 aarch64 工具
+  `tools/p3/tfa-regs-android.c`（`build-tfa-regs-aarch64.sh` 交叉编译，i2c
+  `I2C_SLAVE_FORCE` + `/dev/tfa_reg|/dev/tfa_rw` 两条路径）。Android 播放（HAL
+  speaker、`pcm9p`=MultiMedia5、S24_3LE）时 dump 0x34 与 Linux 播放逐字段比对：
+  **配置寄存器完全一致**（0x00/0x02/0x10/0x11/0x13/0x20/0x21），差异只在遥测
+  （BATS/TEMPS/VDDPS）与锁存中断位；Android HAL 也从不打开 `/dev/tfa_*`。
+  Linux 侧按 Android 原样复刻 FE MultiMedia5 + S24_3LE + `Playback 9 Volume`
+  仍然无声（同机听筒对照正常）。结论见 `docs/bluetooth-assessment.md` §6c.10。
 - **麦克风（录音）打通（2026-09-18）—— 上一轮"要 ACDB 标定"的判断是错的**。
   ADSP 对 `AFE_PARAM_ID_CODEC_DMA_CONFIG` 要求 `popcount(active_channels_mask) ==
   num_channels`；TX 宏报上来的 mask 与 DPCM 前端的 `num_channels` 不一致就被回

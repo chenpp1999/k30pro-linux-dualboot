@@ -1,4 +1,4 @@
-# 开发交接（Handoff）— 2026-09-17（v1.0 已发布；P3 音频：ADSP 已通，卡在 pd-mapper）
+# 开发交接（Handoff）— 2026-09-18（P3 音频：麦克风/听筒可用、开机链路已修；扬声器仍无声）
 
 > 给接手本项目的 AI 会话/开发者：阅读顺序 = `AGENTS.md` → `docs/ai-protocol.md` → 本文，
 > 再按需深入 `docs/`。所有结论以**仓库 + 设备实测**为准，不依赖任何会话记忆。
@@ -18,31 +18,42 @@
 | 桌面/终端体验 | ✅ 指纹拖动滚动、键盘避让、单窗口、`lmi-help`、WiFi 看门狗 | `docs/usage.md` |
 | M4 | ✅ v1.0 已发布（tag `v1.0.0`） | `docs/release-v1.0.0.md`、`docs/reproduce.md` |
 | M5 | 🚧 一键安装：PC 一键已实现，离线模拟全绿，**真机端到端待验证** | `docs/install-guide.md`、`docs/installer-design.md`、`tools/tests/m5-*.sh` |
-| 外设 bring-up（P0–P3） | 🚧 手电筒 ✅（overlay v17）；蓝牙 ❌ 已证伪；**音频：ADSP 已通、声卡待 pd-mapper** | `docs/{peripheral-bringup-plan,bluetooth-assessment,firmware-inventory}.md`、`tools/{p3,kernel}/` |
+| 外设 bring-up（P0–P3） | 🚧 手电筒 ✅（overlay v17）；蓝牙 ❌ 已证伪；**音频：麦克风 ✅、听筒 ✅、开机自动出声卡 ✅；扬声器 ❌ 仍无声** | `docs/{peripheral-bringup-plan,bluetooth-assessment,firmware-inventory}.md`、`tools/{p3,kernel}/` |
 
-## 二、设备当前状态（2026-09-17，实测）
+## 二、设备当前状态（2026-09-18，实测）
 
-- **运行中**：手机**当前在 Android**（2026-09-17 P3 会话末从 Linux 重启回来，adb 正常）；
-  `recovery` = **`boot-m1b-v23.img`**（sha256 `c01efe45…`，**overlay `m1b-ux-v16`**，回读校验通过）；
-  rootfs 在 **`/dev/sda35`（`lnx`）**。引导账本 **`boot=34`、`overlay=applied`**（v16 已落盘）。
-  v15/v16 的内容与实测数据见 §六 第 11/17/18 条与 `CHANGELOG.md`。
+- **运行中**：手机**当前在 Linux**（2026-09-18 P3 第六轮会话末：RAM 引导
+  `%TEMP%\opencode\m5\g2\boot-m1b-v24.img`（v19），USB-NCM `172.16.42.1` 可 SSH，声卡在线）。
+  期间为做 Android 寄存器对照曾切到 Android 一次再回来；**v24 未刷入**，
+  `recovery` 仍是 **`boot-m1b-v23.img`**（sha256 `c01efe45…`，**overlay `m1b-ux-v16`**，
+  回读校验通过）；rootfs 在 **`/dev/sda35`（`lnx`）**。引导账本见 §六 第 11/17/18 条。
+- **音频（P3，2026-09-18 第六轮）**：
+  - **麦克风 ✅**（内核补丁 `lmi-cdc-dma-channel-mask.patch` + payload
+    `lmi-mic-route`；`arecord -c 2 -d 20` 有真实信号）；
+  - **听筒 ✅**（`lmi-earpiece-route`，自环 1 kHz power ≈ 17.5）；
+  - **开机自动出声卡 ✅（本轮真根因修复）**：此前 `lmi-qrtr-ns`（用户态 QRTR 名字
+    服务）没有任何 OpenRC 服务、只被手工起过 → 无 NS 时 `pd-mapper` 的 SERVREG_LOC
+    对内核不可见 → `servloc` 永不初始化 → 无 `q6core`/`sound` = **无声卡**。已落盘：
+    payload 新增 `etc/init.d/lmi-qrtr-ns`、覆盖 `etc/init.d/rmtfs`（去掉 `-s`）、
+    `lmi-adsp` 顺序改为 `after … lmi-qrtr-ns pd-mapper rmtfs tqftpserv`，并全部 enable
+    到 default runlevel。**冷启动无需手工干预**即可出卡（设备 rootfs 已生效，overlay
+    版本将随下一次镜像构建升到 v20）。
+  - **扬声器（PRI_MI2S_RX → TFA9874）仍无声**：Android 侧实时寄存器对照已完成
+    （`tools/p3/tfa-regs-android.c`，见 `docs/bluetooth-assessment.md` §6c.10）——
+    两边 TFA 配置**逐字段一致**，Linux 按 Android HAL 原样复刻（FE MultiMedia5、
+    S24_3LE、`Playback 9 Volume`）仍无声。**待办：让人耳确认 Android 扬声器是否
+    真的有声**（当前录音证据反而显示 Android 出无声；这决定下一步方向）。
 - **P3 在 rootfs 里留下了持久状态**（都在 `/dev/sda35` 上，重启不丢）：
   - **ADSP 固件已在 `/lib/firmware/`**（`adsp.mdt` + `adsp.b00…b18` + `adspr.jsn` +
     `adspua.jsn`，22 文件 20,356,050 B，sha256 见
     [`firmware-inventory.md`](firmware-inventory.md)）；
   - **`pd-mapper` 已编译安装**（`/usr/bin/pd-mapper`，源码由
-    `tools/p3/build-pd-mapper.sh` 取上游 + 补丁原生编译）+ OpenRC 服务，且**已加入 default
-    runlevel**；实测开机后 `qrtr-lookup` 出现 `64 ... Service registry locator service`
-    （apps 侧 locator）；
-  - **`lmi-adsp` OpenRC 服务**（payload `tools/m1/m1b/etc/init.d/lmi-adsp`，已装并 enable）：
-    ADSP 由**用户态**写 `/sys/kernel/boot_adsp/boot` 触发加载（`adsp-loader` 不会自动加载），
-    顺序 ADSP → pd-mapper → 内核链；
+    `tools/p3/build-pd-mapper.sh` 取上游 + 补丁原生编译）+ OpenRC 服务，且在 default
+    runlevel；
+  - **`lmi-qrtr-ns`/`lmi-adsp`/`rmtfs`/`tqftpserv` 全在 default runlevel**（本轮修复，
+    见上）；
   - 用户态：`alsa-utils`/`alsa-ucm-conf`/`qrtr`（Alpine v3.23）+
     `rmtfs`/`pd-mapper`/`tqftpserv`（pmOS v25.06 包）；`/dev/qcom_rmtfs_mem1` 存在。
-  - **实测（boot=36）**：`t=48.8s adsp: Brought out of reset` → `t=89.7s Service locator
-    initialized` → `apr_add_child_devices` → `q6core-audio`/`sound`/`bolero`/`wcd938x` 设备全建；
-    **但仍无声卡**：卡在 SWR pinctrl（`msm-cdc-pinctrl` 的 `devm_pinctrl_get` = **-110**）。
-    详见 [`bluetooth-assessment.md`](bluetooth-assessment.md) **§6c.6**、`tools/p3/README.md`。
 - **WiFi 正常**：Linux 侧会自动连上配置里的网络（SSID/IP 属于按机信息，**不入仓**）；
   `lmi-netwatch`（看门狗）在跑，`/run/lmi-netwatch.state` = `status=ok`。
 - **充电/温控在生效**：`lmi-chargectl` 把 SOC 控制在 70–80 % 锯齿（`/run/lmi-chargectl.state`），
@@ -247,6 +258,25 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
     `unpacked/cmdline`），再用 **`fastboot boot`（零写入）**验证：`sound` 绑定 →
     `/proc/asound/cards` → `aplay -l`/`arecord -l` → 出声/录音（含麦克风）。
     排查提示：该内核**没编 `CONFIG_DYNAMIC_DEBUG`**，动态调试打不开，只能靠 printk 或推理。
+26. **开机必须有用户态 QRTR 名字服务（`lmi-qrtr-ns`，2026-09-18 定根因）**：本内核没有
+   内核态 QRTR NS；没有 `/usr/sbin/lmi-qrtr-ns` 时 QMI 服务注册/查找全失效 →
+    `pd-mapper` 的 SERVREG_LOC 不可见 → `servloc: Service locator initialized` 永不出现
+    → `q6core`/`sound` 不创建 = **无声卡**。它必须有 OpenRC 服务并 enable 到 default
+    （payload `tools/m1/m1b/etc/init.d/lmi-qrtr-ns`）。**注意 `deferred_probe_timeout=300`
+    过后再 SSR 也救不回来**（`q6core` 子设备被强制 probe、SWR pinctrl/宏永久失败，
+    日志 `failed to get swr pin state`）；`rmtfs` 的 pmOS 服务脚本还要去掉 `-s`
+    （本内核无 `/sys/class/remoteproc`，带 `-s` 会立刻退出，payload 已覆盖）。
+27. **fastboot 在 Windows 上会卡 "Code 10"（2026-09-18 实战）**：`adb reboot bootloader`
+    后设备常以 `USB\VID_18D1&PID_D00D` 出现在设备管理器但 `CM_PROB_FAILED_START`，此时
+    `fastboot.exe`/libusb 都连不上；即使能枚举，`fb-client.py boot` 也会在数据后读
+    `EPIPE`。可靠的恢复流程：
+    ① 管理员 PowerShell `Disable-PnpDevice`/`Enable-PnpDevice`（或 `pnputil
+    /restart-device`）复位该设备；设备"未知 USB 设备(描述符获取失败)"时对
+    `VID_0000` 端口做 `pnputil /restart-device` 也可救回。
+    ② 复位后 `python fb-client.py boot <img>`：`data reply: OKAY` 后 `boot` 的读
+    `EPIPE`/超时是**正常现象**（USB 正在重枚举、手机已开始引导）；若没引导，
+    用 `fb-raw2.py boot` 单发 `boot` 命令（镜像还在 ABL 缓冲里）。
+    ③ 复位前先用 UAC 弹窗（本机验证可用）。
 
 ## 六之二、weston 终端/键盘实测结论（2026-09-15，补丁 0012–0019）
 
@@ -311,30 +341,25 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
    `/var/log/lmi-netwatch.log`、`dmesg | grep -i cnss`、`/var/log/lmi-wifi.log` 再动手。
 5. **可选收尾**：super 内旧 rootfs 区回收（观察期后）、`docs/architecture.md` §2/§3 与
    `docs/test-plan.md` T4 回填、IME 第二页、电池 LED 提示。
-6. **P3 音频（下一步＝诊断内核跑一轮，拿到 `kona.c` register_card 的返回码）**：
-   本轮把两个真根因都修了并实测：
-   - ① `deferred_probe_timeout` 默认 30s（`CONFIG_MODULES`）导致音频设备（t≈89s 才创建）
-     被强制 probe → `msm-cdc-pinctrl` 的 `-110`。**修复**：cmdline 加
-     `deferred_probe_timeout=300`（`tools/m1/kernel-cmdline-m1b.txt` +
-     `rebuild-image-from-device.sh --extra-cmdline`）。
-   - ② `techpack/audio/soc/pinctrl-lpi.c` 把 `devm_clk_get` 的 **`-EPROBE_DEFER` 吞成 NULL**
-     （provider `vote_lpass_*` 是同批里后创建的）→ LPI vote 永远开不了 →
-     `lpi_gpio_read/write: core hw vote clk is not enabled` → SWR 读不到 codec 地址（-22）→
-     `wcd938x-slave` 绑不上 → 无声卡。**修复**：
-     `tools/kernel/patches/lmi-lpi-pinctrl-defer-hw-vote.patch`（会被 `build-kernel.sh`
-     自动应用）。
-   - 实测（插桩内核）：`core_hw_vote=1 audio_hw_vote=1`、`hw_vote_enable ret=0`、
-     `core hw vote clk not enabled` 计数 0、**两个** `wcd938x-slave.*` 与
-     `tx/rx/va-macro`、`swr-wcd` 全部绑定。
-   - **仍差最后一步**：`sound` 未绑定 `kona-asoc-snd`（`driver` 链接悬空）、无 `/proc/asound/cards`。
-     机器驱动跑到 `msm_init_aux_dev: found 1 AUX codecs` 之后失败但**不报错**
-     （`-EPROBE_DEFER` + `codec_reg_done` → 静默改写成 `-EINVAL`）。
-   **下一步**：`fastboot boot` PC 上备好的**诊断镜像**
-   `%TEMP%\opencode\p3\boot-m1b-v27diag.img`（部署 ramdisk/dtb/dtbo + 带 printk 的内核 +
-   含 `deferred_probe_timeout=300` 的 cmdline）→ 看 `LMI_DBG register_card ...` 的返回码 →
-   按缺失的 component 继续。之后 `aplay -l`/`arecord -l` 出声/录音（麦克风），
-   全绿再谈 overlay v18 持久化。蓝牙**已证伪，别再碰**（§6b）。
-   完整证据链见 `docs/bluetooth-assessment.md` §6c.6/§6c.7；工具 `tools/p3/`、`tools/kernel/`。
+6. **P3 音频（2026-09-18 第六轮后）**：
+   - ✅ 麦克风（`lmi-cdc-dma-channel-mask.patch` + `lmi-mic-route`）。
+   - ✅ 听筒（`lmi-earpiece-route`）。
+   - ✅ **开机出声卡**：真根因是 **`lmi-qrtr-ns` 没在开机启动**（无用户态 QRTR NS →
+     `pd-mapper` 的 SERVREG_LOC 不可见 → `servloc` 不初始化 → 无 `q6core`/`sound`）。
+     修复已入仓并入 rootfs：payload `etc/init.d/lmi-qrtr-ns`、覆盖 `etc/init.d/rmtfs`
+     （去 `-s`）、`lmi-adsp` 顺序、`m1b-init.sh` 启动项；overlay 版本 v20。
+   - ❌ **扬声器仍无声**。Android 侧寄存器对照已完成
+     （`tools/p3/tfa-regs-android.c`；`docs/bluetooth-assessment.md` §6c.10）：
+     **TFA9874 配置两边逐字段一致**，Android HAL 路由（FE MultiMedia5 + S24_3LE +
+     `Playback 9 Volume`）在 Linux 原样复刻仍无声（听筒对照 17.5）。
+     **下一步（首选）**：让人耳确认 **Android 扬声器是否真的有声**——
+     - 若有声：差异只可能在 HAL/ADSP 标定（Linux 无 ACDB / HAL 经 `ADSP Stream Cmd`
+       下发的运行参数），沿 `q6afe.c`/`adm` 标定链继续；
+     - 若也无声：按"两端共有的 TFA/MI2S 数据链路或硬件"方向查（TDM 帧、功放输出级）。
+   - 蓝牙**已证伪，别再碰**（§6b）。完整证据链见 `docs/bluetooth-assessment.md` §6c.9/§6c.10；
+     工具 `tools/p3/`、`tools/kernel/`。
+   - **部署待办**：用户确认后把 `%TEMP%\opencode\m5\g2\boot-m1b-v24.img`（v19：麦克风+
+     听筒）dd 到 `/dev/sda28`（保留 v23 回滚，`boot` 分区 sha256 绝不能变）。
 7. **把本会话在仓库里、但尚未进设备的修复做成持久化镜像（overlay v17→v18）**：
    `lmi-torch`、`m1-weston`（seatd 自愈）在 repo 里但**没进镜像**；注意
    `build-initramfs.sh` 的 `/bin/sh` 软链修复**只对"从零构建 initramfs"生效**，
