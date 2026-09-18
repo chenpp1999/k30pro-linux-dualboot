@@ -47,7 +47,7 @@ shipped to the device through the one-shot overlay applied by
 
 | path | role |
 |---|---|
-| `etc/init.d/lmi-qrtr-ns` | **new**: userspace QRTR name service. **Required**: this downstream kernel has no in-kernel QRTR NS, so without it QMI service registration/lookup fails → `pd-mapper`'s SERVREG_LOC is invisible → the kernel `servloc` never initializes → no `q6core`/`sound`, i.e. **no sound card at all**. `before pd-mapper rmtfs tqftpserv`, `respawn_max=0` |
+| `etc/init.d/lmi-qrtr-ns` | **new**: userspace QRTR name service. **Required**: this downstream kernel has no in-kernel QRTR NS, so without it QMI service registration/lookup fails → `pd-mapper`'s SERVREG_LOC is invisible → the kernel `servloc` never initializes → no `q6core`/`sound`, i.e. **no sound card at all**. `command_args="-f"` (the daemon forks by default; supervise-daemon needs foreground), `before pd-mapper rmtfs tqftpserv`, `respawn_max=0` |
 | `etc/init.d/rmtfs` | **override** of the pmOS package service: drop the `-s` argument (the package adds it unless the qipcrtr preload shim exists; this kernel has no `/sys/class/remoteproc`, so `-s` makes rmtfs exit immediately and the ADSP never gets its PD maps) |
 | `etc/init.d/lmi-adsp` | ordering updated: `after udev-settle lmi-qrtr-ns pd-mapper rmtfs tqftpserv` |
 

@@ -20,6 +20,10 @@ name="lmi-qrtr-ns"
 description="QRTR name service (userspace NS daemon)"
 
 command="/usr/sbin/lmi-qrtr-ns"
+# The daemon forks into the background by default; supervise-daemon needs a
+# non-forking child (-f = foreground), otherwise OpenRC ends up with two
+# instances (one orphaned, one supervised).
+command_args="-f"
 
 respawn_delay=1
 respawn_max=0

@@ -595,7 +595,7 @@ FE PCM 只是前端，**必须先用混音器把路由配好**（Android 的 aud
 
 | 项 | 内容 |
 |---|---|
-| 新服务 | `tools/m1/m1b/etc/init.d/lmi-qrtr-ns`（supervise-daemon，`respawn_max=0`，`before pd-mapper rmtfs tqftpserv`） |
+| 新服务 | `tools/m1/m1b/etc/init.d/lmi-qrtr-ns`（supervise-daemon，`command_args="-f"`（daemon 默认 fork，必须前台）、`respawn_max=0`，`before pd-mapper rmtfs tqftpserv`） |
 | 启用 | 设备上 `rc-update add lmi-qrtr-ns default`（连同 `rmtfs`/`tqftpserv`） |
 | rmtfs 坑 | pmOS 包的服务脚本会加 `-s`（与 mss remoteproc 同步）；本内核没有 `/sys/class/remoteproc` → rmtfs 立即退出。payload 覆盖件 `tools/m1/m1b/etc/init.d/rmtfs` 去掉 `-s` |
 | 顺序 | `lmi-adsp` 改为 `after udev-settle lmi-qrtr-ns pd-mapper rmtfs tqftpserv` |

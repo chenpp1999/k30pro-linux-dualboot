@@ -12,8 +12,8 @@
   没有它：`pd-mapper` 的 SERVREG_LOC 对内核不可见 → `servloc: Service locator
   initialized` 永不出现 → `q6core`/`sound` 不创建 → 无声卡（且 `deferred_probe_timeout`
   过后再重启 ADSP 也救不回来）。修复：
-  - 新增 payload `tools/m1/m1b/etc/init.d/lmi-qrtr-ns`（`respawn_max=0`，
-    `before pd-mapper rmtfs tqftpserv`）；
+  - 新增 payload `tools/m1/m1b/etc/init.d/lmi-qrtr-ns`（`command_args="-f"`，
+    `respawn_max=0`，`before pd-mapper rmtfs tqftpserv`）；
   - payload 覆盖 `etc/init.d/rmtfs`：pmOS 包会加 `-s`（本内核无
     `/sys/class/remoteproc` → rmtfs 立即退出）→ 去掉 `-s`；
   - `lmi-adsp` 顺序改为 `after udev-settle lmi-qrtr-ns pd-mapper rmtfs tqftpserv`；
