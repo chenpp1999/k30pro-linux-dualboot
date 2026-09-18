@@ -440,6 +440,20 @@ FE PCM 只是前端，**必须先用混音器把路由配好**（Android 的 aud
 - 引脚复用（`/sys/kernel/debug/pinctrl/f000000.pinctrl/pinmux-pins`）：
   `pin 138/139/140/141 = mi2s0_sck/data0/data1/ws`，owner 均为
   `soc:qcom,msm-dai-q6-mi2s-prim` → **MI2S 引脚确实复用了**，SO 侧信号会到引脚。
+- **TFA9874 寄存器解码（播放中 dump，用 `tfa9874_tfafieldnames.h` 解码）**：
+  `PWDN=0`、**`AMPE=1`（功放已使能）**、`DCA=1`、**`CLKS=1`/`PLLS=1`（I2S 时钟与 PLL 锁定）**、
+  `MANMUTE=0`（未静音）、`VDDS=0`。但 `ISTTDMER=1`（锁存的 **TDM 错误**中断，
+  `IPOTDMER=1`），且功放处于 TDM 配置（`TDME=1`、`TDMSLOTS=1`、`TDMSLLN=31`、
+  `TDMNBCK=2`、`TDMFSPOL=1`）→ 数据链路电平/时钟都在，**问题指向 I2S/TDM 帧格式不匹配**
+  （功放按容器里的 TDM 时隙/极性解析，SoC 侧 MI2S 的帧格式与之不符 → 接收错误 → 静音）。
+- Android 对照：**容器就是同一个文件**（`/vendor/firmware/tfa98xx.cnt`，
+  sha256 `07abfca1…`，全设备只有这一个），所以不是"装错调音"。
+  但 **Android 侧 debugfs 被禁**（`/sys/kernel/debug` 连 root 都建不出来），
+  无法直接 dump Android 下的功放寄存器做对照。下一步替代方案：
+  写一个静态 aarch64 小程序经 `/dev/i2c-*` 直读 0x34（Android 下 root 可跑），
+  对比 TDM/I2S 字段；或在 Linux 侧把 `TDMMODE/TDMFSPOL/TDMSLLN/TDMNBCK` 调成与 MI2S 一致
+  （容器里这些值来自 profile，可先用 **mixer 控件或改容器**试）。
+
 - 因此"无声"只剩 **TFA9874 功放内部状态/接口格式** 未查（寄存器 dump 已存
   `%TEMP%\opencode\m5\g2\tfa-regs.txt`，256 字节寄存器 0x00–0xFF；驱动字段名在
   `techpack/audio/asoc/codecs/tfa9874/inc/tfa9874_tfafieldnames.h`）。下一步：解码
