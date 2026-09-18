@@ -86,10 +86,12 @@ echo "== 3. hardcoded device nodes =="
 #   rebuild-image-from-device.sh : device-side tool, /dev/sda28 default, --dev override
 #   lmi-repart.sh                : planner for the disk it is asked to plan; prints commands
 #   lmi-chargectl / m1-mailbox / lmi-wifi-start : misc/super defaults, overridable
+#   extract-adsp-firmware.sh     : only documents the node in a comment
 NODE_ALLOWED="tools/m0/init tools/m1/m1-init.sh tools/m1/m1b-init.sh
 tools/m1/rebuild-image-from-device.sh tools/m3/lmi-repart.sh
 tools/m1/m1b/usr/sbin/lmi-chargectl tools/m1/m1b/usr/sbin/m1-mailbox
-tools/m1/m1b/usr/sbin/lmi-wifi-start tools/m1/m1b/usr/sbin/lmi-netwatch"
+tools/m1/m1b/usr/sbin/lmi-wifi-start tools/m1/m1b/usr/sbin/lmi-netwatch
+tools/p3/extract-adsp-firmware.sh"
 for f in $(scanned_scripts); do
   case "$f" in
     tools/ci/checks.sh) continue ;;   # the scanner itself contains this pattern

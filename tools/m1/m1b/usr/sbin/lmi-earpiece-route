@@ -1,0 +1,65 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# lmi-earpiece-route - route playback to the earpiece (WCD938x over SoundWire).
+#
+# The loudspeaker path (PRI_MI2S_RX -> TFA9874) currently starts cleanly
+# (AFE port 0x1000, `tfa_dev_start success`) but produces no audible output; the
+# earpiece path below is verified to play on hardware (docs/bluetooth-assessment.md
+# 6c.9).  It is the same path the lmi vendor mixer "handset" path uses.
+#
+# Controls are addressed by numid (amixer sget/scontrols fails on this card).
+set -u
+
+CARD=0
+
+nid() {
+	amixer -c "$CARD" controls 2>/dev/null | grep -F "$1" | head -1 |
+		sed 's/numid=//;s/,.*//'
+}
+
+set_ctrl() {
+	id=$(nid "$1")
+	if [ -z "$id" ]; then
+		echo "lmi-earpiece-route: control not found: $1" >&2
+		return 1
+	fi
+	amixer -c "$CARD" cset numid="$id" "$2" >/dev/null 2>&1 || {
+		echo "lmi-earpiece-route: failed to set $1" >&2
+		return 1
+	}
+}
+
+# Wait for the card (it appears ~60-120 s into the boot).
+i=0
+while [ "$i" -lt 60 ]; do
+	grep -q konamtpsndcard /proc/asound/cards 2>/dev/null && break
+	i=$((i + 1))
+	sleep 5
+done
+grep -q konamtpsndcard /proc/asound/cards 2>/dev/null || {
+	echo "lmi-earpiece-route: sound card did not appear" >&2
+	exit 1
+}
+
+# Speaker off, earpiece on.
+set_ctrl "PRI_MI2S_RX Audio Mixer MultiMedia1" "off,off" || true
+set_ctrl "RX_EAR Mode" "ON" || true
+set_ctrl "RX_MACRO RX0 MUX" "AIF1_PB" || true
+set_ctrl "RX_CDC_DMA_RX_0 Channels" "One" || true
+set_ctrl "RX INT0_1 MIX1 INP0" "RX0" || true
+set_ctrl "RX INT0 DEM MUX" "CLSH_DSM_OUT" || true
+set_ctrl "EAR_RDAC Switch" "1" || true
+set_ctrl "RDAC3_MUX" "RX1" || true
+set_ctrl "EAR PA Gain" "G_6_DB" || true
+set_ctrl "RX_CDC_DMA_RX_0 Audio Mixer MultiMedia1" "on,on" || exit 1
+
+# Same FE volume caveat as the speaker path: the control must be (re)applied
+# while a stream is open, otherwise the session runs at 0 (=silence).
+VOL=${LMI_AUDIO_VOLUME:-90}
+V=$(nid "Playback 0 Volume")
+if [ -n "$V" ]; then
+	amixer -c "$CARD" cset numid="$V" "$((8192 * VOL / 100))" >/dev/null 2>&1
+fi
+
+echo "lmi-earpiece-route: playback route set (MultiMedia1 -> RX_CDC_DMA_RX_0 -> earpiece), volume ${VOL}%"
+exit 0

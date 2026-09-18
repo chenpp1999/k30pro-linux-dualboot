@@ -1,0 +1,22 @@
+diff --git a/techpack/audio/asoc/msm-dai-q6-v2.c b/techpack/audio/asoc/msm-dai-q6-v2.c
+index fb17f40e8..debf9f8b9 100644
+--- a/techpack/audio/asoc/msm-dai-q6-v2.c
++++ b/techpack/audio/asoc/msm-dai-q6-v2.c
+@@ -12471,6 +12471,17 @@ static int msm_dai_q6_cdc_dma_hw_params(
+ 		dai_data->port_config.cdc_dma.num_channels,
+ 		dai_data->rate);
+ 
++	/*
++	 * The ADSP AFE rejects AFE_PARAM_ID_CODEC_DMA_CONFIG (EBADPARAM)
++	 * unless popcount(active_channels_mask) == num_channels.  The TX
++	 * macro advertises the mask of the active DEC/AIF path over
++	 * SoundWire while the DPCM front end can carry a different channel
++	 * count, so make the AFE port agree with the mask when it is known.
++	 */
++	if (dai_data->port_config.cdc_dma.active_channels_mask)
++		dai_data->port_config.cdc_dma.num_channels =
++			hweight16(dai_data->port_config.cdc_dma.active_channels_mask);
++
+ 	return 0;
+ }
+ 

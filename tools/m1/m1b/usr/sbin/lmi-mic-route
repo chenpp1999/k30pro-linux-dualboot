@@ -1,0 +1,74 @@
+#!/bin/sh
+# SPDX-License-Identifier: MIT
+# lmi-mic-route - bring up the internal microphone (handset-mic) on lmi.
+#
+# The lmi vendor mixer paths (`mixer_paths_overlay_static.xml`, path
+# "handset-mic") use the two analog mics behind the WCD938x, fed over
+# SoundWire into the TX macro:
+#
+#   DEC0 <- TX SMIC MUX0 = ADC0   (main/bottom mic)
+#   DEC1 <- TX SMIC MUX1 = ADC3   (top mic)
+#
+# and both DECs are mixed into AIF1, which the LPASS reads through the
+# codec-DMA TX port TX_CDC_DMA_TX_3 (the capture front end then routes
+# MultiMedia1 to that port, exactly like Android's "audio-record" path).
+#
+# The AFE port additionally requires popcount(active_channels_mask) ==
+# num_channels; the kernel patch lmi-cdc-dma-channel-mask.patch keeps the two
+# consistent (without it the ADSP answers ADSP_EBADPARAM / -22).
+#
+# Notes:
+#   * `amixer sget/scontrols` fails on this card ("Mixer ... load error"), so
+#     controls are addressed by numid, resolved by name from `amixer controls`.
+#   * Safe to run repeatedly; missing controls are skipped.
+set -u
+
+CARD=0
+
+nid() {
+	amixer -c "$CARD" controls 2>/dev/null | grep -F "$1" | head -1 |
+		sed 's/numid=//;s/,.*//'
+}
+
+set_ctrl() { # $1 = control name, $2 = value
+	id=$(nid "$1")
+	if [ -z "$id" ]; then
+		echo "lmi-mic-route: control not found: $1" >&2
+		return 1
+	fi
+	amixer -c "$CARD" cset numid="$id" "$2" >/dev/null 2>&1 || {
+		echo "lmi-mic-route: failed to set $1" >&2
+		return 1
+	}
+	return 0
+}
+
+# Two active TX channels (DEC0 + DEC1) for the codec-DMA TX port.
+set_ctrl "TX_CDC_DMA_TX_3 Channels" "Two" || true
+
+# Main mic: DEC0 <- SWR_MIC, SMIC0 = ADC0, analog ADC1 unmuted.
+set_ctrl "TX DEC0 MUX" "SWR_MIC" || true
+set_ctrl "TX SMIC MUX0" "ADC0" || true
+set_ctrl "TX_AIF1_CAP Mixer DEC0" "on" || true
+set_ctrl "ADC1_MIXER Switch" "1" || true
+set_ctrl "ADC1 Volume" "6" || true
+
+# Top mic: DEC1 <- SWR_MIC, SMIC1 = ADC3, analog ADC4 (INP5) unmuted.
+set_ctrl "TX DEC1 MUX" "SWR_MIC" || true
+set_ctrl "TX SMIC MUX1" "ADC3" || true
+set_ctrl "TX_AIF1_CAP Mixer DEC1" "on" || true
+set_ctrl "ADC4_MIXER Switch" "1" || true
+set_ctrl "ADC4 MUX" "INP5" || true
+set_ctrl "ADC4 Volume" "6" || true
+
+# Capture front end: MultiMedia1 -> TX_CDC_DMA_TX_3.
+id=$(nid "MultiMedia1 Mixer TX_CDC_DMA_TX_3")
+if [ -n "$id" ]; then
+	amixer -c "$CARD" cset numid="$id" on >/dev/null 2>&1
+else
+	echo "lmi-mic-route: control not found: MultiMedia1 Mixer TX_CDC_DMA_TX_3" >&2
+	exit 1
+fi
+
+echo "lmi-mic-route: microphone route set (MultiMedia1 <- TX_CDC_DMA_TX_3, DEC0/ADC0 + DEC1/ADC3)"
+exit 0

@@ -6,6 +6,20 @@
 ## [Unreleased]
 
 ### Fixed
+- **麦克风（录音）打通（2026-09-18）—— 上一轮"要 ACDB 标定"的判断是错的**。
+  ADSP 对 `AFE_PARAM_ID_CODEC_DMA_CONFIG` 要求 `popcount(active_channels_mask) ==
+  num_channels`；TX 宏报上来的 mask 与 DPCM 前端的 `num_channels` 不一致就被回
+  `ADSP_EBADPARAM`(-22)。新增 `tools/kernel/patches/lmi-cdc-dma-channel-mask.patch`
+  （mask 已知时令 `num_channels = hweight16(mask)`）。采集路由按 lmi 厂商 overlay 的
+  `handset-mic`：`SWR_MIC` + `TX SMIC MUX0=ADC0` + `TX SMIC MUX1=ADC3` +
+  `TX_CDC_DMA_TX_3 Channels=Two`（主麦是 AMIC 不是 DMIC）。实机 `arecord -c 2 -d 20`
+  录得完整 20 s 立体声、有真实信号。payload：`usr/sbin/lmi-mic-route`。
+- **前端音量 `Playback 0 Volume` 静默失败（2026-09-18）**：该控件是无 switch 的
+  INTEGER(0..8192)，`cset numid=X 90% unmute` 里多出的 `unmute` 让命令整条失败
+  （音量恒 0 = 静音）；且 QTI 前端每次开 PCM 都会重置为 0，必须在流打开期间再设。
+  `lmi-audio-route` 已修。
+- **听筒出声（2026-09-18，硬件实测）**：新增 payload `usr/sbin/lmi-earpiece-route`
+  （`RX_CDC_DMA_RX_0` + `RX_MACRO RX0 MUX=AIF1_PB` + `EAR_*`），可作为后端可用输出。
 - **播放无声的真正原因（2026-09-17）：AFE 端口启动因缺 ACDB 标定而失败**。
   `techpack/audio/dsp/q6afe.c: afe_send_port_topology_id()` 在没有 ACDB 标定
   （Linux 无 `libacdbloader`）时返回 `-EINVAL` → `__afe_port_start()` 直接失败
@@ -45,6 +59,14 @@
   修复：`tools/m1/kernel-cmdline-m1b.txt` 加 **`deferred_probe_timeout=300`**
   （0/负数＝永不超时）。**下一轮**：用带新 cmdline 的镜像 `fastboot boot`（零写入）复验
   `/proc/asound/cards` 与 `aplay`/`arecord`。证据见 `docs/bluetooth-assessment.md` §6c.6。
+
+### Known issues
+- **扬声器（`PRI_MI2S_RX` -> TFA9874）无声（2026-09-18）**：AFE 端口启动、DMA 按实时消费、
+  `tfa_dev_start success`，但**没有任何声学输出**（用手机自身麦克风边放边录做 Goertzel 验证：
+  扬声器 `1kHz=0.0`）。听筒走同一套 ADM/ASD 能出声，故 DSP 侧没问题；S16/S24/S32、
+  `TFA987X_ALGO_STATUS/TX_ENABLE`、`PRI_MI2S_RX_VI_FB_MUX`、`TFA Stop` 翻转都试过。
+  故障在 MI2S↔TFA9874 这一段（I2S 格式/主从、`reset-gpio`/`smartpa_enable`(tlmm 114/100)
+  引脚状态、SD 线序）。详见 `docs/bluetooth-assessment.md` §6c.9。
 
 ### Changed
 - **P3 音频第二轮（2026-09-17，实机）：apps 侧 locator 已打通，卡在 SWR pinctrl（-110）**：

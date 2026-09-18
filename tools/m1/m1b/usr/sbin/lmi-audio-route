@@ -6,15 +6,19 @@
 # The kernel side is complete (see docs/bluetooth-assessment.md 6c): the sound
 # card comes up as `kona-mtp-snd-card`, but the front-end PCMs (MultiMedia*)
 # do not carry data until the back-end routing is switched on.  On Android the
-# audio HAL does this; here we do the playback route explicitly:
+# audio HAL does this; here we replay the exact routes from the lmi vendor
+# mixer paths (`/vendor/etc/mixer_paths_overlay_static.xml`):
 #
-#   MultiMedia1  ->  PRI_MI2S_RX     (the primary MI2S, where the TFA9874
-#                                     speaker amplifier sits)
+#   playback:  MultiMedia1 -> PRI_MI2S_RX   (primary MI2S -> TFA9874 speaker)
+#   capture:   MultiMedia1 <- TX_CDC_DMA_TX_3 <- DEC0(ADC0)+DEC1(ADC3)
 #
-# With that route a plain `aplay` plays through the speaker (verified: the
-# TFA9874 amp starts, tfa_dev_start success).  Capture needs the ACDB
-# calibration, which has no Linux loader yet (see 6c.8/6c.9), so we only set
-# the playback route here.
+# Two details make or break the speaker on lmi:
+#   * the primary MI2S must run in S24_LE (the vendor `speaker` path overrides
+#     the S16_LE default; with S16 the TFA9874 stays silent), and
+#   * the front-end PCM volume ("Playback 0 Volume") defaults to 0 (=silence).
+#
+# Capture (microphone) is handled by lmi-mic-route, which this script calls
+# unless LMI_AUDIO_SKIP_MIC is set.
 #
 # Notes:
 #   * `amixer sget/scontrols` fails on this card ("Mixer ... load error"), so
@@ -23,6 +27,20 @@
 set -u
 
 CARD=0
+
+# The sound card only appears once the ADSP, the services locator and
+# pd-mapper are up (~60-120 s into the boot), which is after OpenRC starts this
+# service.  Wait for it instead of failing the service.
+i=0
+while [ "$i" -lt 60 ]; do
+	grep -q konamtpsndcard /proc/asound/cards 2>/dev/null && break
+	i=$((i + 1))
+	sleep 5
+done
+if ! grep -q konamtpsndcard /proc/asound/cards 2>/dev/null; then
+	echo "lmi-audio-route: sound card did not appear (waited $((i * 5))s)" >&2
+	exit 1
+fi
 
 nid() {
 	amixer -c "$CARD" controls 2>/dev/null | grep -F "$1" | head -1 |
@@ -42,6 +60,11 @@ set_ctrl() { # $1 = control name, $2 = value
 	return 0
 }
 
+# The TFA9874 takes 24-bit I2S on the primary MI2S (vendor `speaker` path).
+set_ctrl "PRIM_MI2S_RX Format" "S24_LE" || true
+set_ctrl "PRIM_MI2S_RX Channels" "Two" || true
+set_ctrl "PRIM_MI2S_RX SampleRate" "KHZ_48" || true
+
 # Route MultiMedia1 playback to the primary MI2S (speaker over TFA9874).
 set_ctrl "PRI_MI2S_RX Audio Mixer MultiMedia1" "on,on" || exit 1
 
@@ -49,12 +72,20 @@ set_ctrl "PRI_MI2S_RX Audio Mixer MultiMedia1" "on,on" || exit 1
 # (=silence) after boot, so set an audible level.  It is the only runtime volume
 # for the speaker path: the TFA9874's own gain lives in its tuning container and
 # is not exposed as a mixer control.
+# NOTE: the control is a plain INTEGER (0..8192, dB-linear) and has no switch,
+# so it must be set with a bare value -- a trailing `unmute` makes amixer reject
+# the whole command and the volume silently stays 0.  The QTI front end also
+# resets it to 0 whenever a PCM is opened, so a stream started later must have
+# it re-applied while it is open (see docs/bluetooth-assessment.md 6c.9).
 VOL=${LMI_AUDIO_VOLUME:-90}
 V=$(nid "Playback 0 Volume")
 if [ -n "$V" ]; then
-	amixer -c "$CARD" cset numid="$V" "${VOL}%" unmute >/dev/null 2>&1 ||
-		amixer -c "$CARD" cset numid="$V" "$((8192 * VOL / 100))" unmute >/dev/null 2>&1
+	amixer -c "$CARD" cset numid="$V" "$((8192 * VOL / 100))" >/dev/null 2>&1
 fi
 
-echo "lmi-audio-route: playback route set (MultiMedia1 -> PRI_MI2S_RX), volume ${VOL}%"
+echo "lmi-audio-route: playback route set (MultiMedia1 -> PRI_MI2S_RX, S24_LE), volume ${VOL}%"
+
+if [ -z "${LMI_AUDIO_SKIP_MIC:-}" ] && [ -x /usr/sbin/lmi-mic-route ]; then
+	/usr/sbin/lmi-mic-route || echo "lmi-audio-route: lmi-mic-route failed" >&2
+fi
 exit 0

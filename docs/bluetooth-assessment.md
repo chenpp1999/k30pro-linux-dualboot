@@ -386,6 +386,61 @@ FE PCM 只是前端，**必须先用混音器把路由配好**（Android 的 aud
 通路），或先写个把必需 mixer 控件设好的脚本 —— 之后再 `aplay` 出声、`arecord` 录 5s
 验证麦克风。
 
+### 6c.9 P3 第五轮（2026-09-18）：麦克风打通；扬声器（TFA9874）仍无声
+
+本轮全部在 **RAM 引导**（`fastboot boot`，零写入）上用自建内核实测。
+
+**1. 上一轮"录音要 ACDB 标定"的结论是错的。** TX 的真正阻塞有两个：
+
+- ADSP 对 `AFE_PARAM_ID_CODEC_DMA_CONFIG` 有硬校验：**`popcount(active_channels_mask)`
+  必须等于 `num_channels`**（`apr_audio-v2.h` 的注释原文）。TX 宏经 SoundWire 报上来的
+  mask（如 `0x7`）与 DPCM 前端传来的 `num_channels`（如 2）不一致 → ADSP 回
+  `ADSP_EBADPARAM`(-22)，AFE 端口起不来。修复：新增
+  `tools/kernel/patches/lmi-cdc-dma-channel-mask.patch`
+  （`num_channels = hweight16(mask)`，mask 已知时）。
+- 采集路由要照 lmi 厂商 overlay（`/vendor/etc/mixer_paths_overlay_static.xml` 的
+  `handset-mic`）：`TX DEC0 MUX=SWR_MIC`、`TX SMIC MUX0=ADC0`、`TX DEC1 MUX=SWR_MIC`、
+  `TX SMIC MUX1=ADC3`、`TX_AIF1_CAP Mixer DEC0/DEC1=1`、`ADC1/ADC4_MIXER Switch=1`、
+  `TX_CDC_DMA_TX_3 Channels=Two`、`MultiMedia1 Mixer TX_CDC_DMA_TX_3 on`。
+  **主麦是 AMIC（WCD938x，SWR_MIC），不是 DMIC** —— 通用 `mixer_paths.xml` 的 `dmic2`
+  被 lmi 专用 overlay 覆盖，按它配会完全采不到数据。payload：`usr/sbin/lmi-mic-route`。
+  实测 `arecord -c 2 -d 20` 得到完整 20 s 立体声（peak≈1421，真实信号），
+  `set_chan_map … mask 0x7 / prepare ch 3`，无任何 ADSP 错误。
+
+**2. 前端音量 `Playback 0 Volume`（numid 4221）的坑**：`type=INTEGER, 0..8192`、dB-linear、
+**没有 switch**。`amixer cset numid=X 90% unmute` 里多出来的 `unmute` 会让整条命令**静默失败**
+（旧脚本一直如此 → 音量恒为 0 = 静音）；且 QTI 前端**每次打开 PCM 都会把它重置为 0**，
+所以必须在流打开期间再设一次。`lmi-audio-route` 已按此修好。
+
+**3. 主 MI2S 必须 S24_LE**：厂商 `speaker` path 把默认的 S16_LE 覆盖成 S24_LE
+（`PRIM_MI2S_RX Format=S24_LE`）。
+
+**4. 听筒路径可用（硬件实测）**：`RX_EAR Mode=ON`、`RX_MACRO RX0 MUX=AIF1_PB`、
+`RX_CDC_DMA_RX_0 Channels=One`、`RX INT0_1 MIX1 INP0=RX0`、`RX INT0 DEM MUX=CLSH_DSM_OUT`、
+`EAR_RDAC Switch=1`、`RDAC3_MUX=RX1`、`EAR PA Gain=G_6_DB`、
+`RX_CDC_DMA_RX_0 Audio Mixer MultiMedia1 on`（payload：`usr/sbin/lmi-earpiece-route`）。
+
+**仍未解决：扬声器 `PRI_MI2S_RX -> TFA9874` 无声。** 已排除：
+
+- 数据/时钟：同一段 20 s 音频 `aplay` 恰好 20 s 放完（FE DMA 按实时消费）→ AFE 端口
+  `crus_afe_port_start: 0x1000` 真的在跑；`tfa_dev_start success (0)`、调音容器已加载。
+- DSP/ADM 链路：**听筒（同一套 ADM/ASD）能出声** → DSP 侧没问题。
+- TFA 侧所有能试的都试了：S16/S24/S32、Channels、`TFA987X_ALGO_STATUS/TX_ENABLE`、
+  `PRI_MI2S_RX_VI_FB_MUX=PRI_MI2S_TX`、`TFA Stop` 翻转 —— 声学自环始终 0。
+- 结论：故障在 **MI2S ↔ TFA9874 这一段**（I2S 格式/主从、`reset-gpio`/`smartpa_enable`
+  （tlmm 114/100）的引脚状态、SD 线序）。下一步：核对 `lmi-audio-overlay.dtsi` 的
+  `&dai_mi2s0`（`qcom,msm-mi2s-rx-lines = <1>`）与 `pri_mi2s_sd*_active` 的实际 pinctrl
+  状态，以及在 Android 下对比该功放的寄存器/状态。
+
+**客观听音验证法（不靠人耳）**：用手机自己的麦克风边放边录（`/root/phone-loop.sh`），
+对 1 kHz 做 Goertzel：听筒 `1kHz≈23`、扬声器 `1kHz=0.0`。PC 麦克风不可靠
+（默认输入/输出常是虚拟设备，阳性对照都测不出）。
+
+**工具（重要，别再踩）**：`fastboot` 传输中途被打断会把手机卡在"数据阶段"——所有
+`fastboot` 命令超时。用 pyusb 直接发 fastboot 协议救回：补发整镜像把数据阶段走完
+（设备回 `OKAY`），再 `download:<hex 大小>` → 数据 → `boot` 正常 RAM 引导
+（`%TEMP%\opencode\m5\g2\fb-client.py`）。`boot` 的数据只进内存，不写分区。
+
 ## 7. 参考
 
 - 内核来源与配置：`jian45154/redmi-k30-pro-postmarketos` →

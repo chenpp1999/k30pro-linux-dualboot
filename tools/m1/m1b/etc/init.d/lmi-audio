@@ -1,7 +1,8 @@
 #!/sbin/openrc-run
 # SPDX-License-Identifier: MIT
-# Apply the audio mixer routing (playback) once the rootfs is up.
-# See tools/m1/m1b/usr/sbin/lmi-audio-route and docs/bluetooth-assessment.md 6c.
+# Apply the audio mixer routing (playback + capture) once the rootfs is up.
+# See tools/m1/m1b/usr/sbin/lmi-audio-route (which also runs lmi-mic-route)
+# and docs/bluetooth-assessment.md 6c.
 name="lmi-audio"
 description="Apply the ALSA mixer routing for audio (downstream QTI stack)"
 
