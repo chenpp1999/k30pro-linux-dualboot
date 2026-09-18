@@ -472,7 +472,30 @@ FE PCM 只是前端，**必须先用混音器把路由配好**（Android 的 aud
   没有"同步极性/时隙"之类的控件被 Android 设置而我们漏设（`PRIM_MI2S_RX
   Channels/Format/SampleRate`、`PRI_MI2S_RX Audio Mixer MultiMedia1`、
   `PRI_MI2S_RX_VI_FB_MUX=ZERO` 等都对上了）。
-- 剩余唯一没做的对照：**Android 播放时功放的实时寄存器**（两边驱动/容器/TDM 字段
+- **可直接 i2c 读写功放了（2026-09-18 续）**：Linux 侧 `/dev/i2c-1` 存在，但
+  `ioctl(I2C_SLAVE)` 会 `EBUSY`（驱动已占用 0x34）→ 必须用 **`I2C_SLAVE_FORCE = 0x0706`**。
+  寄存器为 **8 位地址 + 16 位大端值**（`0x00=0x0018` 即 `AMPE=1`）。工具：
+  `/root/tfa-i2c.py`（本机 temp 目录也有副本）。实测写回生效（0x20 0x2890→0x2090 可读回）。
+- **TDM 字段全量翻转实验（自动台架）**：单条 90 s 播放 + 连续录音，在固定时间点改
+  `TDMCLINV`、`TDMMODE`、`TDMNBCK`、`TDMSLLN`（`0x20`/`0x21`），按时间窗对比手机自环
+  1 kHz 能量 → **全部为 0**。加上之前的 `TDMFSPOL` 翻转，**功放的 TDM 配置不是根因**
+  （至少单字段不是）。
+- 剩余最可疑且未验证：**功放的"扬声器保护/boost" profile 需要 VI 反馈回采**——
+  Android 的 HAL 会跑 `TFA_TX_HOSTLESS`（kona.c:6549 有该 BE link，lmi overlay 的
+  `spkr-vi-record` 把 `PRI_MI2S_RX_VI_FB_MUX` 指向 `PRI_MI2S_TX`），而 Linux 侧从来没起过
+  这条 hostless 流。下一步：从用户态起 TFA TX hostless（`msm-pcm-hostless`）后重测自环，
+  这很可能是"功放已使能、时钟锁定、未静音但无声"的最后一块。
+- **VI / hostless 实验（2026-09-18 续）**：TFA TX hostless 是 dynamic PCM **`hw:0,43`**
+  （kona.c 注释 "hw:x,43"，`.platform_name="msm-pcm-hostless"`）。`arecord -D hw:0,43`
+  能起来（DAPM `Primary MI2S_TX Hostless Capture: On in 6 out 1`），同时设
+  `PRI_MI2S_RX_VI_FB_MUX=PRI_MI2S_TX` + TFA `ALGO/TX=ENABLE`：
+  **自环 1 kHz 仍为 0.0** → 扬声器保护/VI 回采也**不是**根因。
+- 至此 Linux 侧能测的都已排除：DTB、控件、驱动/容器、全部 TDM 字段、VI/hostless、
+  引脚复用、DAPM 上电、AFE 端口/DMA。**唯一还没做的是 Android 侧实时寄存器对照**
+  （需要在 Android 内跑一个静态 aarch64 的 i2c 小程序；Android 的 debugfs 被禁，
+  而 Linux rootfs 无编译器/外网，需在 WSL 用 clang 静态编译后 push 过去跑）。
+
+- （历史）剩余唯一没做的对照：**Android 播放时功放的实时寄存器**（两边驱动/容器/TDM 字段
   理论上一致，但需要有工具在 Android 内读 i2c 0x34——Android 的 debugfs 被禁，
   可写一个静态 aarch64 小程序经 `/dev/i2c-*` 读，Magisk root 可跑）。
 
