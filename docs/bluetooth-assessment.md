@@ -463,6 +463,19 @@ FE PCM 只是前端，**必须先用混音器把路由配好**（Android 的 aud
   拷出）与我们部署的 `dtb` 反编译对比 `dai_mi2s0`/machine-driver 的 MI2S 相关属性，
   差异处极可能就是根因（我们的 `dtb` 来自 M1b 自建，需确认包含 lmi-audio-overlay 的
   MI2S 设置）。
+- **DTB 对比（2026-09-18 续）**：用 root 从 Android 导出运行时 FDT
+  （`/sys/firmware/fdt`，940 KB）与我们部署的 `dtb` 各 `dtc -I dtb -O dts` 后，
+  对 `mi2s`/`tdm`/`i2s` 三类行做集合差：**Android 侧没有任何我们缺失的行**，差异只有
+  我们多出的一些**未使用的 LPI pinctrl 组**（`quat_mi2s_*`、`lpi_tdm1/2_*`、`lpi_i2s1/2_*`）。
+  → 主 MI2S 的 DT 配置、`dai_mi2s0` 属性、pinctrl 节点两边一致，**DTB 不是原因**。
+- **控件表复查**：把所有含 `MI2S/TDM/SYNC/SLOT/POLAR/INV/BCLK` 的控件列了一遍，
+  没有"同步极性/时隙"之类的控件被 Android 设置而我们漏设（`PRIM_MI2S_RX
+  Channels/Format/SampleRate`、`PRI_MI2S_RX Audio Mixer MultiMedia1`、
+  `PRI_MI2S_RX_VI_FB_MUX=ZERO` 等都对上了）。
+- 剩余唯一没做的对照：**Android 播放时功放的实时寄存器**（两边驱动/容器/TDM 字段
+  理论上一致，但需要有工具在 Android 内读 i2c 0x34——Android 的 debugfs 被禁，
+  可写一个静态 aarch64 小程序经 `/dev/i2c-*` 读，Magisk root 可跑）。
+
 - 容器与 Android 同一文件（`/vendor/firmware/tfa98xx.cnt`，
   sha256 `07abfca1…`，全设备只有这一个），所以不是"装错调音"。
   但 **Android 侧 debugfs 被禁**（`/sys/kernel/debug` 连 root 都建不出来），
