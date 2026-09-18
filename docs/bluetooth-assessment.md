@@ -446,7 +446,24 @@ FE PCM 只是前端，**必须先用混音器把路由配好**（Android 的 aud
   `IPOTDMER=1`），且功放处于 TDM 配置（`TDME=1`、`TDMSLOTS=1`、`TDMSLLN=31`、
   `TDMNBCK=2`、`TDMFSPOL=1`）→ 数据链路电平/时钟都在，**问题指向 I2S/TDM 帧格式不匹配**
   （功放按容器里的 TDM 时隙/极性解析，SoC 侧 MI2S 的帧格式与之不符 → 接收错误 → 静音）。
-- Android 对照：**容器就是同一个文件**（`/vendor/firmware/tfa98xx.cnt`，
+- **驱动归属（重要，别改错文件）**：实际编译进内核的是
+  `techpack/audio/asoc/codecs/tfa98xx/`（不是旁边的 `tfa9874/` 副本——后者含
+  `pcm_sample_format=3`(动态 TDM) 等参数，但没有被编译）。编译版**从不写 TDM 寄存器**
+  （`grep TDMMODE/TDMFSPOL/TDMSLLN/TDMNBCK/TDMCLINV` 无命中）→ **功放的 TDM 配置全部
+  来自容器**，与 Android 完全一致。它对 Xiaomi HAL 暴露 5 个 misc 设备
+  （reg/rw/rpc/profile/ioctl），ioctl 只有 MEMTRACK/CNT_VERSION 这类信息查询，**不能改
+  TDM/采样格式**。
+- Android 对照：`/sys/module/tfa98xx_dlkm/parameters/`：`fw_name=tfa98xx.cnt`、
+  `no_start=0`、`no_reset=0`、`dflt_prof_name=`（空）→ 与 Linux 侧完全同参；且
+  **Android 的 TFA 是模块**（`tfa98xx_dlkm`），我们的内核是内建，驱动源码同一份。
+- 由此推出：功放侧（驱动/容器/TDM 配置）与 Android **没有差异**，剩下的只能是
+  **SoC 的 MI2S 帧格式**（极性/时隙/BCLK 数）与容器里那套 TDM 期望不一致
+  （`TDMFSPOL=1`、`TDMNBCK=2`、`TDMSLLN=31`、`TDMFSPOL/TDMMODE=0(slave)`）。
+  下一步建议按此**逐字段对齐**：优先用 **Android 的 DTB**（`/sys/firmware/fdt`，root 可
+  拷出）与我们部署的 `dtb` 反编译对比 `dai_mi2s0`/machine-driver 的 MI2S 相关属性，
+  差异处极可能就是根因（我们的 `dtb` 来自 M1b 自建，需确认包含 lmi-audio-overlay 的
+  MI2S 设置）。
+- 容器与 Android 同一文件（`/vendor/firmware/tfa98xx.cnt`，
   sha256 `07abfca1…`，全设备只有这一个），所以不是"装错调音"。
   但 **Android 侧 debugfs 被禁**（`/sys/kernel/debug` 连 root 都建不出来），
   无法直接 dump Android 下的功放寄存器做对照。下一步替代方案：
