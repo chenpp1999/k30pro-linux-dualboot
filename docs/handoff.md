@@ -18,7 +18,7 @@
 | 桌面/终端体验 | ✅ 指纹拖动滚动、键盘避让、单窗口、`lmi-help`、WiFi 看门狗 | `docs/usage.md` |
 | M4 | ✅ v1.0 已发布（tag `v1.0.0`） | `docs/release-v1.0.0.md`、`docs/reproduce.md` |
 | M5 | 🚧 一键安装：PC 一键已实现，离线模拟全绿，**真机端到端待验证** | `docs/install-guide.md`、`docs/installer-design.md`、`tools/tests/m5-*.sh` |
-| 外设 bring-up（P0–P3） | 🚧 手电筒 ✅（overlay v17）；蓝牙 ❌ 已证伪；**音频：麦克风 ✅、听筒 ✅、开机自动出声卡 ✅；扬声器 ❌ 仍无声** | `docs/{peripheral-bringup-plan,bluetooth-assessment,firmware-inventory}.md`、`tools/{p3,kernel}/` |
+| 外设 bring-up（P0–P3） | 🚧 手电筒 ✅（overlay v17）；蓝牙 ❌ 已证伪；**音频：麦克风 ✅、听筒 ✅、开机自动出声卡 ✅；扬声器 ❌ 硬件故障（两端都哑，待维修）** | `docs/{peripheral-bringup-plan,bluetooth-assessment,firmware-inventory}.md`、`tools/{p3,kernel}/` |
 
 ## 二、设备当前状态（2026-09-18，实测）
 
@@ -41,11 +41,11 @@
     `lmi-adsp` 顺序改为 `after … lmi-qrtr-ns pd-mapper rmtfs tqftpserv`，并全部 enable
     到 default runlevel。**冷启动无需手工干预**即可出卡（设备 rootfs 已生效，overlay
     版本将随下一次镜像构建升到 v20）。
-  - **扬声器（PRI_MI2S_RX → TFA9874）仍无声**：Android 侧实时寄存器对照已完成
-    （`tools/p3/tfa-regs-android.c`，见 `docs/bluetooth-assessment.md` §6c.10）——
-    两边 TFA 配置**逐字段一致**，Linux 按 Android HAL 原样复刻（FE MultiMedia5、
-    S24_3LE、`Playback 9 Volume`）仍无声。**待办：让人耳确认 Android 扬声器是否
-    真的有声**（当前录音证据反而显示 Android 出无声；这决定下一步方向）。
+  - **扬声器（PRI_MI2S_RX → TFA9874）：硬件故障（2026-09-18 第七轮，§6c.11）**。
+    Android 侧寄存器对照显示两边配置逐字段一致（§6c.10）；人耳实测 Android 同样只有
+    听筒有声（音量满、无蓝牙）；TFA9874 内置正弦测试发生器（绕过 SoC/MI2S）在播放中
+    注入亦无声 → 功放输出级/喇叭硬件问题。**待办：硬件维修（换底部扬声器模块）**；
+    换好后 Linux 侧已就绪，无需改软件。
 - **P3 在 rootfs 里留下了持久状态**（都在 `/dev/sda35` 上，重启不丢）：
   - **ADSP 固件已在 `/lib/firmware/`**（`adsp.mdt` + `adsp.b00…b18` + `adspr.jsn` +
     `adspua.jsn`，22 文件 20,356,050 B，sha256 见
@@ -352,14 +352,11 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
      `pd-mapper` 的 SERVREG_LOC 不可见 → `servloc` 不初始化 → 无 `q6core`/`sound`）。
      修复已入仓并入 rootfs：payload `etc/init.d/lmi-qrtr-ns`、覆盖 `etc/init.d/rmtfs`
      （去 `-s`）、`lmi-adsp` 顺序、`m1b-init.sh` 启动项；overlay 版本 v20。
-   - ❌ **扬声器仍无声**。Android 侧寄存器对照已完成
-     （`tools/p3/tfa-regs-android.c`；`docs/bluetooth-assessment.md` §6c.10）：
-     **TFA9874 配置两边逐字段一致**，Android HAL 路由（FE MultiMedia5 + S24_3LE +
-     `Playback 9 Volume`）在 Linux 原样复刻仍无声（听筒对照 17.5）。
-     **下一步（首选）**：让人耳确认 **Android 扬声器是否真的有声**——
-     - 若有声：差异只可能在 HAL/ADSP 标定（Linux 无 ACDB / HAL 经 `ADSP Stream Cmd`
-       下发的运行参数），沿 `q6afe.c`/`adm` 标定链继续；
-     - 若也无声：按"两端共有的 TFA/MI2S 数据链路或硬件"方向查（TDM 帧、功放输出级）。
+   - ❌ **扬声器：判定为硬件故障（2026-09-18 第七轮，见 §6c.11）**。人耳实测
+     Android 同样只有听筒有声（音量满、无蓝牙）；用 TFA9874 内置正弦测试发生器
+     （绕过 SoC/MI2S）在播放中注入也无声 → 功放输出级/喇叭硬件问题，与两个 OS 的
+     软件无关。**待办**：硬件维修（换底部扬声器模块）；换好后 Linux 侧已就绪，无需
+     改软件。可能与此前满幅长音/播放中翻转 TDM 寄存器的实验有关（无法证实）。
    - 蓝牙**已证伪，别再碰**（§6b）。完整证据链见 `docs/bluetooth-assessment.md` §6c.9/§6c.10；
      工具 `tools/p3/`、`tools/kernel/`。
    - **部署已完成（2026-09-18）**：`boot-m1b-v24.img`（v19：麦克风+听筒内核）已 dd 到
