@@ -24,9 +24,12 @@
 
 - **运行中**：手机**当前在 Linux**（2026-09-18 P3 第六轮会话末：RAM 引导
   `%TEMP%\opencode\m5\g2\boot-m1b-v24.img`（v19），USB-NCM `172.16.42.1` 可 SSH，声卡在线）。
-  期间为做 Android 寄存器对照曾切到 Android 一次再回来；**v24 未刷入**，
-  `recovery` 仍是 **`boot-m1b-v23.img`**（sha256 `c01efe45…`，**overlay `m1b-ux-v16`**，
-  回读校验通过）；rootfs 在 **`/dev/sda35`（`lnx`）**。引导账本见 §六 第 11/17/18 条。
+  期间为做 Android 寄存器对照曾切到 Android 一次再回来。
+  **v24 已于 2026-09-18 部署**：`dd` 到 `/dev/sda28`（recovery，镜像 sha256
+  `6816dd0b…`，写后回读逐字节一致）；回滚文件 `boot-m1b-v23.img`（sha256 `c01efe45…`）
+  保留在设备 `/root/m1b-rebuild/`；**`boot` 分区（`/dev/sde50`）sha256
+  `8d441fc5…` 写前写后一致**。rootfs 在 **`/dev/sda35`（`lnx`）**，overlay 版本
+  `m1b-ux-v19`（已应用；下一次由 v20 镜像再升）。引导账本见 §六 第 11/17/18 条。
 - **音频（P3，2026-09-18 第六轮）**：
   - **麦克风 ✅**（内核补丁 `lmi-cdc-dma-channel-mask.patch` + payload
     `lmi-mic-route`；`arecord -c 2 -d 20` 有真实信号）；
@@ -63,8 +66,9 @@
 - **凭据已轮换**（2026-09-15 的隐私事件后）：root 口令与部署镜像里的 initramfs 救援口令都换过，
   存在设备 `/root/lmi-root-password.txt`(600) 与电脑侧 `%TEMP%\opencode\lmi-*-password.txt`；
   **仓库/发布物里没有任何口令或哈希**。
-- **镜像**：`/root/m1b-rebuild/boot-m1b-v23.img`（当前部署，overlay v16；上一版 v21/v22
-  与源镜像 `/root/m1b-rebuild/source.img` 仍在同目录）。回滚点也可走方式 A RAM 引导 / TWRP；
+- **镜像**：`/root/m1b-rebuild/boot-m1b-v24.img`（**当前部署**的 RAM 镜像副本，sha256
+  `6816dd0b…`，overlay v19；v23 回滚文件与更早的 v21/v22、源镜像
+  `/root/m1b-rebuild/source.img` 仍在同目录）。回滚点也可走方式 A RAM 引导 / TWRP；
   `super` 内的旧 rootfs 区仍完整保留（终极回滚）。
 - **Android 侧**：Magisk 模块 `lmi-dualboot-switch` v0.2 已激活；`/data` = 91 GiB；
   `/dev/block/by-name/lnx → /dev/block/sda35`。
@@ -74,7 +78,7 @@
 
 | 分区 | Android 名 | Linux 名 | 内容 |
 |---|---|---|---|
-| GPT 12 | `recovery` | `/dev/sda28` | **Linux 引导镜像**（当前 `boot-m1b-v23.img`，overlay v16；M2 双向切换的落点） |
+| GPT 12 | `recovery` | `/dev/sda28` | **Linux 引导镜像**（当前 `boot-m1b-v24.img`，overlay v19；M2 双向切换的落点） |
 | GPT 16 | `super` | `/dev/sda32` | Android 动态分区；**内部旧 rootfs 区（偏移 4K 单元 1,596,852）仍完整保留**（回滚用，未回收） |
 | GPT 18 | `userdata` | `/dev/sda34` | 91 GiB（M3 由 107 GiB 缩容，PARTUUID 保留） |
 | GPT 19 | `lnx` | `/dev/sda35` | **16 GiB，当前 rootfs 所在**（ext4，PARTUUID `91B8F669-…` 之外的独立新条目） |
@@ -358,8 +362,9 @@ Magisk 模块 `lmi-dualboot-switch` **v0.3**（`packages/magisk-module/`）：�
      - 若也无声：按"两端共有的 TFA/MI2S 数据链路或硬件"方向查（TDM 帧、功放输出级）。
    - 蓝牙**已证伪，别再碰**（§6b）。完整证据链见 `docs/bluetooth-assessment.md` §6c.9/§6c.10；
      工具 `tools/p3/`、`tools/kernel/`。
-   - **部署待办**：用户确认后把 `%TEMP%\opencode\m5\g2\boot-m1b-v24.img`（v19：麦克风+
-     听筒）dd 到 `/dev/sda28`（保留 v23 回滚，`boot` 分区 sha256 绝不能变）。
+   - **部署已完成（2026-09-18）**：`boot-m1b-v24.img`（v19：麦克风+听筒内核）已 dd 到
+     `/dev/sda28` 并回读校验（镜像 sha256 `6816dd0b…`）；`boot` 分区 sha256 未变；
+     v23 回滚文件在设备上。下次 Linux 启动即走部署镜像 + 已修好的 rootfs（声卡链路）。
 7. **把本会话在仓库里、但尚未进设备的修复做成持久化镜像（overlay v17→v18）**：
    `lmi-torch`、`m1-weston`（seatd 自愈）在 repo 里但**没进镜像**；注意
    `build-initramfs.sh` 的 `/bin/sh` 软链修复**只对"从零构建 initramfs"生效**，
